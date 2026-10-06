@@ -77,58 +77,32 @@ Rules:
 
 ## 5. Data contract (what F1GStats must provide)
 
-The canonical version lives in the F1GStats repo at `docs/DATA_CONTRACT.md` (the producer owns the schema). This section mirrors it; update both when it changes.
+The canonical version, including exact DDL, lives in the F1GStats repo at `docs/DATA_CONTRACT.md` (the producer owns the schema). This section is a summary; if they differ, the F1GStats file wins.
 
 Existing tables stay unchanged: `meta`, `sessions`, `driver_standings`, `constructor_standings`, `starting_grid`.
 
-New tables:
-
-```sql
-CREATE TABLE schedule_full (
-  season INTEGER, round INTEGER, race_name TEXT,
-  has_sprint INTEGER,            -- 0/1
-  race_start_utc TEXT, sprint_start_utc TEXT,
-  status TEXT,                   -- scheduled | completed | cancelled
-  PRIMARY KEY (season, round)
-);
-
-CREATE TABLE race_results (
-  season INTEGER, round INTEGER,
-  session TEXT,                  -- Race | Sprint
-  driver_abbr TEXT, driver_name TEXT, team_name TEXT, constructor_id TEXT,
-  grid INTEGER, position INTEGER, position_text TEXT,
-  points REAL, status TEXT, is_classified INTEGER,
-  PRIMARY KEY (season, round, session, driver_abbr)
-);
-
-CREATE TABLE data_health (
-  season INTEGER, checked_at TEXT,
-  status TEXT,                   -- ok | warn | fail
-  details_json TEXT
-);
-```
-
-Optional, only for countback level iv (rarely reached):
-
-```sql
-CREATE TABLE qualifying_results (
-  season INTEGER, round INTEGER, driver_abbr TEXT, position INTEGER,
-  PRIMARY KEY (season, round, driver_abbr)
-);
-```
+New tables, all keyed by `season`:
+- `schedule_full(season, round, race_name, has_sprint, race_start_utc, sprint_start_utc, status)`: `status` is `completed` or `scheduled` (time-based).
+- `race_results(season, round, session, driver_abbr, driver_name, team_name, constructor_id, grid, position, position_text, points, status, is_classified)`: `session` is `Race` or `Sprint`.
+- `data_health(id, season, checked_at, status, details_json)`: one row per run.
+- `qualifying_results(season, round, driver_abbr, position)`: optional, only for countback level iv.
 
 F1GStats changes: keep the full schedule (not only previous/now/next) in `schedule_full`; store per-round results instead of aggregating; add sprint results; replace the season's `schedule_full` and `race_results` rows inside the write transaction (one API call returns the whole season, so this also picks up post-race corrections); write all tables in one SQLite transaction after validation; set `meta.schema_version = 2`.
 
 ## 6. Data validation (F1GStats phase, gate before writing)
 
-| Check | Fail/Warn |
-|---|---|
-| Sum of driver points = sum of constructor points | warn (can differ if a team is excluded) |
-| Per race: total points ∈ {101, 79, 52, 16, 0}; per sprint: 36 or 0 | warn (can be lower if fewer than 10 drivers are classified; dead heats are shared) |
-| Standings after round N = standings after round N−1 + results of round N | fail |
-| Completed rounds in results = completed rounds in schedule | fail |
-| Driver abbreviation is 3 letters, no empty team or position | fail |
-| Row counts per session are plausible versus the entry list | warn |
+Same checks as the contract (V1 to V6):
+
+| ID | Check | On failure |
+|---|---|---|
+| V1 | Sum of driver points = sum of constructor points | warn |
+| V2 | Each completed GP total ∈ {101, 79, 52, 16, 0}; each sprint total ∈ {36, 0} | warn |
+| V3 | For every driver: sum of `race_results.points` (Race + Sprint) = `driver_standings.points` | fail |
+| V4 | Rounds that have Race results = rounds in `schedule_full` with `status = completed` | fail |
+| V5 | `driver_abbr` matches `^[A-Z]{3}$`; `team_name` non-empty; `position` not null | fail |
+| V6 | Rows per Race round = number of drivers in standings (±2) | warn |
+
+V2 can legitimately be lower than 101 when fewer than 10 drivers are classified. V3 and V4 fail right after a race while the API has not published results yet; that is expected and the old data stays.
 
 Behavior: on **fail**, do not touch the data tables (the last valid data stays), record `data_health.status = fail`, and exit with code 2. To the Flag shows "Data check failed. Showing last valid data from Round N." On **warn**, write the data and show a small warning.
 
