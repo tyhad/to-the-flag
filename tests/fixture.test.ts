@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sessionMaxPoints, teamSessionMaxPoints } from "../engine/points";
+import { computeConstructorStandings, computeDriverStandings } from "../engine/standings";
 import { activeDrivers, parseSessionKey, remainingSessions } from "../engine/sessions";
 import type { SeasonState } from "../engine/types";
 
@@ -60,5 +61,20 @@ describe.skipIf(!existsSync(FIXTURE))("real fixture season-2026-r16", () => {
   test("max points still available: driver 183, team 316", () => {
     expect(remaining().reduce((a, s) => a + sessionMaxPoints(s.kind), 0)).toBe(183);
     expect(remaining().reduce((a, s) => a + teamSessionMaxPoints(s.kind), 0)).toBe(316);
+  });
+
+  test("base driver table: 23 rows, ranks 1..23, points sum to 1796, no deltas", () => {
+    const rows = computeDriverStandings(load());
+    expect(rows).toHaveLength(23);
+    expect(rows.map((r) => r.rank)).toEqual(Array.from({ length: 23 }, (_, i) => i + 1));
+    expect(rows.reduce((a, r) => a + r.points, 0)).toBe(1796);
+    expect(rows.every((r) => r.delta === 0 && r.baseRank === r.rank)).toBe(true);
+    for (let i = 1; i < rows.length; i++) expect(rows[i - 1]!.points).toBeGreaterThanOrEqual(rows[i]!.points);
+  });
+
+  test("base constructor table: 11 rows, points sum to 1796", () => {
+    const rows = computeConstructorStandings(load());
+    expect(rows).toHaveLength(11);
+    expect(rows.reduce((a, r) => a + r.points, 0)).toBe(1796);
   });
 });
