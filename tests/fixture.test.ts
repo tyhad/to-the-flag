@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sessionMaxPoints, teamSessionMaxPoints } from "../engine/points";
 import { computeConstructorStandings, computeDriverStandings } from "../engine/standings";
+import { driverStatus } from "../engine/status";
 import { activeDrivers, parseSessionKey, remainingSessions } from "../engine/sessions";
 import type { SeasonState } from "../engine/types";
 
@@ -76,5 +77,25 @@ describe.skipIf(!existsSync(FIXTURE))("real fixture season-2026-r16", () => {
     const rows = computeConstructorStandings(load());
     expect(rows).toHaveLength(11);
     expect(rows.reduce((a, r) => a + r.points, 0)).toBe(1796);
+  });
+
+  test("title status: maxPossible - points is 183 for every active driver, 0 for the inactive one", () => {
+    const state = load();
+    const active = new Set(activeDrivers(state));
+    const rows = driverStatus(state);
+    expect(rows).toHaveLength(23);
+    for (const r of rows) expect(r.maxPossible - r.points).toBe(active.has(r.driver) ? 183 : 0);
+  });
+
+  test("title status at round 16: six alive, nobody clinched, everyone else eliminated", () => {
+    const rows = driverStatus(load());
+    const alive = rows.filter((r) => r.status === "alive").map((r) => r.driver).sort();
+    expect(alive).toEqual(["ANT", "HAM", "LEC", "NOR", "RUS", "VER"]);
+    expect(rows.some((r) => r.status === "clinched")).toBe(false);
+    expect(rows.filter((r) => r.status === "eliminated")).toHaveLength(17);
+    const leader = rows[0];
+    expect(leader?.driver).toBe("ANT");
+    expect(leader?.gapToLeader).toBe(0);
+    expect(leader?.pointsToClinch).toBe(100);
   });
 });

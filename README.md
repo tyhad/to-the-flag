@@ -12,6 +12,7 @@ Requires [Bun](https://bun.sh).
 | `bun run typecheck` | Type-check the whole project (`tsc --noEmit`) |
 | `bun run check` | Print season status and paths from the real data file |
 | `bun scripts/verifyStandings.ts [db]` | Check the engine's base table equals F1GStats `driver_standings` (order and points) |
+| `bun scripts/statusReport.ts [db]` | Print the title status table (clinched / alive / eliminated) from the real data |
 | `bun scripts/exportFixture.ts <db> <out.json>` | Snapshot the loaded season as a JSON test fixture |
 
 ## Configuration
