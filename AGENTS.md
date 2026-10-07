@@ -7,12 +7,14 @@ It also serves JSON feeds to the owner's streaming overlay (LiveOverlay Studio, 
 Personal, local-first tool: no accounts, no hosting.
 
 ## Current status
-No code yet. Phase 0 (data) happens in the separate `F1GStats` repo (Python fetcher).
-Do not scaffold anything here until the owner says Phase 1 starts.
+Phase 0 (data) is done in the separate `F1GStats` repo (Python fetcher).
+Phase 1 (engine) is in progress: follow `docs/PHASE_1.md` step by step.
+Do not start Phase 2 (API and web) until the owner says so.
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.
 2. `DESIGN.md`: visual rules and tokens.
+3. `docs/PHASE_1.md`: the current task list.
 
 If code and documents disagree, follow the documents and ask the owner.
 
@@ -23,15 +25,18 @@ Phase 1 must provide these scripts with exactly these names:
 - `bun run dev`
 - `bun test`
 - `bun run typecheck`
+- `bun run check`: prints season status and paths from the real data file
 
 ## Planned layout
 - `engine/`: pure functions (points, standings, countback, Path Solver, later Monte Carlo)
+- `data/`: read-only loader for `f1gstats.sqlite` (the only place besides `scripts/` that touches the database)
+- `scripts/`: CLI tools (`check.ts`, `exportFixture.ts`)
 - `api/`: Elysia routes, including `/api/feed/*` for the overlay
 - `web/`: what-if UI
 - `tests/fixtures/`: small hand-made season data for rule tests
 
 ## Hard rules
-- `engine/` is pure: no imports from Elysia, the DOM, or `fs`; plain data in, plain data out.
+- `engine/` is pure: no imports from Elysia, the DOM, `fs`, or `bun:sqlite`; plain data in, plain data out. Only `data/` and `scripts/` read files or the database.
 - Never write to `f1gstats.sqlite`. Open it read-only. Scenarios go in `to-the-flag.sqlite`.
 - Check `meta.schema_version >= 2` when opening the data file; refuse to run otherwise.
 - Never hardcode round count, driver count, sprint weekends, or team colors. Derive from data.

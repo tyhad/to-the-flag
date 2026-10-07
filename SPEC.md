@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.2. D1 (TypeScript engine) and D2 (theme) are approved. Planning only; start Phase 0 once the open decisions in section 12 are closed or explicitly deferred.
+**Status:** DRAFT v0.3. Phase 0 (F1GStats data) is done (F1GStats `main` @ `ccd268b`). Phase 1 (engine) is next; see `docs/PHASE_1.md`. D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -74,6 +74,7 @@ Rules:
 - **Countback (A2.1.4.c)**, for drivers and teams alike: most first places in a **race**, then second places, then thirds, and so on; if still tied, apply the same criteria to the season's **qualifying results**. "In a race" means Grand Prix races, so sprint results do not count. Implement as config `countback.includeSprint = false` with tests. Level iv needs `qualifying_results` (optional, rarely reached).
 - **Constructors:** points from both F1 Cars count.
 - **Remaining points:** for each uncompleted session in the schedule: race 25 (team 43), sprint 8 (team 15).
+- **Entry list:** standings can include drivers who no longer race (2026 as of Round 16: 23 in standings, 22 per round). Only drivers present in the latest completed round can score in remaining sessions.
 
 ## 5. Data contract (what F1GStats must provide)
 
@@ -144,7 +145,7 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 - Minimum conditions: for example "X must win at least 3 of 5 remaining sessions, and the leader must not finish above P4".
 - Easiest path (lightest conditions) and only path (extreme case).
 - Difficulty meter: share of remaining points X must score (no probability wording).
-- Method: dynamic programming over points swing versus the key rivals; do not enumerate full finishing orders.
+- Method: closed form from a dominance argument (the target driver winning every remaining session is never worse for the target), verified through the standings engine. Outputs: verdict, points needed, minimum wins, per-rival point budgets and pace limits, and an easiest-path witness scenario. Rival budgets are independent (joint feasibility is not checked). Exact only when at least 9 non-contender drivers exist (`exact` flag). DP is deferred.
 
 **F3. Odds (Monte Carlo).** Phase 3, separate from F2.
 - Season-only data in v1; `prior_carryover` parameter reserved for later seasons (default 0).
@@ -169,8 +170,8 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 
 | Phase | Scope | Done when |
 |---|---|---|
-| 0. F1GStats data | `schedule_full`, `race_results` (+ sprint), season-scoped replace, single-transaction write, `data_health` checks | A run on the current season produces all tables and passes the checks; a forced validation failure leaves the data tables unchanged (exit code 2) |
-| 1. Engine core | F1, F2 (WDC) in TypeScript with fixtures and unit tests (points tables, shortened races, countback, remaining points) | Tests pass on fixtures including a countback tie, each shortened-race column, and the sprint 50% threshold |
+| 0. F1GStats data (done) | `schedule_full`, `race_results` (+ sprint), season-scoped replace, single-transaction write, `data_health` checks | A run on the current season produces all tables and passes the checks; a forced validation failure leaves the data tables unchanged (exit code 2) |
+| 1. Engine core (see `docs/PHASE_1.md`) | F1, F2 (WDC) in TypeScript with fixtures and unit tests (points tables, shortened races, countback, remaining points) | Tests pass on fixtures including a countback tie, each shortened-race column, and the sprint 50% threshold |
 | 2. UI + feed | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
 | 3. Odds | F3 and its UI tab | Seeded runs are reproducible; probabilities sum to 100% across contenders; low-confidence tag works |
 
@@ -195,3 +196,5 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D4 | Port and network | Default `PORT=3100`, `HOST=127.0.0.1`; LiveOverlay uses 3000; LAN mode deferred (see section 3) | Decided, LAN deferred |
 | D5 | Sprint partial points | None. Full table at ≥ 50% distance, otherwise 0 (FIA A2.2.2) | Resolved |
 | D6 | Countback | Races only, no sprints; level iv uses qualifying results (FIA A2.1.4.c) | Resolved |
+| D7 | Path Solver method | Closed form + engine-verified witness instead of DP (see section 8, F2) | Proposed |
+| D8 | Active driver rule | A driver is active if present in the latest completed round's Race or Sprint results | Proposed |
