@@ -11,6 +11,8 @@ import { computeConstructorStandings, computeDriverStandings } from "../engine/s
 import { driverStatus } from "../engine/status";
 import { solveWdc } from "../engine/solver";
 import { validateScenario } from "../engine/scenario";
+import { buildCheckReport } from "../scripts/check";
+import type { Scenario } from "../engine/types";
 import { activeDrivers, parseSessionKey, remainingSessions } from "../engine/sessions";
 import type { SeasonState } from "../engine/types";
 
@@ -137,5 +139,36 @@ describe.skipIf(!existsSync(FIXTURE))("real fixture season-2026-r16", () => {
     const r = solveWdc(load(), "PIA");
     expect(r.maxPossible).toBe(311);
     expect(r.rivalBudgets.find((b) => b.driver === "ANT")).toEqual({ driver: "ANT", budget: -10, paceLimit: null });
+  });
+
+  test("hand check (Phase 1 done rule 4): ANT wins all 8 remaining sessions, RUS is P2 in all", () => {
+    // By hand: ANT 320 + 7 x 25 + 8 = 503. RUS 236 + 7 x 18 + 7 = 369. Everyone else keeps their points.
+    const state = load();
+    const locks: Scenario["locks"] = {};
+    for (const key of remainingSessions(state)) locks[key] = { fixed: { ANT: 1, RUS: 2 } };
+    const rows = computeDriverStandings(state, { locks });
+    const pts = Object.fromEntries(rows.map((r) => [r.id, r.points]));
+    expect(pts.ANT).toBe(503);
+    expect(pts.RUS).toBe(369);
+    expect(pts.HAM).toBe(214);
+    expect(pts.LEC).toBe(191);
+    expect(pts.NOR).toBe(188);
+    expect(pts.VER).toBe(188);
+    expect(rows.map((r) => r.id).slice(0, 3)).toEqual(["ANT", "RUS", "HAM"]);
+    const status = driverStatus(state, { locks });
+    expect(status.find((r) => r.driver === "ANT")?.status).toBe("clinched");
+    expect(status.filter((r) => r.status === "eliminated")).toHaveLength(22);
+  });
+
+  test("check report: round 16, 8 sessions left, 22 active + TSU inactive, 23 rows, 6 paths", () => {
+    const report = buildCheckReport(load());
+    expect(report.health.status).toBe("ok");
+    expect(report.asOfRound).toBe(16);
+    expect(report.remaining).toMatchObject({ races: 7, sprints: 1 });
+    expect(report.remaining.sessions).toHaveLength(8);
+    expect(report.drivers).toEqual({ active: 22, inactive: 1, inactiveCodes: ["TSU"] });
+    expect(report.wdc).toHaveLength(23);
+    expect(report.wdc[0]).toMatchObject({ rank: 1, driver: "ANT", points: 320, status: "alive" });
+    expect(report.paths.map((p) => p.driver)).toEqual(["ANT", "RUS", "HAM", "LEC", "NOR", "VER"]);
   });
 });

@@ -8,8 +8,8 @@ Personal, local-first tool: no accounts, no hosting.
 
 ## Current status
 Phase 0 (data) is done in the separate `F1GStats` repo (Python fetcher).
-Phase 1 (engine) is in progress: follow `docs/PHASE_1.md` step by step.
-Do not start Phase 2 (API and web) until the owner says so.
+Phase 1 (engine) is done on branch `phase-1-engine` (pending merge to `main`); see `docs/PHASE_1.md`.
+Phase 2 (API and web) has not started. Do not start it until the owner says so.
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.
@@ -30,10 +30,10 @@ Phase 1 must provide these scripts with exactly these names:
 ## Planned layout
 - `engine/`: pure functions (points, standings, countback, Path Solver, later Monte Carlo)
 - `data/`: read-only loader for `f1gstats.sqlite` (the only place besides `scripts/` that touches the database)
-- `scripts/`: CLI tools (`check.ts`, `exportFixture.ts`)
+- `scripts/`: CLI tools (`check.ts`, `exportFixture.ts`, `verifyStandings.ts`, `statusReport.ts`)
 - `api/`: Elysia routes, including `/api/feed/*` for the overlay
 - `web/`: what-if UI
-- `tests/fixtures/`: small hand-made season data for rule tests
+- `tests/fixtures/`: a snapshot of real data (`season-2026-r16.json`); rule tests build small hand-made seasons with `tests/helpers.ts` (`makeState`)
 
 ## Hard rules
 - `engine/` is pure: no imports from Elysia, the DOM, `fs`, or `bun:sqlite`; plain data in, plain data out. Only `data/` and `scripts/` read files or the database.
