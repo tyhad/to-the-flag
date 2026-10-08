@@ -7,14 +7,14 @@ It also serves JSON feeds to the owner's streaming overlay (LiveOverlay Studio, 
 Personal, local-first tool: no accounts, no hosting.
 
 ## Current status
-Phase 0 (data) is done in the separate `F1GStats` repo (Python fetcher).
-Phase 1 (engine) is done on branch `phase-1-engine` (pending merge to `main`); see `docs/PHASE_1.md`.
-Phase 2 (API and web) has not started. Do not start it until the owner says so.
+Phases 0 (data, in the separate `F1GStats` repo) and 1 (engine) are done.
+Phase 2 (API, web UI, overlay feed) is in progress: follow `docs/PHASE_2.md` step by step.
+Do not start Phase 3 (Monte Carlo odds) until the owner says so.
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.
 2. `DESIGN.md`: visual rules and tokens.
-3. `docs/PHASE_1.md`: the current task list.
+3. `docs/PHASE_2.md`: the current task list. `docs/PHASE_1.md` describes the finished engine; read it for engine behavior.
 
 If code and documents disagree, follow the documents and ask the owner.
 
@@ -26,14 +26,16 @@ Phase 1 must provide these scripts with exactly these names:
 - `bun test`
 - `bun run typecheck`
 - `bun run check`: prints season status and paths from the real data file
+- `bun run build`: bundles the web UI into `dist/` (Phase 2)
 
 ## Planned layout
 - `engine/`: pure functions (points, standings, countback, Path Solver, later Monte Carlo)
 - `data/`: read-only loader for `f1gstats.sqlite` (the only place besides `scripts/` that touches the database)
-- `scripts/`: CLI tools (`check.ts`, `exportFixture.ts`, `verifyStandings.ts`, `statusReport.ts`)
+- `scripts/`: CLI tools (`check.ts`, `exportFixture.ts`)
 - `api/`: Elysia routes, including `/api/feed/*` for the overlay
 - `web/`: what-if UI
-- `tests/fixtures/`: a snapshot of real data (`season-2026-r16.json`); rule tests build small hand-made seasons with `tests/helpers.ts` (`makeState`)
+- `shared/`: small pure helpers used by both server and browser (scenario share codec)
+- `tests/fixtures/`: small hand-made season data for rule tests
 
 ## Hard rules
 - `engine/` is pure: no imports from Elysia, the DOM, `fs`, or `bun:sqlite`; plain data in, plain data out. Only `data/` and `scripts/` read files or the database.
@@ -41,9 +43,12 @@ Phase 1 must provide these scripts with exactly these names:
 - Check `meta.schema_version >= 2` when opening the data file; refuse to run otherwise.
 - Never hardcode round count, driver count, sprint weekends, or team colors. Derive from data.
 - Use only tokens from `DESIGN.md`. No raw hex in components. Fonts are self-hosted.
+- Team colors come only from `teamColor()` in `web/theme/teams.ts`. Never type a team hex anywhere else.
 - "Possible?" (no model) and "Likely?" (Monte Carlo) stay visually separate.
 - Never show 0% or 100% from simulation; show `<1%` / `>99%`. Label simulated numbers "Model estimate".
 - `PORT` (default 3100) and `HOST` (default 127.0.0.1) come from env. Never hardcode `localhost` in URLs.
+- The browser never touches SQLite. It gets one `SeasonState` from `/api/season` and runs the engine locally.
+- The web UI makes no external network requests; fonts and assets are bundled.
 - No secrets in the repo. Do not commit `.sqlite` files or `.env`.
 
 ## How to work

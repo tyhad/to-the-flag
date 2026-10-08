@@ -43,7 +43,7 @@ Eliminated is **not** a color: render the row in `text-3` with a line-through on
 
 Contrast was computed (WCAG 2.x). Text colors above are ≥ 5.0:1 on `s1` and `s2`. Filled badges use `s0` as text color (≥ 6.5:1 on all four timing colors).
 
-**Team colors:** source of truth is `src/theme/teams.ts` (keyed by Ergast `constructorId`), provided by the owner. Use only as a 3px identity strip or a 10px dot. Until the file exists, use `--color-line`. Do not invent team hex values.
+**Team colors:** source of truth is `web/theme/teams.ts` (keyed by Ergast `constructorId`). Each team has a `brand` color (owner-provided) and a `display` color for the dark surfaces: equal to `brand`, except where `brand` has less than 3:1 contrast against `s1`/`s2` (Red Bull, Aston Martin, Cadillac, and Ferrari on raised rows), where it is blended toward white just enough to reach 3:1. Draw only `display`, only as a 3px identity strip or a 10px dot, and only through `teamColor(id)`. Unknown team: `--color-line`. Never type a team hex anywhere else.
 
 **Glow (only for clinched):** `0 0 12px rgba(192, 132, 252, 0.35)`.
 

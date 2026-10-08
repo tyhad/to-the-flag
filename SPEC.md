@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.3. Phase 0 (F1GStats data) is done (F1GStats `main` @ `ccd268b`). Phase 1 (engine) is complete on branch `phase-1-engine` (pending merge); see `docs/PHASE_1.md`. Phase 2 (API and web) has not started. D1 (TypeScript engine) and D2 (theme) are approved.
+**Status:** DRAFT v0.4. Phase 0 (F1GStats data, `main` @ `ccd268b`) and Phase 1 (engine, per owner) are done. Phase 2 (API, web UI, overlay feed) is next; see `docs/PHASE_2.md`. D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -171,8 +171,8 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 | Phase | Scope | Done when |
 |---|---|---|
 | 0. F1GStats data (done) | `schedule_full`, `race_results` (+ sprint), season-scoped replace, single-transaction write, `data_health` checks | A run on the current season produces all tables and passes the checks; a forced validation failure leaves the data tables unchanged (exit code 2) |
-| 1. Engine core (done on `phase-1-engine`, see `docs/PHASE_1.md`) | F1, F2 (WDC) in TypeScript with fixtures and unit tests (points tables, shortened races, countback, remaining points) | Tests pass on fixtures including a countback tie, each shortened-race column, and the sprint 50% threshold |
-| 2. UI + feed | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
+| 1. Engine core (done; see `docs/PHASE_1.md`) | F1, F2 (WDC) in TypeScript with fixtures and unit tests (points tables, shortened races, countback, remaining points) | Tests pass on fixtures including a countback tie, each shortened-race column, and the sprint 50% threshold |
+| 2. UI + feed (see `docs/PHASE_2.md`) | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
 | 3. Odds | F3 and its UI tab | Seeded runs are reproducible; probabilities sum to 100% across contenders; low-confidence tag works |
 
 Implement one phase at a time. Each phase must run and be verified before the next starts.
@@ -196,10 +196,9 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D4 | Port and network | Default `PORT=3100`, `HOST=127.0.0.1`; LiveOverlay uses 3000; LAN mode deferred (see section 3) | Decided, LAN deferred |
 | D5 | Sprint partial points | None. Full table at ≥ 50% distance, otherwise 0 (FIA A2.2.2) | Resolved |
 | D6 | Countback | Races only, no sprints; level iv uses qualifying results (FIA A2.1.4.c) | Resolved |
-| D7 | Path Solver method | Closed form + engine-verified witness instead of DP (see section 8, F2). Built in `engine/status.ts` and `engine/solver.ts` | Resolved |
-| D8 | Active driver rule | A driver is active if present in the latest completed round's Race or Sprint results | Resolved |
-| D9 | Unspecified drivers in a lock | Score 0 and count as outside the points zone (harmless fillers). The solver's `exact` is true when at least 9 active drivers are already eliminated (inactive drivers cannot fill positions) | Resolved |
-| D10 | Constructor points | Follow `constructor_id` on each result row; a locked session is credited to the driver's latest known team | Resolved |
-| D11 | Data the engine refuses | `schema_version < 2` (`SchemaVersionError`); driver standings that differ from summed race results, or a completed round with a missing session (`DataInconsistentError`) | Resolved |
-| D12 | Ranking ties | Points, then countback on races only, then qualifying counts. A full tie falls back to the driver code (deterministic, practically never happens) | Proposed |
-| D13 | Solver number definitions | `delta` = points - basePoints. `pointsToClinch` is conservative: highest rival `maxPossible` - points + 1, 0 when clinched, null when eliminated. `minWins` assumes every other contender scores nothing, so it is 0 for most contenders mid-season; `rivalBudgets` carries the realistic limits. The check CLI shows `pointsToClinch` instead of `pointsNeeded` for the table leader (owner decision) | Proposed, owner to confirm |
+| D7 | Path Solver method | Closed form + engine-verified witness instead of DP (see section 8, F2) | Proposed |
+| D8 | Active driver rule | A driver is active if present in the latest completed round's Race or Sprint results | Proposed |
+| D9 | Web framework | React 19 + TypeScript bundled by Bun; no extra state library | Approved |
+| D10 | Where the engine runs in the UI | In the browser, from one `SeasonState` snapshot | Proposed |
+| D11 | Scenario persistence | Server-side `to-the-flag.sqlite` (env `TTF_DB`) plus share link | Proposed |
+| D12 | Team colors | `web/theme/teams.ts` keyed by Ergast `constructorId`: 11 teams, owner `brand` colors plus contrast-safe `display` colors | Provided; verify constructor ids against the data |
