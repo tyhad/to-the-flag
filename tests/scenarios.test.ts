@@ -1,7 +1,7 @@
 /**
  * Tests for Scenario storage database & scenario API routes (Phase 2 Step 2).
  */
-import { describe, expect, test, afterEach } from "bun:test";
+import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { createApp } from "../api/server";
@@ -23,6 +23,9 @@ function cleanupTempDb() {
 }
 
 describe("Scenario Storage & API Routes (Step 2)", () => {
+  beforeEach(() => {
+    cleanupTempDb();
+  });
   afterEach(() => {
     cleanupTempDb();
   });

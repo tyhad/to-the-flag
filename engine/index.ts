@@ -7,3 +7,4 @@ export * from "./scenario";
 export * from "./standings";
 export * from "./status";
 export * from "./solver";
+export * from "./report";

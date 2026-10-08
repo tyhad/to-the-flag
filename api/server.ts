@@ -10,6 +10,7 @@ import { SeasonLoader } from "./seasonLoader";
 
 import { ScenarioDatabase } from "./db";
 import { createScenarioRoutes } from "./routes/scenarios";
+import { createFeedRoutes } from "./routes/feed";
 
 export interface ServerOptions {
   dbPath?: string;
@@ -67,6 +68,7 @@ export function createApp(options?: ServerOptions) {
   });
 
   app.use(createScenarioRoutes(loader, scenarioDb));
+  app.use(createFeedRoutes(loader, scenarioDb));
 
   return app;
 }
