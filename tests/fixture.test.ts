@@ -9,6 +9,8 @@ import { join } from "node:path";
 import { sessionMaxPoints, teamSessionMaxPoints } from "../engine/points";
 import { computeConstructorStandings, computeDriverStandings } from "../engine/standings";
 import { driverStatus } from "../engine/status";
+import { solveWdc } from "../engine/solver";
+import { validateScenario } from "../engine/scenario";
 import { activeDrivers, parseSessionKey, remainingSessions } from "../engine/sessions";
 import type { SeasonState } from "../engine/types";
 
@@ -97,5 +99,43 @@ describe.skipIf(!existsSync(FIXTURE))("real fixture season-2026-r16", () => {
     expect(leader?.driver).toBe("ANT");
     expect(leader?.gapToLeader).toBe(0);
     expect(leader?.pointsToClinch).toBe(100);
+  });
+
+  test("path solver: NOR needs 133 of 183, matches the hand calculation", () => {
+    // 133 = 7 races x P2 (18) + 1 sprint x P2 (7); ANT leads on 320, NOR has 188.
+    const r = solveWdc(load(), "NOR");
+    expect(r).toMatchObject({ verdict: "alive", exact: true, points: 188, maxPossible: 371, pointsNeeded: 133 });
+    expect(r.difficulty).toBeCloseTo(133 / 183, 10);
+    // If NOR wins everything: ANT may still score 50 (never better than P7), the others 134-182 (never better than P2).
+    expect(r.rivalBudgets).toEqual([
+      { driver: "ANT", budget: 50, paceLimit: 7 },
+      { driver: "RUS", budget: 134, paceLimit: 2 },
+      { driver: "HAM", budget: 156, paceLimit: 2 },
+      { driver: "LEC", budget: 179, paceLimit: 2 },
+      { driver: "VER", budget: 182, paceLimit: 2 },
+    ]);
+  });
+
+  test("path solver: every contender has a valid easiest scenario; the eliminated have none", () => {
+    const state = load();
+    for (const row of driverStatus(state)) {
+      const r = solveWdc(state, row.driver);
+      expect(r.verdict).toBe(row.status);
+      expect(r.exact).toBe(true);
+      if (row.status === "eliminated") {
+        expect(r.easiest).toBeNull();
+        expect(r.minWins).toBeNull();
+        expect(r.pointsNeeded).toBeNull();
+      } else {
+        expect(r.easiest).not.toBeNull();
+        expect(() => validateScenario(state, r.easiest!)).not.toThrow();
+      }
+    }
+  });
+
+  test("path solver: PIA is eliminated because ANT's budget is negative (-10)", () => {
+    const r = solveWdc(load(), "PIA");
+    expect(r.maxPossible).toBe(311);
+    expect(r.rivalBudgets.find((b) => b.driver === "ANT")).toEqual({ driver: "ANT", budget: -10, paceLimit: null });
   });
 });
