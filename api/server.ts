@@ -8,14 +8,21 @@ import { staticPlugin } from "@elysiajs/static";
 import { config } from "../config";
 import { SeasonLoader } from "./seasonLoader";
 
+import { ScenarioDatabase } from "./db";
+import { createScenarioRoutes } from "./routes/scenarios";
+
 export interface ServerOptions {
   dbPath?: string;
+  ttfDbPath?: string;
   loader?: SeasonLoader;
+  scenarioDb?: ScenarioDatabase;
 }
 
 export function createApp(options?: ServerOptions) {
   const dbPath = options?.dbPath ?? config.f1gstatsDb;
+  const ttfDbPath = options?.ttfDbPath ?? config.ttfDb;
   const loader = options?.loader ?? new SeasonLoader(dbPath);
+  const scenarioDb = options?.scenarioDb ?? new ScenarioDatabase(ttfDbPath);
 
   const app = new Elysia();
 
@@ -58,6 +65,8 @@ export function createApp(options?: ServerOptions) {
     set.headers["etag"] = etag;
     return state;
   });
+
+  app.use(createScenarioRoutes(loader, scenarioDb));
 
   return app;
 }
