@@ -40,6 +40,7 @@ export interface SeasonState {
   drivers: { code: string; name: string; active: boolean }[];
   teams: { id: string; name: string }[];
   health: { status: "ok" | "warn" | "fail"; checkedAt: string };
+  schemaVersion?: number;
 }
 
 export interface SessionLock {

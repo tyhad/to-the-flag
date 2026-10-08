@@ -53,7 +53,7 @@ describe("team colors", () => {
   });
 
   test("teamColor returns the display color; unknown ids fall back to the line color", () => {
-    expect(teamColor("ferrari")).toBe(TEAM_COLORS.ferrari?.display);
+    expect(teamColor("ferrari")).toBe(TEAM_COLORS.ferrari!.display);
     expect(teamColor("not_a_team")).toBe(FALLBACK_TEAM_COLOR);
   });
 });
