@@ -1,6 +1,6 @@
 # Phase 1: Engine core
 
-Branch: `phase-1-engine`. One commit per step. **Tests first**: write the test, watch it fail, then implement.
+**Status: all 7 steps done (pending merge).** Branch: `phase-1-engine`. One commit per step. **Tests first**: write the test, watch it fail, then implement.
 Phase 0 is done (F1GStats `main` @ `ccd268b`). Read `SPEC.md` (sections 4, 7, 8) and F1GStats `docs/DATA_CONTRACT.md` before starting.
 
 **Scope:** engine + read-only loader + a CLI check. **Not in Phase 1:** API, web UI, Monte Carlo, WCC Path Solver, dead heat, shortened-sprint scale.
@@ -26,9 +26,9 @@ Snapshot of the real 2026 data as of Round 16 (use for sanity checks; these numb
 
 ```
 config.ts          env: F1GSTATS_DB, PORT, HOST
-engine/            PURE: types.ts points.ts countback.ts standings.ts status.ts solver.ts index.ts
+engine/            PURE: types.ts points.ts countback.ts scenario.ts sessions.ts standings.ts status.ts solver.ts index.ts
 data/              impure edge: loadSeason.ts (bun:sqlite, read-only)
-scripts/           check.ts, exportFixture.ts
+scripts/           check.ts, exportFixture.ts, verifyStandings.ts, statusReport.ts
 tests/             *.test.ts, helpers.ts (makeState builder), fixtures/
 ```
 
@@ -37,7 +37,7 @@ Only `data/` and `scripts/` may import `bun:sqlite` or `fs`. Nothing under `engi
 ## Domain decisions for this phase
 
 - **a. Active driver** = appears in the latest completed round's Race or Sprint results. Inactive drivers keep their points but cannot score in locks (error).
-- **b. Unspecified drivers** in a locked session score 0 and count as outside the points zone. This equals assuming harmless fillers take the other positions, which holds when at least 9 non-contender drivers exist. The solver reports `exact: false` otherwise.
+- **b. Unspecified drivers** in a locked session score 0 and count as outside the points zone. This equals assuming harmless fillers take the other positions, which holds when at least 9 active drivers are already eliminated (inactive drivers cannot fill positions). The solver reports `exact: false` otherwise.
 - **c. Current points** are summed from `race_results` (Race + Sprint). The loader verifies they equal `driver_standings`; if not, throw `DataInconsistentError`.
 - **d. Constructor points** use `constructor_id` on each result row (handles mid-season team changes).
 - **e. Remaining sessions** = every `(round, race)` and `(round, sprint if has_sprint)` without result rows. If a round has `status = completed` but one of its sessions has no results, throw `DataInconsistentError`.
@@ -204,3 +204,18 @@ Then open a pull request `phase-1-engine` → `main` and merge.
 - "Active driver" assumes a driver who skips one round was not replaced; revisit if that happens.
 - A weekend in progress (sprint done, race not) is supported by decision e, but only when the data file already contains the sprint results.
 - WCC has projected standings (Step 4) but no status or solver yet.
+- `minWins` assumes every other contender scores nothing from here, so it is 0 for most contenders mid-season. Use `rivalBudgets` for realistic limits.
+
+## Implementation notes (as built)
+
+Where the code adds to or fixes the text above:
+
+- Extra files: `engine/sessions.ts` (session keys, `remainingSessions`, `activeDrivers`), `engine/scenario.ts` (`validateScenario`, `InvalidScenarioError` with a `code`), and the scripts `verifyStandings.ts` and `statusReport.ts`.
+- `InvalidScenarioError` has one more case than listed: `invalid_tier`. A tier on a sprint lock is ignored (a sprint has one scale).
+- Standings rows: `{ id, points, basePoints, delta, rank, baseRank, counts }`. `delta` = points - basePoints. `counts` = `{ race: number[], quali: number[] }` where index i is the number of finishes in position i + 1 (all positions, also outside the points zone). A full tie falls back to the id.
+- Locks are credited to the driver's latest known team for constructors; qualifying rows without a result that round use the nearest known team.
+- Status: inactive drivers are always eliminated. `clinched` = nobody else can be champion. `pointsToClinch` is conservative (highest rival `maxPossible` - points + 1; 0 when clinched; null when eliminated).
+- Solver: `rivalBudgets` lists the other contenders only, in table order. `paceLimit` is exported for testing.
+- `scripts/check.ts` shows `pointsToClinch` (not `pointsNeeded`) for the table leader, because the leader has nobody ahead and "needs 0" would mislead; a clinched leader prints "title clinched".
+- `scripts/check.ts` exit codes: 0 ok, 1 error, 2 when `data_health` is `fail`. `--json` prints the `CheckReport` shape that Phase 2 will serve.
+- `tests/enginePurity.test.ts` enforces "done" rule 3: engine files import only other engine files and use no runtime, DOM, network, clock or randomness.
