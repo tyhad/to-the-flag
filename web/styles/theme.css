@@ -85,6 +85,11 @@
   line-height: 1.4;
 }
 
+/* Status tags: a 6px chamfer on the corners (DESIGN.md section 4). */
+@utility chamfer {
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+
 @layer base {
   html {
     color-scheme: dark;
