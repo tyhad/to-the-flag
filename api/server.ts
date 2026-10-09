@@ -3,6 +3,7 @@
  * Elysia backend serving season data, health status, scenarios, and overlay feeds.
  */
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { Elysia } from "elysia";
 import { staticPlugin } from "@elysiajs/static";
 import { config } from "../config";
@@ -11,6 +12,9 @@ import { SeasonLoader } from "./seasonLoader";
 import { ScenarioDatabase } from "./db";
 import { createScenarioRoutes } from "./routes/scenarios";
 import { createFeedRoutes } from "./routes/feed";
+
+/** Output of `bun run build`. Resolved from this file so the server works from any working directory. */
+const DIST_DIR = join(import.meta.dir, "..", "dist");
 
 export interface ServerOptions {
   dbPath?: string;
@@ -27,8 +31,9 @@ export function createApp(options?: ServerOptions) {
 
   const app = new Elysia();
 
-  if (existsSync("dist")) {
-    app.use(staticPlugin({ assets: "dist", prefix: "" }));
+  if (existsSync(DIST_DIR)) {
+    // etag: false keeps the plugin from caching responses in memory, so a rebuilt UI is served at once.
+    app.use(staticPlugin({ assets: DIST_DIR, prefix: "", etag: false, headers: { "Cache-Control": "no-cache" } }));
   }
 
   app.get("/api/health", ({ set }) => {

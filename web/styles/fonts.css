@@ -1,0 +1,44 @@
+/*
+ * Self-hosted fonts (DESIGN.md section 3). Latin subset, woff2 only.
+ * Files come from @fontsource packages; the bundler copies them into dist/. No CDN.
+ */
+
+@font-face {
+  font-family: "Barlow";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/barlow/files/barlow-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Barlow";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/barlow/files/barlow-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Barlow";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/barlow/files/barlow-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Barlow Condensed";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Barlow Condensed";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff2") format("woff2");
+}
