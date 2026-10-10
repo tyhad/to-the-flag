@@ -1,5 +1,5 @@
 import { useMemo, type Dispatch } from "react";
-import type { SeasonState } from "../../engine";
+import { activeDrivers, type SeasonState } from "../../engine";
 import { buildSessionCards } from "../viewModel/sessions";
 import { presetTargets, type Workspace, type WorkspaceMessage } from "../viewModel/workspace";
 import { ContenderBar } from "./ContenderBar";
@@ -39,7 +39,13 @@ export function SessionsRail({ state, workspace, dispatch }: SessionsRailProps) 
         <EmptyState title="No sessions left">The season is over, so the standings are final.</EmptyState>
       ) : (
         <>
-          <ContenderBar state={state} workspace={workspace} dispatch={dispatch} targets={targets} />
+          <ContenderBar
+            state={state}
+            workspace={workspace}
+            dispatch={dispatch}
+            targets={targets}
+            activeCount={activeDrivers(state).length}
+          />
           <p className="type-caption text-text-2">Drivers outside your selection score 0 in locked sessions.</p>
           <ul className="m-0 flex list-none flex-col gap-3 p-0" aria-label="Remaining sessions">
             {cards.map((card) => (

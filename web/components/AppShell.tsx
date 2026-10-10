@@ -5,14 +5,24 @@ import { useSeason } from "../useSeason";
 import { useWorkspace } from "../useWorkspace";
 import { loadMessage, type SeasonLoad } from "../viewModel/season";
 import type { HealthState } from "../viewModel/health";
-import { AnalysisRail } from "./AnalysisRail";
+import { AnalysisPlaceholder, AnalysisRail } from "./AnalysisRail";
 import { Header } from "./Header";
 import { ScenarioStrip } from "./ScenarioStrip";
 import { SessionsPlaceholder, SessionsRail } from "./SessionsRail";
 import { StandingsPanel } from "./StandingsPanel";
 
 /** Three-region layout from DESIGN.md section 5: sessions rail 320px, standings, analysis rail 360px. */
-function Frame({ health, sessions, standings }: { health: HealthState; sessions: ReactNode; standings: ReactNode }) {
+function Frame({
+  health,
+  sessions,
+  standings,
+  analysis,
+}: {
+  health: HealthState;
+  sessions: ReactNode;
+  standings: ReactNode;
+  analysis: ReactNode;
+}) {
   return (
     <>
       <a
@@ -25,7 +35,7 @@ function Frame({ health, sessions, standings }: { health: HealthState; sessions:
         <Header health={health} />
         {sessions}
         {standings}
-        <AnalysisRail />
+        {analysis}
         <ScenarioStrip />
       </div>
     </>
@@ -40,6 +50,7 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
       health={health}
       sessions={<SessionsRail state={state} workspace={workspace} dispatch={dispatch} />}
       standings={<StandingsPanel season={season} scenario={workspace.scenario} />}
+      analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} />}
     />
   );
 }
@@ -60,6 +71,7 @@ export function AppShell() {
         />
       }
       standings={<StandingsPanel season={season} />}
+      analysis={<AnalysisPlaceholder />}
     />
   );
 }

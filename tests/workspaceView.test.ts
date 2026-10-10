@@ -166,6 +166,24 @@ describe.skipIf(!existsSync(REAL))("workspace on the real Round 16 snapshot", ()
     });
   });
 
+  describe("loading a ready-made scenario (the easiest path)", () => {
+    test("replaces the scenario, keeps the other settings, clears the message", () => {
+      const start = send(initialWorkspace(state), { type: "setFocus", driver: "HAM" }, { type: "lock", key: "17:race" });
+      const easiest = { locks: { "17:race": { fixed: { RUS: 2 } }, "18:race": { fixed: { RUS: 2 } } } };
+      const ws = send(start, { type: "loadScenario", scenario: easiest });
+      expect(ws.scenario).toEqual(easiest);
+      expect(ws.focus).toBe("HAM");
+      expect(ws.notice).toBeNull();
+    });
+
+    test("a scenario the engine refuses is not loaded, and the owner is told in plain words", () => {
+      const start = send(initialWorkspace(state), { type: "lock", key: "17:race" });
+      const ws = send(start, { type: "loadScenario", scenario: { locks: { "1:race": { fixed: { ANT: 1 } } } } });
+      expect(ws.scenario).toBe(start.scenario);
+      expect(ws.notice).toEqual({ scope: "path", message: "That session already has real results, so it cannot be locked." });
+    });
+  });
+
   test("Reset scenario removes every lock but keeps contenders, mode and focus", () => {
     const ws = send(
       initialWorkspace(state),

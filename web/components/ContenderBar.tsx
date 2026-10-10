@@ -9,6 +9,8 @@ interface ContenderBarProps {
   dispatch: Dispatch<WorkspaceMessage>;
   /** Who the presets point at, shown so the owner knows what "Contender wins" and "Rival out" will do. */
   targets: { contender: string | null; rival: string | null };
+  /** Drivers still racing, for the "all drivers" caption. */
+  activeCount: number;
 }
 
 const MODES: readonly { id: WorkspaceMode; label: string }[] = [
@@ -18,7 +20,7 @@ const MODES: readonly { id: WorkspaceMode; label: string }[] = [
 
 const base = "type-label h-8 rounded-control border px-3";
 
-export function ContenderBar({ state, workspace, dispatch, targets }: ContenderBarProps) {
+export function ContenderBar({ state, workspace, dispatch, targets, activeCount }: ContenderBarProps) {
   const pool = contenderPool(state);
   const notice = workspace.notice?.scope === "contenders" ? workspace.notice.message : null;
 
@@ -45,6 +47,11 @@ export function ContenderBar({ state, workspace, dispatch, targets }: ContenderB
             </button>
           ))}
         </div>
+        <p className="type-caption text-text-2">
+          {workspace.mode === "contenders"
+            ? `Position lists offer your ${workspace.contenders.length} contenders.`
+            : `Position lists offer all ${activeCount} drivers still racing.`}
+        </p>
       </div>
 
       <div className="flex flex-col gap-2">

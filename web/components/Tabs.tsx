@@ -4,6 +4,8 @@ export interface TabItem<T extends string> {
   id: T;
   label: string;
   disabled?: boolean;
+  /** Short explanation shown as a tooltip, for example why a tab is disabled. */
+  hint?: string;
 }
 
 interface TabsProps<T extends string> {
@@ -70,6 +72,7 @@ export function Tabs<T extends string>({ label, idPrefix, items, selected, onSel
             aria-selected={isSelected}
             aria-controls={item.disabled ? undefined : panelId(idPrefix, item.id)}
             aria-disabled={item.disabled || undefined}
+            title={item.hint}
             tabIndex={isSelected ? 0 : -1}
             onClick={() => {
               if (!item.disabled) onSelect(item.id);

@@ -2,16 +2,16 @@
  * Workspace state for the sessions rail: the scenario plus the settings that shape how it is edited.
  * A pure reducer, so every rule is testable without a DOM. The standings read `scenario` from here.
  */
-import type { Scenario, SeasonState, SessionKey } from "../../engine";
+import { InvalidScenarioError, validateScenario, type Scenario, type SeasonState, type SessionKey } from "../../engine";
 import { defaultContenders, defaultFocus, defaultRival, toggleContender } from "./contenders";
-import { applyLockAction, type LockContext, type LockPreset } from "./locks";
+import { applyLockAction, describeScenarioError, type LockContext, type LockPreset } from "./locks";
 
 /** "contenders": only contenders can take a position. "all": any active driver can. */
 export type WorkspaceMode = "contenders" | "all";
 
 export interface Notice {
-  /** Where to show the message: under one session card, at the contender list, or at the reset button. */
-  scope: SessionKey | "contenders" | "reset";
+  /** Where to show the message: under one session card, at the contender list, or in the Possible? panel. */
+  scope: SessionKey | "contenders" | "path";
   message: string;
 }
 
@@ -32,6 +32,8 @@ export type WorkspaceMessage =
   | { type: "out"; key: SessionKey; driver: string }
   | { type: "preset"; key: SessionKey; preset: LockPreset }
   | { type: "reset" }
+  /** Replace the scenario with a ready-made one, such as the easiest path. It must pass validateScenario. */
+  | { type: "loadScenario"; scenario: Scenario }
   | { type: "setMode"; mode: WorkspaceMode }
   | { type: "toggleContender"; driver: string }
   | { type: "setFocus"; driver: string }
@@ -73,6 +75,18 @@ export function workspaceReducer(state: SeasonState, ws: Workspace, message: Wor
       if (result.error) return { ...ws, notice: { scope: "contenders", message: result.error } };
       const focus = result.contenders.includes(ws.focus ?? "") ? ws.focus : defaultFocus(state, result.contenders);
       return { ...ws, contenders: result.contenders, focus, notice: null };
+    }
+
+    case "loadScenario": {
+      try {
+        validateScenario(state, message.scenario);
+      } catch (error) {
+        if (error instanceof InvalidScenarioError) {
+          return { ...ws, notice: { scope: "path", message: describeScenarioError(error) } };
+        }
+        throw error;
+      }
+      return { ...ws, scenario: message.scenario, notice: null };
     }
 
     case "reset": {
