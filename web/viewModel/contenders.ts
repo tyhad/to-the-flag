@@ -65,3 +65,10 @@ export function defaultRival(state: SeasonState, scenario: Scenario | undefined,
   const row = computeDriverStandings(state, scenario).find((r) => active.has(r.id) && r.id !== focus);
   return row?.id ?? null;
 }
+
+/** A list of drivers from outside (a shared link, a saved scenario) made safe: only drivers who can still win, in table order, once each, at most eight. */
+export function sanitizeContenders(state: SeasonState, wanted: readonly string[]): string[] {
+  const pool = contenderPool(state);
+  const keep = new Set(wanted);
+  return pool.filter((d) => keep.has(d)).slice(0, MAX_CONTENDERS);
+}

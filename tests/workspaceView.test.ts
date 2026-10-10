@@ -176,6 +176,39 @@ describe.skipIf(!existsSync(REAL))("workspace on the real Round 16 snapshot", ()
       expect(ws.notice).toBeNull();
     });
 
+    test("contenders that come with it are applied, keeping only drivers who can still win", () => {
+      const ws = send(initialWorkspace(state), {
+        type: "loadScenario",
+        scenario: { locks: {} },
+        contenders: ["VER", "NOR", "PIA"],
+      });
+      expect(ws.contenders).toEqual(["NOR", "VER"]);
+    });
+
+    test("if the focus is no longer a contender it moves to the first one", () => {
+      const ws = send(initialWorkspace(state), {
+        type: "loadScenario",
+        scenario: { locks: {} },
+        contenders: ["NOR", "VER"],
+      });
+      expect(ws.focus).toBe("NOR");
+    });
+
+    test("contenders that are all unusable leave the current ones alone", () => {
+      const start = initialWorkspace(state);
+      const ws = send(start, { type: "loadScenario", scenario: { locks: {} }, contenders: ["PIA", "ZZZ"] });
+      expect(ws.contenders).toEqual(start.contenders);
+    });
+
+    test("a refusal can be scoped to the strip", () => {
+      const ws = send(initialWorkspace(state), {
+        type: "loadScenario",
+        scenario: { locks: { "1:race": { fixed: { ANT: 1 } } } },
+        scope: "strip",
+      });
+      expect(ws.notice?.scope).toBe("strip");
+    });
+
     test("a scenario the engine refuses is not loaded, and the owner is told in plain words", () => {
       const start = send(initialWorkspace(state), { type: "lock", key: "17:race" });
       const ws = send(start, { type: "loadScenario", scenario: { locks: { "1:race": { fixed: { ANT: 1 } } } } });

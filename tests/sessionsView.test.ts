@@ -10,6 +10,7 @@ import {
   defaultContenders,
   defaultFocus,
   defaultRival,
+  sanitizeContenders,
   toggleContender,
 } from "../web/viewModel/contenders";
 import { buildSessionCards, outChoices, pickerChoices, sessionTitle } from "../web/viewModel/sessions";
@@ -71,7 +72,27 @@ describe("contenders (synthetic)", () => {
   });
 });
 
+describe("sanitizeContenders", () => {
+  test("keeps drivers who can still win, in table order, without duplicates", () => {
+    expect(sanitizeContenders(early(), ["D04", "D01", "D04", "ZZZ"])).toEqual(["D01", "D04"]);
+  });
+
+  test("never more than eight", () => {
+    const all = contenderPool(early());
+    expect(sanitizeContenders(early(), all)).toEqual(all.slice(0, MAX_CONTENDERS));
+  });
+
+  test("nothing usable gives an empty list", () => {
+    expect(sanitizeContenders(early(), [])).toEqual([]);
+    expect(sanitizeContenders(early(), ["ZZZ"])).toEqual([]);
+  });
+});
+
 describe.skipIf(!existsSync(REAL))("contenders on the real Round 16 snapshot", () => {
+  test("a shared list drops eliminated drivers", () => {
+    expect(sanitizeContenders(fixture(), ["VER", "ANT", "PIA", "TSU"])).toEqual(["ANT", "VER"]);
+  });
+
   test("the pool is the six drivers still in the title fight", () => {
     expect(contenderPool(fixture())).toEqual(["ANT", "RUS", "HAM", "LEC", "NOR", "VER"]);
   });

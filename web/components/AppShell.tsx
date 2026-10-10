@@ -1,15 +1,18 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { SeasonState } from "../../engine";
 import { useHealth } from "../useHealth";
+import { useScenarioStore } from "../useScenarioStore";
 import { useSeason } from "../useSeason";
+import { useStrip } from "../useStrip";
 import { useWorkspace } from "../useWorkspace";
 import { loadMessage, type SeasonLoad } from "../viewModel/season";
 import type { HealthState } from "../viewModel/health";
 import { AnalysisPlaceholder, AnalysisRail } from "./AnalysisRail";
 import { Header } from "./Header";
-import { ScenarioStrip } from "./ScenarioStrip";
+import { resolveSide } from "../viewModel/compare";
+import { ScenarioStrip, ScenarioStripPlaceholder } from "./ScenarioStrip";
 import { SessionsPlaceholder, SessionsRail } from "./SessionsRail";
-import { StandingsPanel } from "./StandingsPanel";
+import { StandingsPanel, type CompareView } from "./StandingsPanel";
 
 /** Three-region layout from DESIGN.md section 5: sessions rail 320px, standings, analysis rail 360px. */
 function Frame({
@@ -17,11 +20,13 @@ function Frame({
   sessions,
   standings,
   analysis,
+  strip,
 }: {
   health: HealthState;
   sessions: ReactNode;
   standings: ReactNode;
   analysis: ReactNode;
+  strip: ReactNode;
 }) {
   return (
     <>
@@ -36,7 +41,7 @@ function Frame({
         {sessions}
         {standings}
         {analysis}
-        <ScenarioStrip />
+        {strip}
       </div>
     </>
   );
@@ -45,12 +50,23 @@ function Frame({
 /** Only mounted once the season is loaded, so the scenario always starts from real data. */
 function Loaded({ health, season, state }: { health: HealthState; season: SeasonLoad; state: SeasonState }) {
   const [workspace, dispatch] = useWorkspace(state);
+  const store = useScenarioStore();
+  const strip = useStrip(state, workspace, dispatch, store);
+  const { compare } = strip;
+  const compareView = useMemo<CompareView | null>(() => {
+    if (!compare.open) return null;
+    const left = resolveSide(compare.left, workspace.scenario, store.scenarios);
+    const right = resolveSide(compare.right, workspace.scenario, store.scenarios);
+    if (!left || !right) return { ok: false, message: "Choose two scenarios that still fit the current data." };
+    return { ok: true, left, right };
+  }, [compare, workspace.scenario, store.scenarios]);
   return (
     <Frame
       health={health}
       sessions={<SessionsRail state={state} workspace={workspace} dispatch={dispatch} />}
-      standings={<StandingsPanel season={season} scenario={workspace.scenario} />}
+      standings={<StandingsPanel season={season} scenario={workspace.scenario} compare={compareView} />}
       analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} />}
+      strip={<ScenarioStrip state={state} workspace={workspace} store={store} strip={strip} />}
     />
   );
 }
@@ -72,6 +88,7 @@ export function AppShell() {
       }
       standings={<StandingsPanel season={season} />}
       analysis={<AnalysisPlaceholder />}
+      strip={<ScenarioStripPlaceholder />}
     />
   );
 }
