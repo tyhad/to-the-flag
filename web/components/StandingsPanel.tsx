@@ -5,6 +5,7 @@ import { buildCompareRows, type CompareSide } from "../viewModel/compare";
 import { buildTowerRows, type TowerTab } from "../viewModel/tower";
 import { CompareTable } from "./CompareTable";
 import { EmptyState } from "./EmptyState";
+import { FinishLane } from "./FinishLane";
 import { Tabs, panelId, tabId, type TabItem } from "./Tabs";
 import { Tower } from "./Tower";
 
@@ -22,9 +23,11 @@ interface StandingsPanelProps {
   scenario?: Scenario;
   /** When set, the panel compares two scenarios instead of showing the projected table. */
   compare?: CompareView | null;
+  /** The drivers drawn in the finish lane. */
+  contenders?: readonly string[];
 }
 
-export function StandingsPanel({ season, scenario, compare }: StandingsPanelProps) {
+export function StandingsPanel({ season, scenario, compare, contenders }: StandingsPanelProps) {
   const [tab, setTab] = useState<TowerTab>("wdc");
   const state = season.status === "ready" ? season.state : undefined;
   const rows = useMemo(() => (state ? buildTowerRows(state, scenario, tab) : []), [state, scenario, tab]);
@@ -39,15 +42,20 @@ export function StandingsPanel({ season, scenario, compare }: StandingsPanelProp
       id="standings"
       tabIndex={-1}
       aria-labelledby="standings-title"
-      className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-panel bg-s1 p-4"
+      className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-panel bg-s1 p-4"
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex shrink-0 items-center justify-between gap-3">
         <h2 id="standings-title" className="type-title text-text">
           {compare ? "Compare scenarios" : "Projected standings"}
         </h2>
         <Tabs label="Standings type" idPrefix="standings" items={TABS} selected={tab} onSelect={setTab} />
       </div>
-      <div role="tabpanel" id={panelId("standings", tab)} aria-labelledby={tabId("standings", tab)}>
+      <div
+        role="tabpanel"
+        id={panelId("standings", tab)}
+        aria-labelledby={tabId("standings", tab)}
+        className="min-h-0 flex-1 overflow-y-auto"
+      >
         {season.status === "ready" && compare ? (
           compare.ok ? (
             <CompareTable rows={compareRows} leftLabel={compare.left.label} rightLabel={compare.right.label} tab={tab} />
@@ -65,6 +73,7 @@ export function StandingsPanel({ season, scenario, compare }: StandingsPanelProp
           </EmptyState>
         )}
       </div>
+      {state && !compare && tab === "wdc" && contenders ? <FinishLane state={state} scenario={scenario} contenders={contenders} /> : null}
     </main>
   );
 }

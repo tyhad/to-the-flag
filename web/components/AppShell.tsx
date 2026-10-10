@@ -64,7 +64,12 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
     <Frame
       health={health}
       sessions={<SessionsRail state={state} workspace={workspace} dispatch={dispatch} />}
-      standings={<StandingsPanel season={season} scenario={workspace.scenario} compare={compareView} />}
+      standings={<StandingsPanel
+          season={season}
+          scenario={workspace.scenario}
+          compare={compareView}
+          contenders={workspace.contenders}
+        />}
       analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} />}
       strip={<ScenarioStrip state={state} workspace={workspace} store={store} strip={strip} />}
     />
