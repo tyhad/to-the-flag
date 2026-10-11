@@ -58,7 +58,7 @@ export function ContenderBar({ state, workspace, dispatch, targets, activeCount 
         <h3 className="type-label text-text-2">
           Contenders · {workspace.contenders.length} of {MAX_CONTENDERS}
         </h3>
-        <ul className="m-0 flex max-h-28 list-none flex-wrap gap-2 overflow-y-auto p-0" aria-label="Contenders">
+        <ul className="-m-1 flex max-h-28 list-none flex-wrap gap-2 overflow-y-auto p-1" aria-label="Contenders">
           {pool.map((code) => {
             const selected = workspace.contenders.includes(code);
             return (
@@ -74,6 +74,7 @@ export function ContenderBar({ state, workspace, dispatch, targets, activeCount 
                       : "border-line text-text-2 hover:border-accent-hover"
                   }`}
                 >
+                  {selected ? <span aria-hidden="true">✓ </span> : null}
                   {code}
                 </button>
               </li>
@@ -81,7 +82,7 @@ export function ContenderBar({ state, workspace, dispatch, targets, activeCount 
           })}
         </ul>
         {notice ? (
-          <p role="alert" className="type-caption text-red">
+          <p role="alert" className="type-note text-red">
             {notice}
           </p>
         ) : null}

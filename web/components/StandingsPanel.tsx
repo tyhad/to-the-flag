@@ -54,7 +54,7 @@ export function StandingsPanel({ season, scenario, compare, contenders }: Standi
         role="tabpanel"
         id={panelId("standings", tab)}
         aria-labelledby={tabId("standings", tab)}
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="min-h-0 flex-1 scroll-p-3 overflow-y-auto"
       >
         {season.status === "ready" && compare ? (
           compare.ok ? (
@@ -68,7 +68,20 @@ export function StandingsPanel({ season, scenario, compare, contenders }: Standi
             <Tower rows={rows} label={tab === "wdc" ? "Drivers' championship" : "Constructors' championship"} />
           </div>
         ) : (
-          <EmptyState title={season.status === "loading" ? "Loading standings" : "Standings not loaded"}>
+          <EmptyState
+            title={season.status === "loading" ? "Loading standings" : "Standings not loaded"}
+            action={
+              season.status === "error" ? (
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="type-label h-9 rounded-control bg-accent-fill px-4 text-text hover:bg-accent-fill-hover"
+                >
+                  Try again
+                </button>
+              ) : undefined
+            }
+          >
             {season.status === "error" ? loadMessage(season) : null}
           </EmptyState>
         )}

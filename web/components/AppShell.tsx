@@ -7,6 +7,8 @@ import { useStrip } from "../useStrip";
 import { useWorkspace } from "../useWorkspace";
 import { loadMessage, type SeasonLoad } from "../viewModel/season";
 import type { HealthState } from "../viewModel/health";
+import { dataNotice, type DataNotice } from "../viewModel/dataNotice";
+import { DataNoticeBanner } from "./DataNoticeBanner";
 import { AnalysisPlaceholder, AnalysisRail } from "./AnalysisRail";
 import { Header } from "./Header";
 import { resolveSide } from "../viewModel/compare";
@@ -21,12 +23,14 @@ function Frame({
   standings,
   analysis,
   strip,
+  notice,
 }: {
   health: HealthState;
   sessions: ReactNode;
   standings: ReactNode;
   analysis: ReactNode;
   strip: ReactNode;
+  notice: DataNotice | null;
 }) {
   return (
     <>
@@ -36,8 +40,13 @@ function Frame({
       >
         Skip to standings
       </a>
-      <div className="grid h-full grid-cols-[320px_minmax(0,1fr)_360px] grid-rows-[auto_minmax(0,1fr)_auto] gap-3 p-3">
+      <div
+        className={`grid h-full grid-cols-[320px_minmax(0,1fr)_360px] gap-3 p-3 ${
+          notice ? "grid-rows-[auto_auto_minmax(0,1fr)_auto]" : "grid-rows-[auto_minmax(0,1fr)_auto]"
+        }`}
+      >
         <Header health={health} />
+        {notice ? <DataNoticeBanner notice={notice} /> : null}
         {sessions}
         {standings}
         {analysis}
@@ -72,6 +81,7 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
         />}
       analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} />}
       strip={<ScenarioStrip state={state} workspace={workspace} store={store} strip={strip} />}
+      notice={dataNotice(state.health, state.asOfRound)}
     />
   );
 }
@@ -94,6 +104,7 @@ export function AppShell() {
       standings={<StandingsPanel season={season} />}
       analysis={<AnalysisPlaceholder />}
       strip={<ScenarioStripPlaceholder />}
+      notice={null}
     />
   );
 }

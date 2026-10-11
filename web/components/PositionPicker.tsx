@@ -1,4 +1,4 @@
-import type { Dispatch } from "react";
+import { useRef, type Dispatch } from "react";
 import type { SeasonState } from "../../engine";
 import { outChoices, pickerChoices, type SessionCardView } from "../viewModel/sessions";
 import type { LockPreset } from "../viewModel/locks";
@@ -23,6 +23,7 @@ export function PositionPicker({ state, card, workspace, dispatch }: PositionPic
   const assignable = workspace.mode === "all" ? null : workspace.contenders;
   const choices = pickerChoices(state, assignable, card);
   const out = outChoices(state, card);
+  const outSelectRef = useRef<HTMLSelectElement>(null);
   const where = new Map(card.slots.flatMap((s) => (s.driver ? [[s.driver, s.position] as const] : [])));
 
   function choose(position: number, occupant: string | null, driver: string) {
@@ -84,7 +85,11 @@ export function PositionPicker({ state, card, workspace, dispatch }: PositionPic
               <li key={code}>
                 <button
                   type="button"
-                  onClick={() => dispatch({ type: "unassign", key: card.key, driver: code })}
+                  onClick={() => {
+                    dispatch({ type: "unassign", key: card.key, driver: code });
+                    // The chip is about to disappear: keep focus in this part of the card.
+                    requestAnimationFrame(() => outSelectRef.current?.focus());
+                  }}
                   aria-label={`${code} is out. Remove`}
                   className="type-data inline-flex h-8 items-center gap-2 rounded-control border border-line px-3 text-text hover:border-accent-hover"
                 >
@@ -98,6 +103,7 @@ export function PositionPicker({ state, card, workspace, dispatch }: PositionPic
           </ul>
         ) : null}
         <select
+          ref={outSelectRef}
           aria-label={`Mark a driver out, ${card.title}`}
           value=""
           onChange={(event) => {

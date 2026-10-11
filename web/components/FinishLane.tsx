@@ -107,7 +107,7 @@ export function FinishLane({ state, scenario, contenders }: FinishLaneProps) {
         <h3 id="lane-title" className="type-title text-text">
           Finish lane
         </h3>
-        <p className="type-caption text-text-2">{view.caption}</p>
+        <p className="type-note text-text-2">{view.caption}</p>
       </div>
 
       {/* The chequered pattern, defined once and used by every lane. */}
@@ -128,7 +128,7 @@ export function FinishLane({ state, scenario, contenders }: FinishLaneProps) {
             x={nearRight ? xLine - 8 : xLine + 8}
             y={13}
             textAnchor={nearRight ? "end" : "start"}
-            className="type-caption fill-text-2"
+            className="type-note fill-text-2"
           >
             Clinch at {formatPoints(model.finishAt)}
           </text>
@@ -147,7 +147,7 @@ export function FinishLane({ state, scenario, contenders }: FinishLaneProps) {
           {axisTicks(model.axisMin, model.axisMax).map((tick) => (
             <g key={tick}>
               <line x1={x(tick)} x2={x(tick)} y1={0} y2={5} className="stroke-line" strokeWidth={1.5} />
-              <text x={x(tick)} y={18} textAnchor="middle" className="type-caption fill-text-3">
+              <text x={x(tick)} y={18} textAnchor="middle" className="type-note fill-text-3">
                 {tick}
               </text>
             </g>

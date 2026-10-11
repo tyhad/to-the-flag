@@ -53,11 +53,8 @@ describe("headerLabel", () => {
 
   test("loading and error say what is happening", () => {
     expect(headerLabel({ status: "loading" })).toBe("Loading season data");
-    expect(headerLabel({ status: "error", message: "The season data file is missing." })).toBe(
-      "The season data file is missing.",
-    );
-    expect(headerLabel({ status: "error", message: null })).toBe(
-      "Season data not loaded. Check that the server is running.",
-    );
+    // The header stays short; the panels carry the full explanation.
+    expect(headerLabel({ status: "error", message: "The season data file is missing." })).toBe("Season data not loaded.");
+    expect(headerLabel({ status: "error", message: null })).toBe("Season data not loaded.");
   });
 });

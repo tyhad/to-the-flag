@@ -41,6 +41,17 @@ export function useFlip(listRef: RefObject<HTMLElement | null>): void {
 }
 
 /**
+ * The value `elapsed` ms into a tween from `from` to `target`: eased out, whole numbers on the way,
+ * exactly `target` at the end. A negative `elapsed` (a frame timestamp slightly earlier than the moment
+ * the tween was set up) counts as zero, so the value never leaves the range between start and end.
+ */
+export function tweenValue(from: number, target: number, elapsed: number, duration: number): number {
+  if (duration <= 0 || elapsed >= duration) return target;
+  const t = Math.max(0, elapsed) / duration;
+  return Math.round(from + (target - from) * (1 - (1 - t) ** 3));
+}
+
+/**
  * The number to draw while `target` changes: it eases from the value on screen to the new one.
  * Intermediate values are whole numbers; the last frame is exactly `target` (half points included).
  */
@@ -59,11 +70,11 @@ export function useTweenedNumber(target: number, duration: number = TWEEN_MS): n
     const start = performance.now();
     let frame = 0;
     const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const value = t === 1 ? target : Math.round(from + (target - from) * (1 - (1 - t) ** 3));
+      const elapsed = now - start;
+      const value = tweenValue(from, target, elapsed, duration);
       current.current = value;
       setShown(value);
-      if (t < 1) frame = requestAnimationFrame(tick);
+      if (elapsed < duration) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);

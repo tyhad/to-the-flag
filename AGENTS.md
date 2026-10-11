@@ -7,14 +7,13 @@ It also serves JSON feeds to the owner's streaming overlay (LiveOverlay Studio, 
 Personal, local-first tool: no accounts, no hosting.
 
 ## Current status
-Phases 0 (data, in the separate `F1GStats` repo) and 1 (engine) are done.
-Phase 2 (API, web UI, overlay feed) is in progress: follow `docs/PHASE_2.md` step by step.
-Do not start Phase 3 (Monte Carlo odds) until the owner says so.
+Phases 0 (data, in the separate `F1GStats` repo), 1 (engine) and 2 (API, web UI, overlay feed) are done.
+Phase 3 (Monte Carlo odds) is next and has no task list yet. Do not start it until the owner says so.
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.
 2. `DESIGN.md`: visual rules and tokens.
-3. `docs/PHASE_2.md`: the current task list. `docs/PHASE_1.md` describes the finished engine; read it for engine behavior.
+3. `docs/PHASE_2.md` and `docs/PHASE_1.md` describe the finished web UI, feed and engine; read them for behavior and limits. `docs/FEED.md` documents the overlay feed.
 
 If code and documents disagree, follow the documents and ask the owner.
 
@@ -26,7 +25,7 @@ Phase 1 must provide these scripts with exactly these names:
 - `bun test`
 - `bun run typecheck`
 - `bun run check`: prints season status and paths from the real data file
-- `bun run build`: bundles the web UI into `dist/` (Phase 2)
+- `bun run build`: bundles the web UI into `dist/`
 
 ## Planned layout
 - `engine/`: pure functions (points, standings, countback, Path Solver, later Monte Carlo)

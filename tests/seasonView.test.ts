@@ -17,10 +17,17 @@ describe("parseSeasonResponse", () => {
     expect(parseSeasonResponse(true, s)).toEqual({ status: "ready", state: s });
   });
 
-  test("an error response keeps the server's plain-words message", () => {
+  test("an error response keeps the server's plain-words message and adds how to fix a missing file", () => {
     expect(parseSeasonResponse(false, { error: "data_file_missing", message: "The season data file is missing." })).toEqual({
       status: "error",
-      message: "The season data file is missing.",
+      message: "The season data file is missing. Set F1GSTATS_DB in your .env file to point at it, then try again.",
+    });
+  });
+
+  test("an error code the app does not know keeps the server's words as they are", () => {
+    expect(parseSeasonResponse(false, { error: "something_new", message: "Try later." })).toEqual({
+      status: "error",
+      message: "Try later.",
     });
   });
 
@@ -44,7 +51,7 @@ describe("loadMessage", () => {
       "The season data file is missing.",
     );
     expect(loadMessage({ status: "error", message: null })).toBe(
-      "Season data not loaded. Check that the server is running.",
+      "Could not load the season data. Check that the server is running (bun run dev), then try again.",
     );
   });
 });

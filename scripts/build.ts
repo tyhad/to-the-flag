@@ -15,17 +15,19 @@ export const WEB_DIR = join(ROOT, "web");
 export const DIST_DIR = join(ROOT, "dist");
 
 export interface BuildOptions {
-  /** Delete dist/ first, so files from older builds do not pile up. */
+  /** Delete the output folder first, so files from older builds do not pile up. */
   clean?: boolean;
   minify?: boolean;
+  /** Where to write the build. Defaults to dist/. */
+  outdir?: string;
 }
 
-export async function buildWeb({ clean = false, minify = false }: BuildOptions = {}): Promise<void> {
-  if (clean) await rm(DIST_DIR, { recursive: true, force: true });
+export async function buildWeb({ clean = false, minify = false, outdir = DIST_DIR }: BuildOptions = {}): Promise<void> {
+  if (clean) await rm(outdir, { recursive: true, force: true });
 
   const result = await Bun.build({
     entrypoints: [join(WEB_DIR, "index.html")],
-    outdir: DIST_DIR,
+    outdir,
     plugins: [tailwind],
     target: "browser",
     minify,

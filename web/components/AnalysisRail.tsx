@@ -16,7 +16,7 @@ const TABS: readonly TabItem<AnalysisTab>[] = [
 function AnalysisFrame({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<AnalysisTab>("possible");
   return (
-    <aside aria-label="Title analysis" className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-panel bg-s1 p-4">
+    <aside aria-label="Title analysis" className="flex min-h-0 scroll-p-3 flex-col gap-3 overflow-y-auto rounded-panel bg-s1 p-4">
       <Tabs label="Analysis type" idPrefix="analysis" items={TABS} selected={tab} onSelect={setTab} />
       <div role="tabpanel" id={panelId("analysis", tab)} aria-labelledby={tabId("analysis", tab)}>
         {children}

@@ -1,4 +1,4 @@
-import { useMemo, type Dispatch } from "react";
+import { useMemo, useRef, type Dispatch } from "react";
 import type { SeasonState } from "../../engine";
 import { buildPathView, sameScenario } from "../viewModel/path";
 import type { Workspace, WorkspaceMessage } from "../viewModel/workspace";
@@ -16,6 +16,7 @@ export function PathPanel({ state, workspace, dispatch }: PathPanelProps) {
   const { focus, scenario } = workspace;
   const view = useMemo(() => (focus ? buildPathView(state, scenario, focus) : null), [state, scenario, focus]);
   const notice = workspace.notice?.scope === "path" ? workspace.notice.message : null;
+  const headlineRef = useRef<HTMLParagraphElement>(null);
 
   if (!focus || !view) {
     return <EmptyState title="Pick a contender">See what it takes to win the title, in plain words.</EmptyState>;
@@ -44,7 +45,9 @@ export function PathPanel({ state, workspace, dispatch }: PathPanelProps) {
         </select>
       </div>
 
-      <p className="type-title text-text">{view.headline}</p>
+      <p ref={headlineRef} tabIndex={-1} className="type-title text-text">
+        {view.headline}
+      </p>
 
       {view.meter ? <DifficultyMeter meter={view.meter} /> : null}
 
@@ -65,7 +68,7 @@ export function PathPanel({ state, workspace, dispatch }: PathPanelProps) {
           </h3>
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
             {view.rivals.map((line) => (
-              <li key={line} className="type-caption border-l-2 border-line pl-3 text-text-2">
+              <li key={line} className="type-note border-l-2 border-line pl-3 text-text-2">
                 {line}
               </li>
             ))}
@@ -73,15 +76,20 @@ export function PathPanel({ state, workspace, dispatch }: PathPanelProps) {
         </section>
       ) : null}
 
-      {view.estimateNote ? <p className="type-caption text-text-2">{view.estimateNote}</p> : null}
+      {view.estimateNote ? <p className="type-note text-text-2">{view.estimateNote}</p> : null}
 
       {easiest ? (
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            disabled={loaded}
-            onClick={() => dispatch({ type: "loadScenario", scenario: easiest })}
-            className="type-label h-10 rounded-control bg-accent-fill px-4 text-text hover:bg-accent-fill-hover disabled:cursor-not-allowed disabled:bg-s2 disabled:text-text-3"
+            aria-disabled={loaded}
+            onClick={() => {
+              if (loaded) return;
+              dispatch({ type: "loadScenario", scenario: easiest });
+              // The button may disappear (the path is now complete), so move focus to the new headline.
+              requestAnimationFrame(() => headlineRef.current?.focus());
+            }}
+            className="type-label h-10 rounded-control bg-accent-fill px-4 text-text hover:bg-accent-fill-hover aria-disabled:cursor-not-allowed aria-disabled:bg-s2 aria-disabled:text-text-3 aria-disabled:hover:bg-s2"
           >
             {loaded ? "Easiest path is loaded" : "Load easiest path into sandbox"}
           </button>
@@ -92,7 +100,7 @@ export function PathPanel({ state, workspace, dispatch }: PathPanelProps) {
       ) : null}
 
       {notice ? (
-        <p role="alert" className="type-caption text-red">
+        <p role="alert" className="type-note text-red">
           {notice}
         </p>
       ) : null}

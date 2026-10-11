@@ -1,5 +1,6 @@
 /** Load state for the season snapshot from `/api/season`. Pure: no DOM, no fetch. */
 import type { SeasonState } from "../../engine";
+import { explainServerError } from "./serverError";
 
 export type SeasonLoad =
   | { status: "loading" }
@@ -27,8 +28,7 @@ function looksLikeSeasonState(body: unknown): body is SeasonState {
 /** Turn an `/api/season` response (HTTP ok flag plus parsed JSON body) into a load state. */
 export function parseSeasonResponse(httpOk: boolean, body: unknown): SeasonLoad {
   if (!httpOk) {
-    const message = isRecord(body) && typeof body.message === "string" && body.message !== "" ? body.message : null;
-    return { status: "error", message };
+    return { status: "error", message: explainServerError(body) };
   }
   if (looksLikeSeasonState(body)) return { status: "ready", state: body };
   return { status: "error", message: null };
@@ -37,5 +37,5 @@ export function parseSeasonResponse(httpOk: boolean, body: unknown): SeasonLoad 
 /** One line for the loading and error states. Ready has no message. */
 export function loadMessage(load: Exclude<SeasonLoad, { status: "ready" }>): string {
   if (load.status === "loading") return "Loading season data";
-  return load.message ?? "Season data not loaded. Check that the server is running.";
+  return load.message ?? "Could not load the season data. Check that the server is running (bun run dev), then try again.";
 }

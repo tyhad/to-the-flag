@@ -25,7 +25,7 @@ export function DifficultyMeter({ meter }: { meter: Meter }) {
         />
       </div>
       <p className="type-data text-text">{meter.label}</p>
-      <p className="type-caption text-text-2">{meter.caption}</p>
+      <p className="type-note text-text-2">{meter.caption}</p>
     </div>
   );
 }

@@ -83,7 +83,7 @@ export function CompareTable({ rows, leftLabel, rightLabel, tab }: CompareTableP
                       <span className="sr-only">{describeCompareRow(row)}</span>
                     </span>
                   ) : (
-                    <span className="type-caption text-text-3">No change</span>
+                    <span className="type-note text-text-3">No change</span>
                   )}
                 </td>
               </tr>

@@ -44,7 +44,7 @@ export function SessionCard({ state, card, workspace, dispatch }: SessionCardPro
       </div>
       {card.locked ? <PositionPicker state={state} card={card} workspace={workspace} dispatch={dispatch} /> : null}
       {notice ? (
-        <p role="alert" className="type-caption text-red">
+        <p role="alert" className="type-note text-red">
           {notice}
         </p>
       ) : null}

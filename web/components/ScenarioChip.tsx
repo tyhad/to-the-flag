@@ -1,22 +1,5 @@
 import type { ScenarioChip as Chip } from "../viewModel/scenarios";
-
-function ClockIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <circle cx="8" cy="8" r="6" />
-      <path d="M8 4.5V8l2.5 1.5" />
-    </svg>
-  );
-}
-
-function AlertIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M8 2 14.5 13.5h-13z" />
-      <path d="M8 6.5v3.2M8 11.6v.4" />
-    </svg>
-  );
-}
+import { AlertIcon, ClockIcon } from "./icons";
 
 interface ScenarioChipProps {
   chip: Chip;
@@ -61,4 +44,3 @@ export function ScenarioChip({ chip, onSelect }: ScenarioChipProps) {
   );
 }
 
-export { AlertIcon };

@@ -1,3 +1,5 @@
+import { explainServerError } from "./serverError";
+
 /** Header data-status view-model. Pure: no DOM, no fetch. */
 
 export type DataStatus = "ok" | "warn" | "fail";
@@ -16,8 +18,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** Turn an `/api/health` response (HTTP ok flag plus parsed JSON body) into a header state. */
 export function parseHealthResponse(httpOk: boolean, body: unknown): HealthState {
   if (!httpOk) {
-    const message = isRecord(body) && typeof body.message === "string" && body.message !== "" ? body.message : null;
-    return { status: "error", message };
+    return { status: "error", message: explainServerError(body) };
   }
   if (
     isRecord(body) &&
@@ -44,6 +45,7 @@ export function headerLabel(state: HealthState): string {
     case "ready":
       return `Season ${state.season} · as of Round ${state.asOfRound}`;
     case "error":
-      return state.message ?? "Season data not loaded. Check that the server is running.";
+      // Short on purpose: the standings panel carries the full explanation.
+      return "Season data not loaded.";
   }
 }

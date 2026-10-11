@@ -59,6 +59,7 @@ Fonts are **self-hosted** (the app is local-first and must work offline). No CDN
 | data | Barlow Condensed | 600 | 16 / 1.2 | Table numerals |
 | body | Barlow | 400–500 | 16 / 1.5 | Sentences, descriptions |
 | label | Barlow | 600 | 14 / 1.3 | Buttons, field labels |
+| note | Barlow | 500 | 14 / 1.4 | Short sentences the audience must read: notices, graphic captions |
 | caption | Barlow | 500 | 13 / 1.4 | Non-essential hints only |
 
 - Minimum text size is **13px**, and only for non-essential hints. Anything the audience must read is **≥ 14px**.

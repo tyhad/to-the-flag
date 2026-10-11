@@ -1,14 +1,15 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { SeasonState } from "../../engine";
 import type { ScenarioStore } from "../useScenarioStore";
 import type { Strip } from "../useStrip";
 import { compareOptions } from "../viewModel/compare";
 import { MAX_NAME_LENGTH, buildChips, isDirty } from "../viewModel/scenarios";
 import type { Workspace } from "../viewModel/workspace";
-import { AlertIcon, ScenarioChip } from "./ScenarioChip";
+import { AlertIcon } from "./icons";
+import { ScenarioChip } from "./ScenarioChip";
 
 const BTN = "type-label h-8 rounded-control border px-3 disabled:cursor-not-allowed";
-const BTN_PLAIN = `${BTN} border-line text-text-2 hover:border-accent-hover disabled:text-text-3 disabled:hover:border-line`;
+const BTN_PLAIN = `${BTN} border-line text-text-2 hover:border-accent-hover disabled:text-text-3 disabled:hover:border-line aria-disabled:cursor-not-allowed aria-disabled:text-text-3 aria-disabled:hover:border-line`;
 const BTN_PRIMARY = `${BTN} border-accent-fill bg-accent-fill text-text hover:bg-accent-fill-hover disabled:border-line disabled:bg-s2 disabled:text-text-3`;
 const SELECT = "type-body h-8 min-w-0 rounded-control border border-line bg-s2 px-2 text-text";
 const BANNER_TONE = { info: "text-text-2", warn: "text-yellow", error: "text-red" } as const;
@@ -28,6 +29,9 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
   const [mode, setMode] = useState<FormMode>("idle");
   const [draft, setDraft] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const footerRef = useRef<HTMLElement>(null);
+  /** The `data-focus-id` of the control that opened a form, so closing the form can put focus back on it. */
+  const openerRef = useRef<string | null>(null);
 
   // Switching to another chip closes any open form.
   useEffect(() => {
@@ -53,7 +57,28 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
         ? "Save your changes first, so the overlay shows what you see."
         : undefined;
 
+  /** Focus the selected scenario chip (or Base). The fallback when the control that had focus is gone. */
+  function focusSelectedChip() {
+    const chips = footerRef.current?.querySelectorAll<HTMLElement>("ul[aria-label='Saved scenarios'] button");
+    const pressed = Array.from(chips ?? []).find((c) => c.getAttribute("aria-pressed") === "true");
+    (pressed ?? chips?.[0])?.focus();
+  }
+
+  /** After an action removes the control that had focus, move focus somewhere sensible instead of losing it. */
+  function settleFocus(preferId: string | null) {
+    requestAnimationFrame(() => {
+      const prefer = preferId ? footerRef.current?.querySelector<HTMLElement>(`[data-focus-id="${preferId}"]`) : null;
+      if (prefer && !prefer.hasAttribute("disabled")) {
+        prefer.focus();
+        return;
+      }
+      const active = document.activeElement;
+      if (!active || active === document.body) focusSelectedChip();
+    });
+  }
+
   function open(next: FormMode, text = "") {
+    if (next !== "idle") openerRef.current = document.activeElement?.getAttribute("data-focus-id") ?? null;
     setMode(next);
     setDraft(text);
     setFormError(null);
@@ -63,7 +88,10 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
     event.preventDefault();
     const error = await action(draft);
     if (error) setFormError(error);
-    else open("idle");
+    else {
+      open("idle");
+      settleFocus(openerRef.current);
+    }
   }
 
   const nameForm = (label: string, action: (name: string) => Promise<string | null>, submitLabel: string) => (
@@ -86,11 +114,18 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
       <button type="submit" disabled={store.busy} className={BTN_PRIMARY}>
         {submitLabel}
       </button>
-      <button type="button" onClick={() => open("idle")} className={BTN_PLAIN}>
+      <button
+        type="button"
+        onClick={() => {
+          open("idle");
+          settleFocus(openerRef.current);
+        }}
+        className={BTN_PLAIN}
+      >
         Cancel
       </button>
       {formError ? (
-        <p id="scenario-name-error" role="alert" className="type-caption w-full text-red">
+        <p id="scenario-name-error" role="alert" className="type-note w-full text-red">
           {formError}
         </p>
       ) : null}
@@ -100,7 +135,7 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
   const options = compareOptions(store.scenarios);
 
   return (
-    <footer aria-label="Scenarios" className="col-span-3 flex flex-col gap-2 rounded-panel bg-s1 px-4 py-3">
+    <footer ref={footerRef} aria-label="Scenarios" className="col-span-3 flex flex-col gap-2 rounded-panel bg-s1 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ul className="m-0 flex list-none flex-wrap items-center gap-2 p-0" aria-label="Saved scenarios">
           {chips.map((chip) => (
@@ -111,6 +146,7 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
           <li>
             <button
               type="button"
+              data-focus-id="new"
               disabled={lockCount === 0 || store.status !== "ready"}
               onClick={() => open("naming")}
               title={lockCount === 0 ? "Lock a result first, then save it as a new scenario." : undefined}
@@ -137,8 +173,10 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
           <button
             type="button"
             aria-pressed={isLive}
-            disabled={!canOverlay || store.busy}
-            onClick={() => void strip.toggleOverlay()}
+            aria-disabled={!canOverlay || store.busy}
+            onClick={() => {
+              if (canOverlay && !store.busy) void strip.toggleOverlay();
+            }}
             title={overlayHint}
             className={BTN_PLAIN}
           >
@@ -193,13 +231,21 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
             disabled={store.busy}
             onClick={() => {
               open("idle");
-              void strip.removeSelected();
+              void strip.removeSelected().then(() => settleFocus(null));
             }}
             className={BTN_PRIMARY}
           >
             Delete
           </button>
-          <button type="button" onClick={() => open("idle")} className={BTN_PLAIN}>
+          <button
+            type="button"
+            autoFocus
+            onClick={() => {
+              open("idle");
+              settleFocus(openerRef.current);
+            }}
+            className={BTN_PLAIN}
+          >
             Keep it
           </button>
         </div>
@@ -214,20 +260,27 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
                 {dirty ? <span className="text-text-2"> · unsaved changes</span> : null}
               </p>
               {selectedChip.note ? (
-                <p className="type-caption inline-flex items-center gap-1 text-text-2">
+                <p className="type-note inline-flex items-center gap-1 text-text-2">
                   {!selected.valid ? <AlertIcon /> : null}
                   {selectedChip.note}
                 </p>
               ) : null}
               {selected.valid && dirty ? (
-                <button type="button" disabled={store.busy} onClick={() => void strip.saveChanges()} className={BTN_PRIMARY}>
+                <button
+                  type="button"
+                  aria-disabled={store.busy}
+                  onClick={() => {
+                    if (!store.busy) void strip.saveChanges().then(() => settleFocus(null));
+                  }}
+                  className={`${BTN_PRIMARY} aria-disabled:cursor-not-allowed`}
+                >
                   Save changes
                 </button>
               ) : null}
-              <button type="button" onClick={() => open("renaming", selected.name)} className={BTN_PLAIN}>
+              <button type="button" data-focus-id="rename" onClick={() => open("renaming", selected.name)} className={BTN_PLAIN}>
                 Rename
               </button>
-              <button type="button" onClick={() => open("deleting")} className={BTN_PLAIN}>
+              <button type="button" data-focus-id="delete" onClick={() => open("deleting")} className={BTN_PLAIN}>
                 Delete
               </button>
             </>
@@ -236,6 +289,7 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
               <p className="type-body text-text-2">Unsaved scenario: {plural(lockCount, "session", "sessions")} locked.</p>
               <button
                 type="button"
+                data-focus-id="save-new"
                 disabled={store.status !== "ready"}
                 onClick={() => open("naming")}
                 className={BTN_PRIMARY}
@@ -254,24 +308,31 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
       ) : null}
 
       {store.status === "error" ? (
-        <p role="alert" className="type-caption text-red">
+        <p role="alert" className="type-note text-red">
           Saved scenarios are not available. {store.loadMessage} You can still lock results, compare against Base, and copy a link.
         </p>
       ) : null}
 
       {strip.banner ? (
         <div className="flex flex-wrap items-center gap-3">
-          <p role="status" className={`type-caption inline-flex items-center gap-1 ${BANNER_TONE[strip.banner.tone]}`}>
+          <p role="status" className={`type-note inline-flex items-center gap-1 ${BANNER_TONE[strip.banner.tone]}`}>
             {strip.banner.tone !== "info" ? <AlertIcon /> : null}
             {strip.banner.text}
           </p>
-          <button type="button" onClick={strip.dismissBanner} className="type-caption text-text-2 underline hover:text-text">
+          <button
+            type="button"
+            onClick={() => {
+              strip.dismissBanner();
+              settleFocus(null);
+            }}
+            className="type-note text-text-2 underline hover:text-text"
+          >
             Dismiss
           </button>
         </div>
       ) : null}
       {stripNotice ? (
-        <p role="alert" className="type-caption text-red">
+        <p role="alert" className="type-note text-red">
           {stripNotice}
         </p>
       ) : null}
