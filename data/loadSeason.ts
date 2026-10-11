@@ -197,5 +197,6 @@ function readSeason(db: Database): SeasonState {
     drivers,
     teams,
     health: { status: healthRow.status, checkedAt: healthRow.checked_at },
+    schemaVersion: version,
   };
 }

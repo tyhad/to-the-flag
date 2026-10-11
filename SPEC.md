@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.4. Phase 0 (F1GStats data, `main` @ `ccd268b`) and Phase 1 (engine, per owner) are done. Phase 2 (API, web UI, overlay feed) is next; see `docs/PHASE_2.md`. D1 (TypeScript engine) and D2 (theme) are approved.
+**Status:** DRAFT v0.5. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine) and Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) are done. Phase 3 (odds) is next and has not started. D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -172,7 +172,7 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 |---|---|---|
 | 0. F1GStats data (done) | `schedule_full`, `race_results` (+ sprint), season-scoped replace, single-transaction write, `data_health` checks | A run on the current season produces all tables and passes the checks; a forced validation failure leaves the data tables unchanged (exit code 2) |
 | 1. Engine core (done; see `docs/PHASE_1.md`) | F1, F2 (WDC) in TypeScript with fixtures and unit tests (points tables, shortened races, countback, remaining points) | Tests pass on fixtures including a countback tie, each shortened-race column, and the sprint 50% threshold |
-| 2. UI + feed (see `docs/PHASE_2.md`) | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
+| 2. UI + feed (done; see `docs/PHASE_2.md`) | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
 | 3. Odds | F3 and its UI tab | Seeded runs are reproducible; probabilities sum to 100% across contenders; low-confidence tag works |
 
 Implement one phase at a time. Each phase must run and be verified before the next starts.
@@ -192,7 +192,7 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 |---|---|---|---|
 | D1 | Engine language | TypeScript (same stack as LiveOverlay, one engine for server and browser, `bun:sqlite` built in). Python stays only for fetching. | Approved |
 | D2 | Visual theme | "Timing tower" per `DESIGN.md` | Approved |
-| D3 | Name and tagline | Name: "To the Flag" (owner proposal). Tagline pending; recommendation: "Set the results. Find the path." | Open |
+| D3 | Name and tagline | Name: "To the Flag" (repo and package `to-the-flag`), final. No tagline is shown in the UI; the earlier recommendation ("Set the results. Find the path.") stays optional | Decided (name); tagline open |
 | D4 | Port and network | Default `PORT=3100`, `HOST=127.0.0.1`; LiveOverlay uses 3000; LAN mode deferred (see section 3) | Decided, LAN deferred |
 | D5 | Sprint partial points | None. Full table at ≥ 50% distance, otherwise 0 (FIA A2.2.2) | Resolved |
 | D6 | Countback | Races only, no sprints; level iv uses qualifying results (FIA A2.1.4.c) | Resolved |
@@ -201,4 +201,11 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D9 | Web framework | React 19 + TypeScript bundled by Bun; no extra state library | Approved |
 | D10 | Where the engine runs in the UI | In the browser, from one `SeasonState` snapshot | Proposed |
 | D11 | Scenario persistence | Server-side `to-the-flag.sqlite` (env `TTF_DB`) plus share link | Proposed |
-| D12 | Team colors | `web/theme/teams.ts` keyed by Ergast `constructorId`: 11 teams, owner `brand` colors plus contrast-safe `display` colors | Provided; verify constructor ids against the data |
+| D12 | Team colors | `web/theme/teams.ts` keyed by Ergast `constructorId`: 11 teams, owner `brand` colors plus contrast-safe `display` colors | Verified: all 11 constructor ids in the 2026 data have an entry |
+| D13 | "Long shot" tag | An alive driver whose gap to the leader is at least two thirds of the points still on offer in unlocked sessions (`LONG_SHOT_GAP_SHARE` in `web/viewModel/tower.ts`). Arithmetic, not a model | Proposed |
+| D14 | Difficulty meter | The share of the remaining points a driver needs to take the lead (to clinch, for the leader). Bands: up to 0.40 green, up to 0.75 yellow, above orange (`web/config.ts`). Never shown as a probability | Proposed |
+| D15 | Finish Lane line | The leader's clinch total: the best rival's ceiling plus one, equal to the leader's points plus `pointsToClinch`. Axis in whole tens with a margin; lanes are the contenders | Decided |
+| D16 | Presets and `out` | *Contender wins* puts the focus contender on P1; *Rival out* marks the best-placed other driver out; `out` scores nothing, the same as not being selected | Proposed |
+| D17 | Share link | `#s=<code>&r=<round>`; `shared/shareCodec` is unchanged; a link from another round imports with a warning | Decided |
+| D18 | Stale scenarios | `PUT /api/scenarios/:id` keeps `as_of_round`, so a stale scenario stays stale after saving. Decided: saving changed locks or contenders refreshes `as_of_round` to the current round (renaming does not). Not part of Phase 2; to do in the next phase | Decided, deferred |
+| D19 | Type role `note` | 14px for sentences the audience must read. `caption` (13px) is for hints only | Decided |

@@ -38,6 +38,7 @@ export interface MakeStateOptions {
   /** a driver drives for another team from this round on (decision d) */
   teamChanges?: { driver: string; team: string; fromRound: number }[];
   health?: SeasonState["health"];
+  schemaVersion?: number;
 }
 
 export function makeState(opts: MakeStateOptions): SeasonState {
@@ -124,5 +125,6 @@ export function makeState(opts: MakeStateOptions): SeasonState {
     drivers,
     teams,
     health: opts.health ?? { status: "ok", checkedAt: "2026-01-01T00:00:00Z" },
+    schemaVersion: opts.schemaVersion ?? 2,
   };
 }

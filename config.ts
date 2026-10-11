@@ -6,12 +6,15 @@
 export interface Config {
   /** Path to the read-only F1GStats database. */
   f1gstatsDb: string;
+  /** Path to the read-write scenario storage database. */
+  ttfDb: string;
   port: number;
   host: string;
 }
 
 export const DEFAULTS = {
   f1gstatsDb: "../F1GStats/f1gstats.sqlite",
+  ttfDb: "./to-the-flag.sqlite",
   port: 3100,
   host: "127.0.0.1",
 } as const;
@@ -32,6 +35,7 @@ function nonEmpty(raw: string | undefined, fallback: string): string {
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   return {
     f1gstatsDb: nonEmpty(env.F1GSTATS_DB, DEFAULTS.f1gstatsDb),
+    ttfDb: nonEmpty(env.TTF_DB, DEFAULTS.ttfDb),
     port: parsePort(env.PORT),
     host: nonEmpty(env.HOST, DEFAULTS.host),
   };
