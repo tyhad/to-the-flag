@@ -1,12 +1,13 @@
 /**
  * Tests for overlay feed endpoints (/api/feed/*) (Phase 2 Step 3).
  */
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
+import { describe, expect, test, beforeAll, beforeEach, afterAll, afterEach } from "bun:test";
 import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { createApp } from "../api/server";
+import { buildFixtureDb, cleanupDbs } from "./dbHelpers";
 
-const REAL_DB_PATH = join(import.meta.dir, "..", "..", "F1GStats", "f1gstats.sqlite");
+let DB_PATH = "";
 const TEMP_TTF_DB = join(import.meta.dir, "temp-feed-ttf.sqlite");
 
 function cleanupTempDb() {
@@ -20,6 +21,12 @@ function cleanupTempDb() {
 }
 
 describe("Overlay Feed Routes (Step 3)", () => {
+  beforeAll(() => {
+    DB_PATH = buildFixtureDb();
+  });
+  afterAll(() => {
+    cleanupDbs();
+  });
   beforeEach(() => {
     cleanupTempDb();
   });
@@ -28,7 +35,7 @@ describe("Overlay Feed Routes (Step 3)", () => {
   });
 
   test("GET /api/feed/standings returns standings rows, flattened top fields, and headers", async () => {
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
     const res = await app.handle(new Request("http://127.0.0.1:3100/api/feed/standings"));
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-cache");
@@ -50,7 +57,7 @@ describe("Overlay Feed Routes (Step 3)", () => {
   });
 
   test("GET /api/feed/status returns status rows and flattened top fields", async () => {
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
     const res = await app.handle(new Request("http://127.0.0.1:3100/api/feed/status"));
     expect(res.status).toBe(200);
 
@@ -65,7 +72,7 @@ describe("Overlay Feed Routes (Step 3)", () => {
   });
 
   test("GET /api/feed/path/:driver returns PathResult for active driver and 404 for unknown/inactive driver", async () => {
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
 
     // Active driver NOR
     const resNor = await app.handle(new Request("http://127.0.0.1:3100/api/feed/path/NOR"));
@@ -89,7 +96,7 @@ describe("Overlay Feed Routes (Step 3)", () => {
   });
 
   test("GET /api/feed/odds returns available: false", async () => {
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
     const res = await app.handle(new Request("http://127.0.0.1:3100/api/feed/odds"));
     expect(res.status).toBe(200);
 
@@ -99,7 +106,7 @@ describe("Overlay Feed Routes (Step 3)", () => {
 
   test("GET /api/feed/active-scenario reflects active scenario changes", async () => {
     cleanupTempDb();
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
 
     // Base active scenario (none set)
     const resBase = await app.handle(new Request("http://127.0.0.1:3100/api/feed/active-scenario"));
