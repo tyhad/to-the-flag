@@ -192,7 +192,7 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 |---|---|---|---|
 | D1 | Engine language | TypeScript (same stack as LiveOverlay, one engine for server and browser, `bun:sqlite` built in). Python stays only for fetching. | Approved |
 | D2 | Visual theme | "Timing tower" per `DESIGN.md` | Approved |
-| D3 | Name and tagline | Name: "To the Flag" (owner proposal). Tagline pending; recommendation: "Set the results. Find the path." | Open |
+| D3 | Name and tagline | Name: "To the Flag" (repo and package `to-the-flag`), final. No tagline is shown in the UI; the earlier recommendation ("Set the results. Find the path.") stays optional | Decided (name); tagline open |
 | D4 | Port and network | Default `PORT=3100`, `HOST=127.0.0.1`; LiveOverlay uses 3000; LAN mode deferred (see section 3) | Decided, LAN deferred |
 | D5 | Sprint partial points | None. Full table at ≥ 50% distance, otherwise 0 (FIA A2.2.2) | Resolved |
 | D6 | Countback | Races only, no sprints; level iv uses qualifying results (FIA A2.1.4.c) | Resolved |
@@ -207,5 +207,5 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D15 | Finish Lane line | The leader's clinch total: the best rival's ceiling plus one, equal to the leader's points plus `pointsToClinch`. Axis in whole tens with a margin; lanes are the contenders | Decided |
 | D16 | Presets and `out` | *Contender wins* puts the focus contender on P1; *Rival out* marks the best-placed other driver out; `out` scores nothing, the same as not being selected | Proposed |
 | D17 | Share link | `#s=<code>&r=<round>`; `shared/shareCodec` is unchanged; a link from another round imports with a warning | Decided |
-| D18 | Stale scenarios | `PUT /api/scenarios/:id` keeps `as_of_round`, so a stale scenario stays stale after saving. Refreshing one needs a new field or a copy | Open |
+| D18 | Stale scenarios | `PUT /api/scenarios/:id` keeps `as_of_round`, so a stale scenario stays stale after saving. Decided: saving changed locks or contenders refreshes `as_of_round` to the current round (renaming does not). Not part of Phase 2; to do in the next phase | Decided, deferred |
 | D19 | Type role `note` | 14px for sentences the audience must read. `caption` (13px) is for hints only | Decided |
