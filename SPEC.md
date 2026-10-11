@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.5. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine) and Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) are done. Phase 3 (odds) is next and has not started. D1 (TypeScript engine) and D2 (theme) are approved.
+**Status:** DRAFT v0.6. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine) and Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) are done. Phase 3 (odds) has a task list in `docs/PHASE_3.md` and has not started. D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -153,6 +153,9 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 - WCC is aggregated from the same simulated driver results.
 - 10k–20k simulations, seeded PRNG (seed derived from `asOfRound` + scenario hash) so numbers do not jitter between runs.
 - Expose `low_confidence = true` when fewer than 5 rounds are complete.
+- A DNF is a result row with `classified = false` (the flag is added to `ResultRow` in Phase 3). Non-classified finishers are left out of the pace fit; sprint DNF probability is the race rate times 0.5.
+- In a locked session, drivers the owner did not set still race in the model (unlike "Possible?", where they score 0).
+- The model runs in a Web Worker in the browser and on the server for the overlay feed, from the same engine code.
 
 **F4. What-if UI.** Per `DESIGN.md`: sessions rail, projected standings, Possible? / Likely? tabs, scenario strip (save, compare, export as image).
 
@@ -173,7 +176,7 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 | 0. F1GStats data (done) | `schedule_full`, `race_results` (+ sprint), season-scoped replace, single-transaction write, `data_health` checks | A run on the current season produces all tables and passes the checks; a forced validation failure leaves the data tables unchanged (exit code 2) |
 | 1. Engine core (done; see `docs/PHASE_1.md`) | F1, F2 (WDC) in TypeScript with fixtures and unit tests (points tables, shortened races, countback, remaining points) | Tests pass on fixtures including a countback tie, each shortened-race column, and the sprint 50% threshold |
 | 2. UI + feed (done; see `docs/PHASE_2.md`) | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
-| 3. Odds | F3 and its UI tab | Seeded runs are reproducible; probabilities sum to 100% across contenders; low-confidence tag works |
+| 3. Odds (see `docs/PHASE_3.md`) | F3, its UI tab, the odds feed, a backtest and a model card | Seeded runs are reproducible; win counts sum to the number of simulations; eliminated drivers never win; the low-confidence tag works; the backtest beats the uniform baseline |
 
 Implement one phase at a time. Each phase must run and be verified before the next starts.
 
@@ -209,3 +212,8 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D17 | Share link | `#s=<code>&r=<round>`; `shared/shareCodec` is unchanged; a link from another round imports with a warning | Decided |
 | D18 | Stale scenarios | `PUT /api/scenarios/:id` keeps `as_of_round`, so a stale scenario stays stale after saving. Decided: saving changed locks or contenders refreshes `as_of_round` to the current round (renaming does not). Not part of Phase 2; to do in the next phase | Decided, deferred |
 | D19 | Type role `note` | 14px for sentences the audience must read. `caption` (13px) is for hints only | Decided |
+| D20 | Unspecified drivers in a locked session | "Likely?": they still race and finish where the model expects. "Possible?": they score 0 (Phase 1 decision b). The UI says so | Approved |
+| D21 | How a DNF is handled | A result with `classified = false` is a DNF. It has weight 0 in the pace fit (it does not make the driver look slow). In the simulation a driver's retirement chance is their own record blended with the grid average (the average counts as 4 virtual races); sprint chance = race chance × 0.5 | Approved |
+| D22 | Where the simulation runs | Browser Web Worker for the UI; the same engine code on the server for the feed | Approved |
+| D23 | Form-weight slider | Included; 0% = all drivers equal, 100% = full season form | Approved |
+| D24 | Model defaults | `OddsParams` defaults in `docs/PHASE_3.md`, tuned only coarsely by the backtest and recorded in `docs/MODEL.md` | Approved |

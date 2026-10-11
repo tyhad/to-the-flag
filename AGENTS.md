@@ -8,12 +8,13 @@ Personal, local-first tool: no accounts, no hosting.
 
 ## Current status
 Phases 0 (data, in the separate `F1GStats` repo), 1 (engine) and 2 (API, web UI, overlay feed) are done.
-Phase 3 (Monte Carlo odds) is next and has no task list yet. Do not start it until the owner says so.
+Phase 3 (Monte Carlo odds) has a task list: `docs/PHASE_3.md`. Do not start it until the owner says so; then follow it step by step.
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.
 2. `DESIGN.md`: visual rules and tokens.
 3. `docs/PHASE_2.md` and `docs/PHASE_1.md` describe the finished web UI, feed and engine; read them for behavior and limits. `docs/FEED.md` documents the overlay feed.
+4. `docs/PHASE_3.md`: the odds task list, and `docs/MODEL.md` once it exists.
 
 If code and documents disagree, follow the documents and ask the owner.
 
@@ -45,6 +46,7 @@ Phase 1 must provide these scripts with exactly these names:
 - Team colors come only from `teamColor()` in `web/theme/teams.ts`. Never type a team hex anywhere else.
 - "Possible?" (no model) and "Likely?" (Monte Carlo) stay visually separate.
 - Never show 0% or 100% from simulation; show `<1%` / `>99%`. Label simulated numbers "Model estimate".
+- Odds code lives in flat files in `engine/`, uses only the seeded `createRng` (never `Math.random`), and formats every probability through `formatProbability`.
 - `PORT` (default 3100) and `HOST` (default 127.0.0.1) come from env. Never hardcode `localhost` in URLs.
 - The browser never touches SQLite. It gets one `SeasonState` from `/api/season` and runs the engine locally.
 - The web UI makes no external network requests; fonts and assets are bundled.
@@ -54,4 +56,5 @@ Phase 1 must provide these scripts with exactly these names:
 - One phase at a time, in the order given in `SPEC.md`. Do not add features from later phases.
 - Write the rule tests (points tables, shortened races, countback) before the engine code.
 - Small commits with clear messages. Run `bun test` and `bun run typecheck` before saying "done".
+- Tests must not depend on `../F1GStats/f1gstats.sqlite`. Build databases with `tests/dbHelpers.ts` (`buildDb`).
 - If a rule is ambiguous, ask the owner instead of guessing.
