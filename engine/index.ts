@@ -8,3 +8,6 @@ export * from "./standings";
 export * from "./status";
 export * from "./solver";
 export * from "./report";
+export * from "./strength";
+export * from "./simulate";
+export * from "./odds";

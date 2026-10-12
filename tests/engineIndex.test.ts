@@ -11,9 +11,16 @@ describe("engine public API (engine/index.ts)", () => {
       "computeDriverStandings", "computeConstructorStandings",
       "driverStatus", "witnessScenario",
       "solveWdc", "paceLimit",
+      "computeOdds", "formatProbability", "simulateSeason", "deriveSeed", "fitStrengths",
     ] as const) {
       expect(typeof engine[name]).toBe("function");
     }
+  });
+
+  test("exports the odds defaults", () => {
+    expect(engine.defaultOddsParams.nSims).toBe(10_000);
+    expect(engine.defaultStrengthParams.recencyHalfLife).toBe(8);
+    expect(engine.LOW_CONFIDENCE_ROUNDS).toBe(5);
   });
 
   test("exports the data tables", () => {

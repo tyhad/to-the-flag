@@ -59,6 +59,23 @@ describe("build output has no outside references", () => {
     }
   });
 
+  test("the odds worker is built as one standalone file with no imports", () => {
+    expect(files(".js")).toContain("oddsWorker.js");
+    const js = read("oddsWorker.js");
+    expect(js.length).toBeGreaterThan(1000);
+    expect(js).not.toMatch(/(?:^|[;}\n])\s*import\s*(?:[\w{*]|["'])/); // no static imports: everything is inside the file
+    expect(js).not.toMatch(/\bimportScripts\(/);
+    expect(js).not.toMatch(/\bfetch\(/);
+    expect(js).not.toMatch(/https?:\/\//);
+  });
+
+  test("the source loads the worker from its own folder, never from a host", () => {
+    const hook = readFileSync(join(import.meta.dir, "..", "web", "useOdds.ts"), "utf8");
+    expect(hook).toMatch(/new\s+Worker\(\s*new\s+URL\(\s*ODDS_WORKER_FILE\s*,\s*import\.meta\.url\s*\)/);
+    const config = readFileSync(join(import.meta.dir, "..", "web", "config.ts"), "utf8");
+    expect(config).toMatch(/ODDS_WORKER_FILE\s*=\s*["']\.\/oddsWorker\.js["']/);
+  });
+
   test("the source never builds a request to a hard-coded host", () => {
     const walk = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
