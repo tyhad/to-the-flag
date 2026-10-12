@@ -101,6 +101,8 @@ docs/      MODEL.md
 - DNF rates lie in (0, 1) and sit near the field average when a driver has few sessions.
 - The fit is deterministic.
 
+**Note from implementation:** with `priorStrength = 1` the dummy-item prior is too weak for a 20-car field. One race gave a spread of strengths (sd 1.16) wider than a full season's (0.78), and the shrinkage test above could not pass. Measured over 20 seeds on synthetic seasons, a weight of 3 gives 0.46 after 1 race, rising steadily to 0.67 after 16 (true spread 0.73). The default is now **3**; rank order is unaffected by the prior. Step 10's backtest may retune it. `StrengthParams` (`recencyHalfLife`, `sprintWeight`, `priorStrength`, `dnfPriorSessions`) lives in `engine/strength.ts`; Step 5's `OddsParams` extends it.
+
 **Commit:** `feat(engine): strength and DNF fit`
 
 ### Step 5: Simulate the rest of the season
@@ -114,7 +116,7 @@ interface OddsParams {
   formWeight: number;      // 0..1, default 1: theta' = formWeight * theta
   recencyHalfLife: number; // default 8 rounds
   sprintWeight: number;    // default 0.5
-  priorStrength: number;   // default 1
+  priorStrength: number;   // default 3 (was sketched as 1; see the note under Step 4)
   strengthSigma: number;   // default 0.25: per-driver sigma = strengthSigma * sqrt(K / (K + effectiveRaces)), K = 6
   dnfPriorSessions: number;// default 4
   sprintDnfFactor: number; // default 0.5
