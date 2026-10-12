@@ -95,13 +95,15 @@ describe("Overlay Feed Routes (Step 3)", () => {
     expect(resTsu.status).toBe(404);
   });
 
-  test("GET /api/feed/odds returns available: false", async () => {
-    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
+  test("GET /api/feed/odds returns the model estimate (details in oddsFeed.test.ts)", async () => {
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB, oddsParams: { nSims: 500 } });
     const res = await app.handle(new Request("http://127.0.0.1:3100/api/feed/odds"));
     expect(res.status).toBe(200);
 
     const json = (await res.json()) as any;
-    expect(json.available).toBe(false);
+    expect(json.available).toBe(true);
+    expect(json.model).toBe("estimate");
+    expect(json.wdc).toBeArray();
   });
 
   test("GET /api/feed/active-scenario reflects active scenario changes", async () => {

@@ -12,6 +12,7 @@ import { SeasonLoader } from "./seasonLoader";
 import { ScenarioDatabase } from "./db";
 import { createScenarioRoutes } from "./routes/scenarios";
 import { createFeedRoutes } from "./routes/feed";
+import type { OddsParams } from "../engine/simulate";
 
 /** Output of `bun run build`. Resolved from this file so the server works from any working directory. */
 const DIST_DIR = join(import.meta.dir, "..", "dist");
@@ -21,6 +22,8 @@ export interface ServerOptions {
   ttfDbPath?: string;
   loader?: SeasonLoader;
   scenarioDb?: ScenarioDatabase;
+  /** Model parameters for GET /api/feed/odds; the defaults of `defaultOddsParams` otherwise. */
+  oddsParams?: Partial<OddsParams>;
 }
 
 export function createApp(options?: ServerOptions) {
@@ -73,7 +76,7 @@ export function createApp(options?: ServerOptions) {
   });
 
   app.use(createScenarioRoutes(loader, scenarioDb));
-  app.use(createFeedRoutes(loader, scenarioDb));
+  app.use(createFeedRoutes(loader, scenarioDb, options?.oddsParams));
 
   return app;
 }
