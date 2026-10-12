@@ -27,10 +27,14 @@ describe("loadSeason: happy path", () => {
   test("results use driver_abbr and constructor_id", () => {
     expect(state.results).toHaveLength(10);
     expect(state.results[0]).toEqual({
-      round: 1, kind: "race", driver: "AAA", team: "alpha", position: 1, points: 25,
+      round: 1, kind: "race", driver: "AAA", team: "alpha", position: 1, points: 25, classified: true,
     });
     expect(state.results.filter((r) => r.kind === "sprint")).toHaveLength(3);
     expect(state.results.reduce((a, r) => a + r.points, 0)).toBe(149);
+  });
+
+  test("every result is classified unless the database says otherwise", () => {
+    expect(state.results.every((r) => r.classified)).toBe(true);
   });
 
   test("qualifying skips rows without a position", () => {
@@ -94,6 +98,19 @@ describe("loadSeason: decisions", () => {
     const state = loadSeason(path);
     const teamsOfCcc = state.results.filter((r) => r.driver === "CCC").map((r) => `${r.round}:${r.team}`);
     expect(teamsOfCcc).toEqual(["1:beta", "2:alpha", "2:alpha"]);
+  });
+
+  test("is_classified = 0 becomes classified = false, only on that row", () => {
+    const path = buildDb((seed) => {
+      // R1 race, driver DDD (P4) retired; it scored 0 either way
+      const ddd = seed.results.find((r) => r.round === 1 && r.session === "Race" && r.abbr === "DDD");
+      if (ddd) ddd.classified = false;
+    });
+    const state = loadSeason(path);
+    const dnfs = state.results.filter((r) => !r.classified);
+    expect(dnfs).toHaveLength(1);
+    expect(dnfs[0]).toMatchObject({ round: 1, kind: "race", driver: "DDD", classified: false });
+    expect(state.results).toHaveLength(10);
   });
 
   test("a missing qualifying table means no qualifying rows", () => {

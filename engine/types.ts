@@ -15,6 +15,8 @@ export interface ResultRow {
   team: string;
   position: number;
   points: number;
+  /** false = did not finish or was not classified (DNF); the odds model treats such a row as a retirement */
+  classified: boolean;
 }
 
 export interface QualiRow {

@@ -67,6 +67,30 @@ describe("makeState", () => {
     expect(s.results.some((r) => r.round === 2 && r.kind === "sprint")).toBe(true);
   });
 
+  test("dnf drivers are not classified, keep their place and score nothing", () => {
+    const s = makeState({
+      rounds: 2,
+      completed: 1,
+      teams,
+      results: { "1:race": { order: ["AAA", "BBB", "CCC"], dnf: ["BBB"] } },
+    });
+    const byDriver = Object.fromEntries(s.results.map((r) => [r.driver, r]));
+    expect(byDriver.AAA).toMatchObject({ position: 1, points: 25, classified: true });
+    expect(byDriver.BBB).toMatchObject({ position: 2, points: 0, classified: false });
+    expect(byDriver.CCC).toMatchObject({ position: 3, points: 15, classified: true });
+  });
+
+  test("rows are classified by default", () => {
+    const s = makeState({ rounds: 2, completed: 1, teams, results: { "1:race": ["AAA", "BBB"] } });
+    expect(s.results.every((r) => r.classified)).toBe(true);
+  });
+
+  test("a dnf driver that is not in the order throws", () => {
+    expect(() =>
+      makeState({ rounds: 2, teams, results: { "1:race": { order: ["AAA"], dnf: ["BBB"] } } }),
+    ).toThrow(/dnf driver BBB/);
+  });
+
   test("mistakes in a test setup throw", () => {
     expect(() => makeState({ rounds: 2, completed: 1, teams })).toThrow(/no race result/);
     expect(() => makeState({ rounds: 2, sprints: [1], completed: 1, teams, results: { "1:race": ["AAA"] } })).toThrow(/no sprint result/);
