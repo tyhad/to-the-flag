@@ -101,7 +101,7 @@ docs/      MODEL.md
 - DNF rates lie in (0, 1) and sit near the field average when a driver has few sessions.
 - The fit is deterministic.
 
-**Note from implementation:** with `priorStrength = 1` the dummy-item prior is too weak for a 20-car field. One race gave a spread of strengths (sd 1.16) wider than a full season's (0.78), and the shrinkage test above could not pass. Measured over 20 seeds on synthetic seasons, a weight of 3 gives 0.46 after 1 race, rising steadily to 0.67 after 16 (true spread 0.73). The default is now **3**; rank order is unaffected by the prior. Step 10's backtest may retune it. `StrengthParams` (`recencyHalfLife`, `sprintWeight`, `priorStrength`, `dnfPriorSessions`) lives in `engine/strength.ts`; Step 5's `OddsParams` extends it.
+**Note from implementation:** with `priorStrength = 1` the dummy-item prior is too weak for a 20-car field. One race gave a spread of strengths (sd 1.16) wider than a full season's (0.78), and the shrinkage test above could not pass. Measured over 20 seeds on synthetic seasons, a weight of 3 gives 0.46 after 1 race, rising steadily to 0.67 after 16 (true spread 0.73). The default is now **3**; rank order is unaffected by the prior. Step 10's backtest tested it again: see the note under Step 10. `StrengthParams` (`recencyHalfLife`, `sprintWeight`, `priorStrength`, `dnfPriorSessions`) lives in `engine/strength.ts`; Step 5's `OddsParams` extends it.
 
 **Commit:** `feat(engine): strength and DNF fit`
 
@@ -114,7 +114,7 @@ interface OddsParams {
   nSims: number;           // default 10_000
   seed?: number;           // default hashSeed(season, asOfRound, canonical scenario JSON, key params)
   formWeight: number;      // 0..1, default 1: theta' = formWeight * theta
-  recencyHalfLife: number; // default 8 rounds
+  recencyHalfLife: number; // default: none (Infinity); was sketched as 8, changed by the Step 10 backtest (docs/MODEL.md)
   sprintWeight: number;    // default 0.5
   priorStrength: number;   // default 3 (was sketched as 1; see the note under Step 4)
   strengthSigma: number;   // default 0.25: per-driver sigma = strengthSigma * sqrt(K / (K + effectiveRaces)), K = 6
@@ -221,6 +221,8 @@ interface OddsResult {
 Write `docs/MODEL.md`: what the model is, every parameter and default, the backtest results, and the limits (one season; about 11 test races; no upgrades, tracks, weather or grid positions; title odds cannot be calibrated from a single season; strength uncertainty is a heuristic).
 
 **Acceptance:** the model's log loss is lower than the uniform baseline's; the script prints a readable table; `docs/MODEL.md` exists.
+
+**Note from implementation:** the backtest needed a probability for one race, which `simulateSeason` does not give, so `engine/simulate.ts` now also exports `forecastRace` (chance to win and to reach the podium). It shares the session draw with the season simulation (`rankRacers`), and a test checks it against the exact Plackett-Luce formula. Results are in `docs/MODEL.md`. In short: the model beats the uniform baseline, **loses to "points so far"** at predicting single races, and any decay of old results was clearly worse on 2026. `recencyHalfLife` is now **no decay**. `priorStrength` stays **3**: a weaker prior also tested better, but the backtest starts at round 6 and cannot judge the early rounds, where the prior is needed. Run it with `bun run backtest`.
 
 **Commit:** `feat(scripts): walk-forward backtest` and `docs: add model card`
 
