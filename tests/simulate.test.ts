@@ -58,7 +58,7 @@ describe("simulateSeason: basics", () => {
     expect(defaultOddsParams).toEqual({
       nSims: 10_000,
       formWeight: 1,
-      recencyHalfLife: 8,
+      recencyHalfLife: Infinity, // no decay: the Step 10 backtest found any decay clearly worse
       sprintWeight: 0.5,
       priorStrength: 3,
       strengthSigma: 0.25,

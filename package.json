@@ -7,6 +7,7 @@
     "dev": "bun --watch scripts/dev.ts",
     "build": "bun scripts/build.ts",
     "check": "bun scripts/check.ts",
+    "backtest": "bun scripts/backtest.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

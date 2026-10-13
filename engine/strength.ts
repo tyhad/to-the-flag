@@ -13,7 +13,7 @@ import type { ResultRow, SeasonState } from "./types";
 
 /** The parameters the fit needs. The simulation's `OddsParams` extends this. */
 export interface StrengthParams {
-  /** rounds after which a session counts half as much */
+  /** rounds after which a session counts half as much; Infinity means every session counts the same */
   recencyHalfLife: number;
   /** extra weight factor of a sprint, next to a race */
   sprintWeight: number;
@@ -24,7 +24,9 @@ export interface StrengthParams {
 }
 
 export const defaultStrengthParams: StrengthParams = {
-  recencyHalfLife: 8,
+  // No decay. The Step 10 backtest (docs/MODEL.md) found any decay clearly worse on the 2026 season, whose pace order
+  // barely moved. A season with big mid-season shifts may want a finite half-life (8 to 16 rounds): revisit with more seasons.
+  recencyHalfLife: Number.POSITIVE_INFINITY,
   sprintWeight: 0.5,
   // 1 (the weight first sketched in docs/PHASE_3.md) leaves one race of a 20-car field over-dispersed: its strengths
   // spread wider than a full season's. 3 shrinks small samples and still lets 16 rounds speak. Revisit in the Step 10 backtest.

@@ -19,7 +19,7 @@ describe("engine public API (engine/index.ts)", () => {
 
   test("exports the odds defaults", () => {
     expect(engine.defaultOddsParams.nSims).toBe(10_000);
-    expect(engine.defaultStrengthParams.recencyHalfLife).toBe(8);
+    expect(engine.defaultStrengthParams.recencyHalfLife).toBe(Infinity);
     expect(engine.LOW_CONFIDENCE_ROUNDS).toBe(5);
   });
 

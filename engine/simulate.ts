@@ -11,11 +11,11 @@
  */
 import { compareStanding, type Rankable } from "./countback";
 import { gpPoints, sprintPoints } from "./points";
-import { createRng, hashSeed } from "./rng";
+import { createRng, hashSeed, type Rng } from "./rng";
 import { validateScenario } from "./scenario";
 import { parseSessionKey, remainingSessions } from "./sessions";
 import { computeConstructorStandings, computeDriverStandings } from "./standings";
-import { defaultStrengthParams, fitStrengths, type StrengthParams } from "./strength";
+import { defaultStrengthParams, fitStrengths, type StrengthFit, type StrengthParams } from "./strength";
 import type { Scenario, SeasonState } from "./types";
 
 export interface OddsParams extends StrengthParams {
@@ -57,6 +57,7 @@ export interface SimulationResult {
 const STRENGTH_SIGMA_K = 6;
 /** Retirements are drawn in this range; a retiree's sort key sits far below any finisher's. */
 const RETIRED_KEY = -1e6;
+const isFinisher = (key: number): boolean => key > RETIRED_KEY / 2;
 
 function checkParams(p: OddsParams): void {
   if (!Number.isInteger(p.nSims) || p.nSims < 1) throw new RangeError(`nSims must be a whole number of 1 or more, got ${p.nSims}`);
@@ -81,6 +82,51 @@ function canonicalJson(value: unknown): string {
 export function deriveSeed(state: SeasonState, scenario: Scenario | undefined, params: OddsParams): number {
   const { seed: _ignored, ...modelParams } = params;
   return hashSeed(String(state.season), String(state.asOfRound), canonicalJson(scenario?.locks ?? {}), canonicalJson(modelParams));
+}
+
+/** The model's per-driver inputs for the drivers in `codes` (same order). */
+function modelInputs(fit: StrengthFit, codes: readonly string[], params: OddsParams) {
+  const form = Float64Array.from(codes, (c) => params.formWeight * (fit.theta[c] ?? 0));
+  const sigma = Float64Array.from(
+    codes,
+    (c) => params.strengthSigma * Math.sqrt(STRENGTH_SIGMA_K / (STRENGTH_SIGMA_K + (fit.effectiveRaces[c] ?? 0))),
+  );
+  const raceRetire = Float64Array.from(codes, (c) => (params.includeDnf ? (fit.dnfRate[c] ?? 0) : 0));
+  const sprintRetire = raceRetire.map((p) => Math.min(1, p * params.sprintDnfFactor));
+  return { form, sigma, raceRetire, sprintRetire };
+}
+
+/**
+ * Draws one open session for the drivers in `racers`: each retires with its own chance, the others get a key of
+ * strength plus Gumbel noise. Leaves the drivers in `order[0 .. racers.length)`, best first, retirees at the back in
+ * random order, and each driver's key in `sortKey` (`isFinisher` tells a retiree from a finisher).
+ * The season simulation and the single-race forecast both use this, so they cannot drift apart.
+ */
+function rankRacers(
+  rng: Rng,
+  racers: Int32Array,
+  strength: Float64Array,
+  retire: Float64Array,
+  sortKey: Float64Array,
+  order: Int32Array,
+): void {
+  const u = racers.length;
+  for (let k = 0; k < u; k++) {
+    const d = racers[k]!;
+    sortKey[d] = rng.next() < retire[d]! ? RETIRED_KEY + rng.next() : strength[d]! + rng.gumbel();
+    order[k] = d;
+  }
+  // best key first (insertion sort: a field is at most about 22 drivers)
+  for (let a = 1; a < u; a++) {
+    const d = order[a]!;
+    const key = sortKey[d]!;
+    let b = a - 1;
+    while (b >= 0 && sortKey[order[b]!]! < key) {
+      order[b + 1] = order[b]!;
+      b--;
+    }
+    order[b + 1] = d;
+  }
 }
 
 /** What one remaining session needs, worked out once before the simulations start. */
@@ -150,14 +196,7 @@ export function simulateSeason(
   });
 
   // ---- the model inputs
-  const fit = fitStrengths(state, params);
-  const form = Float64Array.from(active, (c) => params.formWeight * (fit.theta[c] ?? 0));
-  const sigma = Float64Array.from(
-    active,
-    (c) => params.strengthSigma * Math.sqrt(STRENGTH_SIGMA_K / (STRENGTH_SIGMA_K + (fit.effectiveRaces[c] ?? 0))),
-  );
-  const raceRetire = Float64Array.from(active, (c) => (params.includeDnf ? (fit.dnfRate[c] ?? 0) : 0));
-  const sprintRetire = raceRetire.map((p) => Math.min(1, p * params.sprintDnfFactor));
+  const { form, sigma, raceRetire, sprintRetire } = modelInputs(fitStrengths(state, params), active, params);
 
   // ---- the sessions left to run
   const sessions: CompiledSession[] = [];
@@ -252,28 +291,13 @@ export function simulateSeason(
     simPoints.fill(0);
 
     for (const s of sessions) {
-      // the unspecified drivers: retire or draw a finishing key
+      // the unspecified drivers: retire or draw a finishing key, then order them
       const u = s.racers.length;
-      for (let k = 0; k < u; k++) {
-        const d = s.racers[k]!;
-        sortKey[d] = rng.next() < s.retire[d]! ? RETIRED_KEY + rng.next() : strength[d]! + rng.gumbel();
-        order[k] = d;
-      }
-      // best key first (insertion sort: a field is at most about 22 drivers)
-      for (let a = 1; a < u; a++) {
-        const d = order[a]!;
-        const key = sortKey[d]!;
-        let b = a - 1;
-        while (b >= 0 && sortKey[order[b]!]! < key) {
-          order[b + 1] = order[b]!;
-          b--;
-        }
-        order[b + 1] = d;
-      }
+      rankRacers(rng, s.racers, strength, s.retire, sortKey, order);
       for (let k = 0; k < u; k++) {
         const d = order[k]!;
         const position = s.free[k]!;
-        if (sortKey[d]! > RETIRED_KEY / 2) simPoints[d]! += s.table[position]!;
+        if (isFinisher(sortKey[d]!)) simPoints[d]! += s.table[position]!;
         if (s.raceSlot >= 0) racePosition[s.raceSlot * A + d] = position;
       }
       for (let k = 0; k < s.fixedDrivers.length; k++) {
@@ -357,4 +381,61 @@ export function simulateSeason(
     driverPointSums: driverSumsOut,
     teamPointSums: teamSumsOut,
   };
+}
+
+export interface RaceForecast {
+  nSims: number;
+  seed: number;
+  /** chance of winning the race, by driver code */
+  win: Record<string, number>;
+  /** chance of a classified finish in the top three, by driver code */
+  podium: Record<string, number>;
+}
+
+/**
+ * What the model expects of one open race: for each driver in `field`, the chance to win it and to finish on the
+ * podium (a retirement is neither). It fits on `state` as it stands and draws the race exactly as `simulateSeason`
+ * draws an open session. `field` defaults to the drivers still racing; pass the entry list to forecast a past race
+ * (the backtest does). Throws RangeError for nonsense parameters.
+ */
+export function forecastRace(
+  state: SeasonState,
+  partial: Partial<OddsParams> = {},
+  field: readonly string[] = state.drivers.filter((d) => d.active).map((d) => d.code),
+): RaceForecast {
+  const params: OddsParams = { ...defaultOddsParams, ...partial };
+  checkParams(params);
+  const seed = params.seed ?? deriveSeed(state, undefined, params);
+  const { nSims } = params;
+
+  const codes = [...field];
+  const n = codes.length;
+  const { form, sigma, raceRetire } = modelInputs(fitStrengths(state, params), codes, params);
+
+  const rng = createRng(seed);
+  const racers = Int32Array.from(codes, (_, i) => i);
+  const strength = new Float64Array(n);
+  const sortKey = new Float64Array(n);
+  const order = new Int32Array(n);
+  const wins = new Float64Array(n);
+  const podiums = new Float64Array(n);
+
+  for (let sim = 0; sim < nSims; sim++) {
+    for (let i = 0; i < n; i++) strength[i] = form[i]! + sigma[i]! * rng.normal();
+    rankRacers(rng, racers, strength, raceRetire, sortKey, order);
+    for (let place = 0; place < Math.min(3, n); place++) {
+      const d = order[place]!;
+      if (!isFinisher(sortKey[d]!)) break; // everyone after a retiree has retired too
+      podiums[d]! += 1;
+      if (place === 0) wins[d]! += 1;
+    }
+  }
+
+  const win: Record<string, number> = {};
+  const podium: Record<string, number> = {};
+  codes.forEach((c, i) => {
+    win[c] = wins[i]! / nSims;
+    podium[c] = podiums[i]! / nSims;
+  });
+  return { nSims, seed, win, podium };
 }

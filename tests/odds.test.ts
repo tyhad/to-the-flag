@@ -230,12 +230,14 @@ describe("computeOdds", () => {
   });
 });
 
-// Computed by running the model once and reviewed by hand: AAA and BBB are level (43 points, one win and one second each),
-// so a tie at the top goes to AAA by id, while BBB, who won the latest round, scores slightly more on average.
+// Computed by running the model once and reviewed by hand. AAA and BBB are level (43 points, one win and one second each)
+// and, with no decay in the fit, equally fast, so their average points are almost the same (83.44 and 83.49); a tie at
+// the top goes to AAA by id, which is why AAA wins more seasons. (With a half-life of 8 rounds BBB, who won the latest
+// round, was a little faster: AAA 557, BBB 409, CCC 34.)
 const GOLDEN_TINY = {
-  wdc: { AAA: 557, BBB: 409, CCC: 34 },
+  wdc: { AAA: 568, BBB: 399, CCC: 33 },
   wcc: { red: 1000 },
-  points: { AAA: 83.25, BBB: 83.6, CCC: 65.13 },
+  points: { AAA: 83.44, BBB: 83.49, CCC: 65.04 },
 };
 
 // ---------- the real fixture ----------
