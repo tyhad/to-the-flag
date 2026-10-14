@@ -54,6 +54,8 @@ export function StandingsPanel({ season, scenario, compare, contenders }: Standi
         role="tabpanel"
         id={panelId("standings", tab)}
         aria-labelledby={tabId("standings", tab)}
+        // The panel scrolls, so a keyboard user must be able to focus it and use the arrow keys.
+        tabIndex={0}
         className="min-h-0 flex-1 scroll-p-3 overflow-y-auto"
       >
         {season.status === "ready" && compare ? (
