@@ -2,7 +2,8 @@
  * Tests for Scenario storage database & scenario API routes (Phase 2 Step 2).
  */
 import { describe, expect, test, beforeAll, beforeEach, afterAll, afterEach } from "bun:test";
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../api/server";
 import { ScenarioDatabase } from "../api/db";
@@ -11,7 +12,11 @@ import { buildFixtureDb, cleanupDbs } from "./dbHelpers";
 import type { Scenario } from "../engine/types";
 
 let DB_PATH = "";
-const TEMP_TTF_DB = join(import.meta.dir, "temp-ttf.sqlite");
+// Every test gets its own scenario database file. On Windows an open SQLite file cannot be deleted, so one shared
+// file would carry a test's scenarios and active scenario over into the next test.
+let TEMP_TTF_DB = "";
+let TTF_DIR = "";
+let ttfCount = 0;
 
 function cleanupTempDb() {
   if (existsSync(TEMP_TTF_DB)) {
@@ -26,11 +31,18 @@ function cleanupTempDb() {
 describe("Scenario Storage & API Routes (Step 2)", () => {
   beforeAll(() => {
     DB_PATH = buildFixtureDb();
+    TTF_DIR = mkdtempSync(join(tmpdir(), "ttf-tests-"));
   });
   afterAll(() => {
     cleanupDbs();
+    try {
+      rmSync(TTF_DIR, { recursive: true, force: true });
+    } catch {
+      // files may still be open on Windows; the OS temp folder is cleaned up later
+    }
   });
   beforeEach(() => {
+    TEMP_TTF_DB = join(TTF_DIR, `scenarios-${++ttfCount}.sqlite`);
     cleanupTempDb();
   });
   afterEach(() => {

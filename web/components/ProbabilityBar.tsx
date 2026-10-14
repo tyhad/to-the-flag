@@ -28,8 +28,14 @@ export function ProbabilityBar({ row }: { row: OddsBarRow }) {
     <li className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-baseline gap-2">
-          <span className="type-title text-text">{row.title}</span>
-          {row.subtitle ? <span className="type-body truncate text-text-2">{row.subtitle}</span> : null}
+          <span className="type-title truncate text-text" title={row.title}>
+            {row.title}
+          </span>
+          {row.subtitle ? (
+            <span className="type-body truncate text-text-2" title={row.subtitle}>
+              {row.subtitle}
+            </span>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {row.delta ? <PpDeltaChip delta={row.delta} /> : null}

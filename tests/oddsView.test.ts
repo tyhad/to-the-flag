@@ -15,6 +15,7 @@ import {
   oddsErrorCopy,
   probabilityBand,
   probabilityDelta,
+  shownProbability,
   snapFormPercent,
   whatIfNote,
 } from "../web/viewModel/odds";
@@ -45,10 +46,30 @@ describe("probabilityBand", () => {
   test("at least 50% is green, 10 to under 50% is yellow, under 10% is orange", () => {
     expect(probabilityBand(0.9)).toBe("green");
     expect(probabilityBand(0.5)).toBe("green");
-    expect(probabilityBand(0.4999)).toBe("yellow");
+    expect(probabilityBand(0.49)).toBe("yellow");
     expect(probabilityBand(0.1)).toBe("yellow");
-    expect(probabilityBand(0.0999)).toBe("orange");
+    expect(probabilityBand(0.09)).toBe("orange");
     expect(probabilityBand(0)).toBe("orange");
+  });
+
+  test("the color follows the number the reader sees, so two rows that both read 50% share a color", () => {
+    // 49.6% and 50.4% are both shown as "50%"
+    expect(probabilityBand(0.496)).toBe("green");
+    expect(probabilityBand(0.504)).toBe("green");
+    expect(probabilityBand(0.494)).toBe("yellow"); // shown as "49%"
+    // 9.96% is shown as "10%", 9.4% as "9.4%"
+    expect(probabilityBand(0.0996)).toBe("yellow");
+    expect(probabilityBand(0.094)).toBe("orange");
+    // under 1% and over 99% are shown as such
+    expect(probabilityBand(0.0099)).toBe("orange");
+    expect(probabilityBand(0.9901)).toBe("green");
+  });
+
+  test("shownProbability is the probability after the rounding the text does", () => {
+    expect(shownProbability(0.496)).toBeCloseTo(0.5, 12);
+    expect(shownProbability(0.0345)).toBeCloseTo(0.035, 12);
+    expect(shownProbability(0.004)).toBe(0);
+    expect(shownProbability(0.999)).toBe(1);
   });
 
   test("the limits are configurable", () => {

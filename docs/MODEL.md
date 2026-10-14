@@ -125,6 +125,7 @@ shrinkage and the noise keep every driver's chance from getting small; that is a
 - **Title odds cannot be calibrated.** A single season has exactly one champion. The backtest checks race forecasts, a
   proxy; the title odds themselves are only sanity-checked (clinched always 100% of simulations, eliminated never, a
   locked session moves the numbers the way the points do).
+- **What-if odds depend on the pace gap, and the pace gap depends on how old results are weighed.** The scenario "ANT out of the next four races, RUS wins all four" gives RUS 42% with a half-life of 8 rounds and 50% with no decay (the default). Treat the number as one reading of a close contest, not a measurement.
 - **What the model does not know:** upgrades, tracks, weather, grid positions, penalties, reliability beyond a driver's
   own record, who is injured or about to leave. It sees only where drivers finished and whether they retired.
 - **Strength uncertainty is a heuristic**, not a full Bayesian posterior: one noise size, shrinking with the number of

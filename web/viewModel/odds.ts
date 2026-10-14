@@ -10,9 +10,22 @@ import type { OddsErrorKind, OddsState, OddsStatus } from "./oddsRequests";
 export type OddsTable = "wdc" | "wcc";
 export type ProbabilityBand = "green" | "yellow" | "orange";
 
+/** The probability as the reader sees it, after the rounding `formatProbability` does ("<1%" is 0, ">99%" is 1). */
+export function shownProbability(probability: number): number {
+  const text = formatProbability(probability);
+  if (text === "<1%") return 0;
+  if (text === ">99%") return 1;
+  return Number.parseFloat(text) / 100;
+}
+
+/**
+ * The bar color. It follows the number the reader sees, not the raw estimate: 49.6% and 50.4% both read "50%", so they
+ * get the same color.
+ */
 export function probabilityBand(probability: number, bands: OddsBands = ODDS_BANDS): ProbabilityBand {
-  if (probability >= bands.green) return "green";
-  if (probability >= bands.yellow) return "yellow";
+  const shown = shownProbability(probability);
+  if (shown >= bands.green) return "green";
+  if (shown >= bands.yellow) return "yellow";
   return "orange";
 }
 
