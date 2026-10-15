@@ -39,6 +39,15 @@ describe.skipIf(!existsSync(FIXTURE))("real fixture season-2026-r16", () => {
     expect(state.results.filter((r) => r.kind === "sprint")).toHaveLength(110);
   });
 
+  test("classified flag: every row has one, at least one is false, the counts above do not change", () => {
+    const state = load();
+    expect(state.results.every((r) => typeof r.classified === "boolean")).toBe(true);
+    expect(state.results.some((r) => r.classified === false)).toBe(true);
+    expect(state.results.filter((r) => r.kind === "race")).toHaveLength(352);
+    expect(state.results.filter((r) => r.kind === "sprint")).toHaveLength(110);
+    expect(remainingSessions(state)).toHaveLength(8);
+  });
+
   test("qualifying: 347 rows (5 missing)", () => {
     const state = load();
     expect(state.qualifying).toHaveLength(347);

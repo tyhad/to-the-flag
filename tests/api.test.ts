@@ -2,20 +2,27 @@
  * API Skeleton tests (Phase 2 Step 1).
  * Tests GET /api/health, GET /api/season, ETag 304, 503 errors on missing or invalid DB.
  */
-import { describe, expect, test, afterAll } from "bun:test";
+import { describe, expect, test, afterAll, beforeAll } from "bun:test";
 import { Database } from "bun:sqlite";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { createApp } from "../api/server";
 import { SeasonLoader } from "../api/seasonLoader";
+import { buildFixtureDb, cleanupDbs } from "./dbHelpers";
 import type { SeasonState } from "../engine/types";
 
 const FIXTURE_PATH = join(import.meta.dir, "fixtures", "season-2026-r16.json");
+// Optional sibling file, used only by the "real database smoke" test below.
 const REAL_DB_PATH = join(import.meta.dir, "..", "..", "F1GStats", "f1gstats.sqlite");
+let DB_PATH = "";
 const TEMP_DB_V1 = join(import.meta.dir, "temp-v1.sqlite");
 
 describe("API Skeleton (Step 1)", () => {
+  beforeAll(() => {
+    DB_PATH = buildFixtureDb();
+  });
   afterAll(() => {
+    cleanupDbs();
     if (existsSync(TEMP_DB_V1)) {
       try {
         unlinkSync(TEMP_DB_V1);
@@ -27,7 +34,7 @@ describe("API Skeleton (Step 1)", () => {
 
   describe("GET /api/health", () => {
     test("returns correct health shape on valid database", async () => {
-      const app = createApp({ dbPath: REAL_DB_PATH });
+      const app = createApp({ dbPath: DB_PATH });
       const res = await app.handle(new Request("http://127.0.0.1:3100/api/health"));
       expect(res.status).toBe(200);
 
@@ -71,7 +78,7 @@ describe("API Skeleton (Step 1)", () => {
 
   describe("GET /api/season", () => {
     test("season payload equals fixture / SeasonState and includes ETag", async () => {
-      const app = createApp({ dbPath: REAL_DB_PATH });
+      const app = createApp({ dbPath: DB_PATH });
       const res = await app.handle(new Request("http://127.0.0.1:3100/api/season"));
       expect(res.status).toBe(200);
 
@@ -89,7 +96,7 @@ describe("API Skeleton (Step 1)", () => {
     });
 
     test("returns 304 on matching ETag", async () => {
-      const app = createApp({ dbPath: REAL_DB_PATH });
+      const app = createApp({ dbPath: DB_PATH });
       const res1 = await app.handle(new Request("http://127.0.0.1:3100/api/season"));
       expect(res1.status).toBe(200);
       const etag = res1.headers.get("etag")!;
@@ -121,7 +128,7 @@ describe("API Skeleton (Step 1)", () => {
 
   describe("SeasonLoader Caching", () => {
     test("reloads state when file mtime changes", async () => {
-      const loader = new SeasonLoader(REAL_DB_PATH);
+      const loader = new SeasonLoader(DB_PATH);
       const r1 = loader.getSeason();
       expect(r1.ok).toBe(true);
 
@@ -131,5 +138,14 @@ describe("API Skeleton (Step 1)", () => {
         expect(r1.data).toBe(r2.data);
       }
     });
+  });
+
+  test.skipIf(!existsSync(REAL_DB_PATH))("real database smoke: the live file loads and reports health", async () => {
+    const app = createApp({ dbPath: REAL_DB_PATH });
+    const res = await app.handle(new Request("http://127.0.0.1:3100/api/health"));
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(json.ok).toBe(true);
+    expect(json.asOfRound).toBeGreaterThan(0);
   });
 });

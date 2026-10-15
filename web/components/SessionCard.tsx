@@ -32,7 +32,6 @@ export function SessionCard({ state, card, workspace, dispatch }: SessionCardPro
         <button
           type="button"
           aria-pressed={card.locked}
-          aria-label={`${card.locked ? "Unlock" : "Lock"} ${card.title}`}
           onClick={() => dispatch({ type: card.locked ? "unlock" : "lock", key: card.key })}
           className={`type-label inline-flex h-8 shrink-0 items-center gap-1.5 rounded-control border px-3 text-text ${
             card.locked ? "border-accent-fill bg-accent-fill hover:bg-accent-fill-hover" : "border-accent hover:border-accent-hover"
@@ -40,6 +39,8 @@ export function SessionCard({ state, card, workspace, dispatch }: SessionCardPro
         >
           {card.locked ? <LockIcon /> : null}
           {card.locked ? "Locked" : "Open"}
+          {/* The name is the visible word plus the session, so "Open" is also what a voice-control user says. */}
+          <span className="sr-only"> {card.title}</span>
         </button>
       </div>
       {card.locked ? <PositionPicker state={state} card={card} workspace={workspace} dispatch={dispatch} /> : null}

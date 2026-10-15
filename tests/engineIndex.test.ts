@@ -11,9 +11,16 @@ describe("engine public API (engine/index.ts)", () => {
       "computeDriverStandings", "computeConstructorStandings",
       "driverStatus", "witnessScenario",
       "solveWdc", "paceLimit",
+      "computeOdds", "formatProbability", "simulateSeason", "deriveSeed", "fitStrengths",
     ] as const) {
       expect(typeof engine[name]).toBe("function");
     }
+  });
+
+  test("exports the odds defaults", () => {
+    expect(engine.defaultOddsParams.nSims).toBe(10_000);
+    expect(engine.defaultStrengthParams.recencyHalfLife).toBe(Infinity);
+    expect(engine.LOW_CONFIDENCE_ROUNDS).toBe(5);
   });
 
   test("exports the data tables", () => {
@@ -30,8 +37,8 @@ describe("engine public API (engine/index.ts)", () => {
         { round: 2, name: "Two", hasSprint: false, status: "scheduled" },
       ],
       results: [
-        { round: 1, kind: "race", driver: "AAA", team: "t", position: 1, points: 25 },
-        { round: 1, kind: "race", driver: "BBB", team: "t", position: 2, points: 18 },
+        { round: 1, kind: "race", driver: "AAA", team: "t", position: 1, points: 25, classified: true },
+        { round: 1, kind: "race", driver: "BBB", team: "t", position: 2, points: 18, classified: true },
       ],
       qualifying: [],
       drivers: [{ code: "AAA", name: "A", active: true }, { code: "BBB", name: "B", active: true }],

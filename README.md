@@ -18,8 +18,9 @@ Set results for the remaining sessions and watch the table, the title status and
 - **Ask what it takes.** *Possible?* shows what a contender needs to win the title, with a difficulty meter (a share of the remaining points, never a probability) and the easiest path, which you can load into the sandbox.
 - **See the gap.** The finish lane shows each contender's projected points, the most they can reach, and the total at which the leader clinches.
 - **Keep scenarios.** Save, rename, delete and compare scenarios, copy a share link, and show one on the overlay.
+- **Ask what is likely.** *Likely?* shows model odds for the drivers' and the teams' title, from 10,000 simulated seasons. With locked sessions it also shows the change against the odds with nothing locked. The slider sets how much this season's form counts (0% makes all drivers equal). The numbers are always labelled *Model estimate*; clinched and eliminated drivers are stated in words, and a simulation never shows `0%` or `100%`. How the model works, how it was tested and what it cannot do: [`docs/MODEL.md`](docs/MODEL.md).
 
-*Likely?* (model odds) arrives in Phase 3 and is disabled for now.
+*Possible?* is exact arithmetic and *Likely?* is a model; the two are never mixed into one figure.
 
 ## Commands
 | Command | What it does |
@@ -33,8 +34,10 @@ Set results for the remaining sessions and watch the table, the title status and
 | `bun scripts/verifyStandings.ts [db]` | Check the engine's base table equals F1GStats `driver_standings` (order and points) |
 | `bun scripts/statusReport.ts [db]` | Print the title status table (clinched / alive / eliminated) from the real data |
 | `bun scripts/exportFixture.ts <db> <out.json>` | Snapshot the loaded season as a JSON test fixture |
+| `bun scripts/addClassified.ts <db> <fixture.json>` | Add each result's `classified` flag (DNF or not) to an older fixture |
+| `bun run backtest` | Walk-forward test of the odds model against past races, with the settings grid and baselines (about 3 s). See `docs/MODEL.md` |
 
-Some API tests read the real F1GStats database and fail if it is missing. Everything else runs from the fixtures in `tests/fixtures/`.
+Tests run from the fixtures in `tests/fixtures/` and databases they build themselves; none needs the real F1GStats file. One optional smoke test uses it when `../F1GStats/f1gstats.sqlite` exists and is skipped otherwise.
 
 ## Configuration
 Copy `.env.example` to `.env` and adjust. All values are optional.
@@ -47,7 +50,7 @@ Copy `.env.example` to `.env` and adjust. All values are optional.
 | `HOST` | `127.0.0.1` | Server host. Keep it local: there is no login |
 
 ## Overlay feed
-The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio or any streaming tool, for example `http://127.0.0.1:3100/api/feed/active-scenario`. Routes, fields and binding steps are in [`docs/FEED.md`](docs/FEED.md).
+The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio or any streaming tool, for example `http://127.0.0.1:3100/api/feed/active-scenario`. Routes, fields and binding steps are in [`docs/FEED.md`](docs/FEED.md). `/api/feed/odds` serves the model odds for the active scenario (or the base season), cached until the data or the scenario changes.
 
 ## Share links
 *Copy link* puts the scenario in the address after a `#`, for example `http://127.0.0.1:3100/#s=v1.…&r=16`. Opening it imports the scenario and checks it against the current data. If it was made at an earlier round, you get a warning that results may differ. Nothing is sent to a server.

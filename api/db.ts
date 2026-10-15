@@ -160,11 +160,16 @@ export class ScenarioDatabase {
           ? JSON.stringify(input.contenders)
           : null
         : existing.contenders_json;
+    // Decision D18: saving locks or contenders makes the scenario current; a rename alone keeps its round.
+    const contentChanged = input.locks !== undefined || input.contenders !== undefined;
+    const asOfRound = contentChanged ? state.asOfRound : existing.as_of_round;
     const now = new Date().toISOString();
 
     this.db
-      .query("UPDATE scenarios SET name = ?, locks_json = ?, contenders_json = ?, updated_at = ? WHERE id = ?")
-      .run(name, locksJson, contendersJson, now, id);
+      .query(
+        "UPDATE scenarios SET name = ?, locks_json = ?, contenders_json = ?, as_of_round = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(name, locksJson, contendersJson, asOfRound, now, id);
 
     const updated = this.db.query<ScenarioRow, [string]>("SELECT * FROM scenarios WHERE id = ?").get(id)!;
     return this.rowToStored(updated, state);

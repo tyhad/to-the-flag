@@ -3,10 +3,13 @@
  * Served to LiveOverlay Studio or streaming tools.
  */
 import { Elysia } from "elysia";
+import { computeOdds, type OddsResult } from "../../engine/odds";
+import type { OddsParams } from "../../engine/simulate";
 import { computeDriverStandings, computeConstructorStandings } from "../../engine/standings";
 import { driverStatus } from "../../engine/status";
 import { solveWdc } from "../../engine/solver";
 import type { ScenarioDatabase } from "../db";
+import { OddsCache, buildOddsPayload, oddsCacheKey } from "../oddsFeed";
 import type { SeasonLoader } from "../seasonLoader";
 
 function flattenTopN(prefix: string, items: any[], n = 10): Record<string, any> {
@@ -39,7 +42,11 @@ function computeEtag(content: string): string {
   return `"${Math.abs(hash).toString(36)}"`;
 }
 
-export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase) {
+export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, oddsParams: Partial<OddsParams> = {}) {
+  // Simulating takes a few hundred milliseconds, so each result is kept until the season file, the scenario or the
+  // parameters change. The scenario's updated_at is its version.
+  const oddsCache = new OddsCache<OddsResult>();
+
   return new Elysia({ prefix: "/api/feed" })
     .onBeforeHandle(({ set }) => {
       set.headers["cache-control"] = "no-cache";
@@ -162,16 +169,28 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase) {
         set.status = seasonRes.statusCode;
         return { error: seasonRes.error, message: seasonRes.message };
       }
-      const { state } = seasonRes.data;
+      const { state, etag: seasonEtag } = seasonRes.data;
 
-      const payload = {
-        updated_at: state.health.checkedAt,
-        as_of_round: state.asOfRound,
-        data_status: state.health.status,
-        season: state.season,
-        available: false,
-      };
+      // An active scenario that no longer fits the season (for example a locked session has since been run) is
+      // ignored, so a live overlay keeps showing the base odds instead of failing.
+      const activeId = db.getActiveScenarioId();
+      const stored = activeId ? db.getScenarioById(activeId, state) : null;
+      const scenario = stored && stored.valid ? stored : null;
 
+      const base = oddsCache.getOrCompute(oddsCacheKey(seasonEtag, null, oddsParams), () =>
+        computeOdds(state, undefined, oddsParams),
+      );
+      const projected = scenario
+        ? oddsCache.getOrCompute(oddsCacheKey(seasonEtag, { id: scenario.id, version: scenario.updatedAt }, oddsParams), () =>
+            computeOdds(state, { locks: scenario.locks }, oddsParams),
+          )
+        : null;
+
+      const payload = scenario && projected
+        ? buildOddsPayload(state, projected.value, { id: scenario.id, name: scenario.name }, base.value)
+        : buildOddsPayload(state, base.value, null, null);
+
+      set.headers["x-odds-cache"] = base.hit && (projected?.hit ?? true) ? "hit" : "miss";
       const jsonStr = JSON.stringify(payload);
       set.headers["etag"] = computeEtag(jsonStr);
       return payload;

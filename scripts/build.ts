@@ -2,7 +2,8 @@
  * Bundle the web UI into dist/.
  *
  * Bun bundles web/index.html, its TSX and its CSS. The Tailwind v4 plugin compiles theme.css, and the
- * bundler inlines the self-hosted woff2 fonts into the CSS. Nothing is fetched from the network.
+ * bundler inlines the self-hosted woff2 fonts into the CSS. web/oddsWorker.ts is bundled too, as a separate
+ * file. Nothing is fetched from the network.
  *
  * Usage: `bun run build`. `scripts/dev.ts` calls buildWeb() again on every change under web/.
  */
@@ -26,7 +27,9 @@ export async function buildWeb({ clean = false, minify = false, outdir = DIST_DI
   if (clean) await rm(outdir, { recursive: true, force: true });
 
   const result = await Bun.build({
-    entrypoints: [join(WEB_DIR, "index.html")],
+    // The page, and the odds worker. A worker is its own program, so it is a separate entry point; Bun does not
+    // follow `new Worker(new URL(...))` on its own. It comes out as dist/oddsWorker.js.
+    entrypoints: [join(WEB_DIR, "index.html"), join(WEB_DIR, "oddsWorker.ts")],
     outdir,
     plugins: [tailwind],
     target: "browser",

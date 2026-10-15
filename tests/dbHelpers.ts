@@ -5,10 +5,11 @@
  *   Standings: AAA 57, BBB 41, CCC 39, DDD 12 (sum 149). DDD is absent from R2, so inactive.
  */
 import { Database } from "bun:sqlite";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gpPoints, sprintPoints } from "../engine/points";
+import type { SeasonState } from "../engine/types";
 
 export interface SeedResult {
   round: number;
@@ -19,6 +20,8 @@ export interface SeedResult {
   constructorId: string | null;
   position: number | null;
   points: number;
+  /** default true; false writes is_classified = 0 (a DNF) */
+  classified?: boolean;
 }
 
 export interface Seed {
@@ -50,6 +53,7 @@ export function sessionRows(
     constructorId,
     position: i + 1,
     points: session === "Race" ? gpPoints(i + 1) : sprintPoints(i + 1),
+    classified: true,
   }));
 }
 
@@ -83,6 +87,46 @@ export function defaultSeed(): Seed {
       { status: "ok", checkedAt: "2026-03-08T10:00:00Z" },
     ],
   };
+}
+
+const FIXTURE_PATH = join(import.meta.dir, "fixtures", "season-2026-r16.json");
+
+/**
+ * The Round 16 snapshot (tests/fixtures/season-2026-r16.json) written out as a seed, so API tests can run on a
+ * real-looking season (NOR, VER, TSU inactive, Round 17 next) without the live F1GStats file.
+ */
+export function fixtureSeed(): Seed {
+  const f = JSON.parse(readFileSync(FIXTURE_PATH, "utf8")) as SeasonState;
+  const driverName = new Map(f.drivers.map((d) => [d.code, d.name]));
+  const teamName = new Map(f.teams.map((t) => [t.id, t.name]));
+  return {
+    schemaVersion: 2,
+    season: f.season,
+    schedule: f.rounds.map((r) => ({ round: r.round, name: r.name, hasSprint: r.hasSprint, status: r.status })),
+    results: f.results.map((r) => ({
+      round: r.round,
+      session: r.kind === "race" ? "Race" : "Sprint",
+      abbr: r.driver,
+      name: driverName.get(r.driver) ?? r.driver,
+      teamName: teamName.get(r.team) ?? r.team,
+      constructorId: r.team,
+      position: r.position,
+      points: r.points,
+      // fixture rows written before Step 2 of Phase 3 have no flag; they count as classified
+      classified: r.classified ?? true,
+    })),
+    qualifying: f.qualifying.map((q) => ({ round: q.round, abbr: q.driver, position: q.position })),
+    standings: null,
+    health: [{ status: f.health.status, checkedAt: f.health.checkedAt }],
+  };
+}
+
+/** Like `buildDb`, but the database holds the Round 16 fixture season. Returns the file path. */
+export function buildFixtureDb(mutate?: (seed: Seed) => void): string {
+  return buildDb((seed) => {
+    Object.assign(seed, fixtureSeed());
+    mutate?.(seed);
+  });
 }
 
 const dirs: string[] = [];
@@ -135,8 +179,11 @@ export function buildDb(mutate?: (seed: Seed) => void): string {
   for (const r of seed.results) {
     db.query(
       `INSERT INTO race_results (season, round, session, driver_abbr, driver_name, team_name,
-        constructor_id, position, points, is_classified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-    ).run(seed.season, r.round, r.session, r.abbr, r.name, r.teamName, r.constructorId, r.position, r.points);
+        constructor_id, position, points, is_classified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      seed.season, r.round, r.session, r.abbr, r.name, r.teamName, r.constructorId, r.position, r.points,
+      r.classified === false ? 0 : 1,
+    );
   }
   for (const q of seed.qualifying ?? []) {
     db.query("INSERT INTO qualifying_results (season, round, driver_abbr, position) VALUES (?, ?, ?, ?)").run(

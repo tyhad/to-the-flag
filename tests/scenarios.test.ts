@@ -1,16 +1,22 @@
 /**
  * Tests for Scenario storage database & scenario API routes (Phase 2 Step 2).
  */
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { existsSync, unlinkSync } from "node:fs";
+import { describe, expect, test, beforeAll, beforeEach, afterAll, afterEach } from "bun:test";
+import { existsSync, mkdtempSync, rmSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../api/server";
 import { ScenarioDatabase } from "../api/db";
 import { makeState } from "./helpers";
+import { buildFixtureDb, cleanupDbs } from "./dbHelpers";
 import type { Scenario } from "../engine/types";
 
-const REAL_DB_PATH = join(import.meta.dir, "..", "..", "F1GStats", "f1gstats.sqlite");
-const TEMP_TTF_DB = join(import.meta.dir, "temp-ttf.sqlite");
+let DB_PATH = "";
+// Every test gets its own scenario database file. On Windows an open SQLite file cannot be deleted, so one shared
+// file would carry a test's scenarios and active scenario over into the next test.
+let TEMP_TTF_DB = "";
+let TTF_DIR = "";
+let ttfCount = 0;
 
 function cleanupTempDb() {
   if (existsSync(TEMP_TTF_DB)) {
@@ -23,7 +29,20 @@ function cleanupTempDb() {
 }
 
 describe("Scenario Storage & API Routes (Step 2)", () => {
+  beforeAll(() => {
+    DB_PATH = buildFixtureDb();
+    TTF_DIR = mkdtempSync(join(tmpdir(), "ttf-tests-"));
+  });
+  afterAll(() => {
+    cleanupDbs();
+    try {
+      rmSync(TTF_DIR, { recursive: true, force: true });
+    } catch {
+      // files may still be open on Windows; the OS temp folder is cleaned up later
+    }
+  });
   beforeEach(() => {
+    TEMP_TTF_DB = join(TTF_DIR, `scenarios-${++ttfCount}.sqlite`);
     cleanupTempDb();
   });
   afterEach(() => {
@@ -157,10 +176,80 @@ describe("Scenario Storage & API Routes (Step 2)", () => {
     });
   });
 
+  describe("Stale scenarios (decision D18)", () => {
+    const teams = { red: ["AAA", "BBB"] };
+    const stateAt = (completed: number) =>
+      makeState({
+        rounds: 5,
+        completed,
+        teams,
+        results: Object.fromEntries(
+          Array.from({ length: completed }, (_, i) => [`${i + 1}:race`, ["AAA", "BBB"]]),
+        ),
+      });
+
+    test("a stale scenario stays stale after a rename", () => {
+      cleanupTempDb();
+      const db = new ScenarioDatabase(TEMP_TTF_DB);
+      const created = db.createScenario({ name: "Old", locks: { "4:race": { fixed: { AAA: 1 } } } }, stateAt(2));
+      expect(created.asOfRound).toBe(2);
+
+      const now = stateAt(3);
+      expect(db.getScenarioById(created.id, now)!.stale).toBe(true);
+
+      const renamed = db.updateScenario(created.id, { name: "Renamed" }, now)!;
+      expect(renamed.name).toBe("Renamed");
+      expect(renamed.asOfRound).toBe(2);
+      expect(renamed.stale).toBe(true);
+      db.close();
+    });
+
+    test("a stale scenario becomes current after its locks change", () => {
+      cleanupTempDb();
+      const db = new ScenarioDatabase(TEMP_TTF_DB);
+      const created = db.createScenario({ name: "Old", locks: { "4:race": { fixed: { AAA: 1 } } } }, stateAt(2));
+
+      const now = stateAt(3);
+      const updated = db.updateScenario(created.id, { locks: { "4:race": { fixed: { BBB: 1 } } } }, now)!;
+      expect(updated.asOfRound).toBe(3);
+      expect(updated.stale).toBe(false);
+      expect(db.getScenarioById(created.id, now)!.asOfRound).toBe(3);
+      db.close();
+    });
+
+    test("a stale scenario becomes current after its contenders change", () => {
+      cleanupTempDb();
+      const db = new ScenarioDatabase(TEMP_TTF_DB);
+      const created = db.createScenario(
+        { name: "Old", locks: { "4:race": { fixed: { AAA: 1 } } }, contenders: ["AAA"] },
+        stateAt(2),
+      );
+
+      const now = stateAt(3);
+      const updated = db.updateScenario(created.id, { contenders: ["AAA", "BBB"] }, now)!;
+      expect(updated.asOfRound).toBe(3);
+      expect(updated.stale).toBe(false);
+      db.close();
+    });
+
+    test("a rename together with a lock change still refreshes", () => {
+      cleanupTempDb();
+      const db = new ScenarioDatabase(TEMP_TTF_DB);
+      const created = db.createScenario({ name: "Old", locks: { "4:race": { fixed: { AAA: 1 } } } }, stateAt(2));
+      const updated = db.updateScenario(
+        created.id,
+        { name: "New", locks: { "5:race": { fixed: { AAA: 1 } } } },
+        stateAt(3),
+      )!;
+      expect(updated.asOfRound).toBe(3);
+      db.close();
+    });
+  });
+
   describe("API Endpoints & 422 Error Validation", () => {
     test("POST /api/scenarios validates locks and rejects 422 cases", async () => {
       cleanupTempDb();
-      const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+      const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
 
       // Missing name
       const res1 = await app.handle(
@@ -210,7 +299,7 @@ describe("Scenario Storage & API Routes (Step 2)", () => {
 
     test("Full Scenario API Roundtrip", async () => {
       cleanupTempDb();
-      const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+      const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
 
       // GET /api/scenarios empty
       const resList1 = await app.handle(new Request("http://127.0.0.1:3100/api/scenarios"));

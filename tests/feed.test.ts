@@ -1,13 +1,19 @@
 /**
  * Tests for overlay feed endpoints (/api/feed/*) (Phase 2 Step 3).
  */
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { existsSync, unlinkSync } from "node:fs";
+import { describe, expect, test, beforeAll, beforeEach, afterAll, afterEach } from "bun:test";
+import { existsSync, mkdtempSync, rmSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../api/server";
+import { buildFixtureDb, cleanupDbs } from "./dbHelpers";
 
-const REAL_DB_PATH = join(import.meta.dir, "..", "..", "F1GStats", "f1gstats.sqlite");
-const TEMP_TTF_DB = join(import.meta.dir, "temp-feed-ttf.sqlite");
+let DB_PATH = "";
+// Every test gets its own scenario database file. On Windows an open SQLite file cannot be deleted, so one shared
+// file would carry a test's scenarios and active scenario over into the next test.
+let TEMP_TTF_DB = "";
+let TTF_DIR = "";
+let ttfCount = 0;
 
 function cleanupTempDb() {
   if (existsSync(TEMP_TTF_DB)) {
@@ -20,7 +26,20 @@ function cleanupTempDb() {
 }
 
 describe("Overlay Feed Routes (Step 3)", () => {
+  beforeAll(() => {
+    DB_PATH = buildFixtureDb();
+    TTF_DIR = mkdtempSync(join(tmpdir(), "ttf-tests-"));
+  });
+  afterAll(() => {
+    cleanupDbs();
+    try {
+      rmSync(TTF_DIR, { recursive: true, force: true });
+    } catch {
+      // files may still be open on Windows; the OS temp folder is cleaned up later
+    }
+  });
   beforeEach(() => {
+    TEMP_TTF_DB = join(TTF_DIR, `scenarios-${++ttfCount}.sqlite`);
     cleanupTempDb();
   });
   afterEach(() => {
@@ -28,7 +47,7 @@ describe("Overlay Feed Routes (Step 3)", () => {
   });
 
   test("GET /api/feed/standings returns standings rows, flattened top fields, and headers", async () => {
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
     const res = await app.handle(new Request("http://127.0.0.1:3100/api/feed/standings"));
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-cache");
@@ -50,7 +69,7 @@ describe("Overlay Feed Routes (Step 3)", () => {
   });
 
   test("GET /api/feed/status returns status rows and flattened top fields", async () => {
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
     const res = await app.handle(new Request("http://127.0.0.1:3100/api/feed/status"));
     expect(res.status).toBe(200);
 
@@ -65,7 +84,7 @@ describe("Overlay Feed Routes (Step 3)", () => {
   });
 
   test("GET /api/feed/path/:driver returns PathResult for active driver and 404 for unknown/inactive driver", async () => {
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
 
     // Active driver NOR
     const resNor = await app.handle(new Request("http://127.0.0.1:3100/api/feed/path/NOR"));
@@ -88,18 +107,20 @@ describe("Overlay Feed Routes (Step 3)", () => {
     expect(resTsu.status).toBe(404);
   });
 
-  test("GET /api/feed/odds returns available: false", async () => {
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+  test("GET /api/feed/odds returns the model estimate (details in oddsFeed.test.ts)", async () => {
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB, oddsParams: { nSims: 500 } });
     const res = await app.handle(new Request("http://127.0.0.1:3100/api/feed/odds"));
     expect(res.status).toBe(200);
 
     const json = (await res.json()) as any;
-    expect(json.available).toBe(false);
+    expect(json.available).toBe(true);
+    expect(json.model).toBe("estimate");
+    expect(json.wdc).toBeArray();
   });
 
   test("GET /api/feed/active-scenario reflects active scenario changes", async () => {
     cleanupTempDb();
-    const app = createApp({ dbPath: REAL_DB_PATH, ttfDbPath: TEMP_TTF_DB });
+    const app = createApp({ dbPath: DB_PATH, ttfDbPath: TEMP_TTF_DB });
 
     // Base active scenario (none set)
     const resBase = await app.handle(new Request("http://127.0.0.1:3100/api/feed/active-scenario"));

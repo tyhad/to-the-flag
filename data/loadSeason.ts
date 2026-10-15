@@ -31,6 +31,7 @@ interface ScheduleDb { round: number; race_name: string | null; has_sprint: numb
 interface ResultDb {
   round: number; session: string; driver_abbr: string; driver_name: string | null;
   team_name: string | null; constructor_id: string | null; position: number | null; points: number;
+  is_classified: number;
 }
 interface StandingDb { driver_abbr: string; driver_name: string | null; points: number }
 interface QualiDb { round: number; driver_abbr: string; position: number | null }
@@ -94,7 +95,7 @@ function readSeason(db: Database): SeasonState {
   // Results (decision d: team = constructor_id)
   const resultRows = db
     .query<ResultDb, [number]>(
-      `SELECT round, session, driver_abbr, driver_name, team_name, constructor_id, position, points
+      `SELECT round, session, driver_abbr, driver_name, team_name, constructor_id, position, points, is_classified
        FROM race_results WHERE season = ? ORDER BY round, session, position`,
     )
     .all(season);
@@ -118,6 +119,7 @@ function readSeason(db: Database): SeasonState {
       team: r.constructor_id,
       position: r.position,
       points: r.points,
+      classified: r.is_classified !== 0,
     });
     if (r.driver_name) driverNames.set(r.driver_abbr, r.driver_name);
     teamNames.set(r.constructor_id, r.team_name || r.constructor_id);

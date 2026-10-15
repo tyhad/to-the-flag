@@ -1,6 +1,6 @@
 # Phase 3: Odds ("Likely?")
 
-Branch: `phase-3-odds`. One commit per step. Tests first wherever there is logic. Read `SPEC.md` (sections 4, 7, 8 F3, 9), `DESIGN.md`, `docs/PHASE_1.md`, `docs/PHASE_2.md`, and `docs/FEED.md` before starting.
+**Status: built and verified on `phase-3-odds` (Steps 1 to 11); what remains is the pull request to `main`.** Branch: `phase-3-odds`. One commit per step. Tests first wherever there is logic. Read `SPEC.md` (sections 4, 7, 8 F3, 9), `DESIGN.md`, `docs/PHASE_1.md`, `docs/PHASE_2.md`, and `docs/FEED.md` before starting.
 
 **Scope:** a season-only Monte Carlo model, its API feed, the "Likely?" tab with a form-weight slider, a backtest, and a model card.
 **Not in Phase 3:** multi-season priors (`prior_carryover` stays reserved), starting-grid or track adjustments, WCC Path Solver, LAN mode, image export.
@@ -15,9 +15,9 @@ Branch: `phase-3-odds`. One commit per step. Tests first wherever there is logic
 | D23 | Form-weight slider | Included. It scales how much this season's form matters (0% = all drivers equal, 100% = full form), so the audience can see how much the assumption moves the numbers. **Approved.** |
 | D24 | Defaults (half-life, prior strength, sigma, DNF prior) | The values in `OddsParams` below, tuned only coarsely by the backtest (Step 10) and recorded in `docs/MODEL.md`. **Approved.** |
 
-All decisions are settled; start with Step 1.
+All decisions were settled before Step 1. Four more came out of the work (D25 to D28 in `SPEC.md`).
 
-## What exists (verified on a fresh clone of `main` @ `8c86e3c`)
+## What existed at the start (verified on a fresh clone of `main` @ `8c86e3c`; historical)
 
 - Typecheck is clean; `bun run build` takes about 0.3 s and `dist/` makes no external requests.
 - 667 tests in 38 files. On the owner's machine all pass. On a fresh clone **11 fail**: `tests/api.test.ts`, `tests/feed.test.ts` and `tests/scenarios.test.ts` read `../F1GStats/f1gstats.sqlite` (the live file). Step 1 fixes that.
@@ -101,6 +101,8 @@ docs/      MODEL.md
 - DNF rates lie in (0, 1) and sit near the field average when a driver has few sessions.
 - The fit is deterministic.
 
+**Note from implementation:** with `priorStrength = 1` the dummy-item prior is too weak for a 20-car field. One race gave a spread of strengths (sd 1.16) wider than a full season's (0.78), and the shrinkage test above could not pass. Measured over 20 seeds on synthetic seasons, a weight of 3 gives 0.46 after 1 race, rising steadily to 0.67 after 16 (true spread 0.73). The default is now **3**; rank order is unaffected by the prior. Step 10's backtest tested it again: see the note under Step 10. `StrengthParams` (`recencyHalfLife`, `sprintWeight`, `priorStrength`, `dnfPriorSessions`) lives in `engine/strength.ts`; Step 5's `OddsParams` extends it.
+
 **Commit:** `feat(engine): strength and DNF fit`
 
 ### Step 5: Simulate the rest of the season
@@ -112,9 +114,9 @@ interface OddsParams {
   nSims: number;           // default 10_000
   seed?: number;           // default hashSeed(season, asOfRound, canonical scenario JSON, key params)
   formWeight: number;      // 0..1, default 1: theta' = formWeight * theta
-  recencyHalfLife: number; // default 8 rounds
+  recencyHalfLife: number; // default: none (Infinity); was sketched as 8, changed by the Step 10 backtest (docs/MODEL.md)
   sprintWeight: number;    // default 0.5
-  priorStrength: number;   // default 1
+  priorStrength: number;   // default 3 (was sketched as 1; see the note under Step 4)
   strengthSigma: number;   // default 0.25: per-driver sigma = strengthSigma * sqrt(K / (K + effectiveRaces)), K = 6
   dnfPriorSessions: number;// default 4
   sprintDnfFactor: number; // default 0.5
@@ -220,6 +222,8 @@ Write `docs/MODEL.md`: what the model is, every parameter and default, the backt
 
 **Acceptance:** the model's log loss is lower than the uniform baseline's; the script prints a readable table; `docs/MODEL.md` exists.
 
+**Note from implementation:** the backtest needed a probability for one race, which `simulateSeason` does not give, so `engine/simulate.ts` now also exports `forecastRace` (chance to win and to reach the podium). It shares the session draw with the season simulation (`rankRacers`), and a test checks it against the exact Plackett-Luce formula. Results are in `docs/MODEL.md`. In short: the model beats the uniform baseline, **loses to "points so far"** at predicting single races, and any decay of old results was clearly worse on 2026. `recencyHalfLife` is now **no decay**. `priorStrength` stays **3**: a weaker prior also tested better, but the backtest starts at round 6 and cannot judge the early rounds, where the prior is needed. Run it with `bun run backtest`.
+
 **Commit:** `feat(scripts): walk-forward backtest` and `docs: add model card`
 
 ### Step 11: Polish and hardening
@@ -239,6 +243,32 @@ Write `docs/MODEL.md`: what the model is, every parameter and default, the backt
 7. The `DESIGN.md` checklist passes; `SPEC.md` and `AGENTS.md` are updated.
 
 Then open a pull request `phase-3-odds` → `main` and merge.
+
+### Where each item stands
+
+| # | Evidence |
+|---|---|
+| 1 | Tests build their own databases; the one test that can use the real file is skipped without it. A fresh clone (no sibling database) passes `bun test` and `bun run typecheck`, and `bun run build` works. |
+| 2 | `tests/simulate.test.ts`, `tests/odds.test.ts`: seeded runs repeat, win counts sum to `nSims`, eliminated never win and clinched always win, and all 576 ways to lock two sessions give the standings' champion. |
+| 3 | Checked in a real browser (headless Chromium, the real server, the Round 16 data) at 1920×1080 and 1280×720, and by the owner: the worker loads, locks and the slider change the numbers, only `127.0.0.1` is contacted, and when the worker file cannot load the panel shows an error instead of hanging. |
+| 4 | `tests/oddsFeed.test.ts` and `docs/FEED.md`. |
+| 5 | `bun run backtest` and `docs/MODEL.md`: the model beats the uniform baseline and loses to "points so far" (said openly). |
+| 6 | `formatProbability` is the only way a probability becomes text (`tests/odds.test.ts` checks 10,001 values); the panel header always says "Model estimate" and "as of Round N", also while calculating and on errors. The slider's own readout is a setting, not a simulated number. |
+| 7 | Checklist below. `SPEC.md` (v0.7, D25 to D28), `AGENTS.md`, `README.md`, `docs/FEED.md` and `docs/MODEL.md` are current. |
+
+### `DESIGN.md` checklist (section 11)
+
+- Tokens only: no raw hex in the new components (`tests/design-tokens.test.ts`); the only inline style is a bar's width.
+- Text of 14px or more: the panel uses heading (28), title (20), body and data (16), label and note (14); `caption` (13) is not used, and `text-3` appears only on a `bg-s2` chip.
+- Every color has a word or symbol: bar colors sit next to the value; the change is an arrow and a number; the what-if, low-confidence and error states are sentences.
+- "Possible?" and "Likely?" are separate tabs; "Model estimate" is the first thing in the panel.
+- No `0%` or `100%` from simulation (see item 6).
+- Keyboard: Tab reaches the tabs, the Drivers/Teams switch, the slider and "How this works", each with the 2px outline; arrow keys, Home and End work on the tabs and the slider; Space or Enter works on the switch and the disclosure. Reduced motion shortens the bar transition from 0.3 s to under a millisecond.
+- Fonts are bundled and the app works offline (`tests/offline.test.ts`; only `127.0.0.1` and inlined data are requested).
+
+### Found while checking, and fixed (small, outside the odds code)
+
+An automated accessibility audit (axe-core in a real browser) found three problems in the Phase 2 screens, none in the odds panel: the session lock buttons said "Lock …" while showing "Open" (a name that does not contain the visible word), the standings panel scrolled but could not take keyboard focus, and the Finish lane's label sat on an element with no role. Fixed without any visual change; the audit then reports 0 violations in every state. The bar colors of two rows that both read "50%" differed (49.6% and 50.4%); the color now follows the number shown.
 
 ## Known limits (deliberate)
 

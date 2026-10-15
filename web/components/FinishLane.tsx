@@ -135,7 +135,7 @@ export function FinishLane({ state, scenario, contenders }: FinishLaneProps) {
         </svg>
       </div>
 
-      <div ref={listRef} className="relative flex flex-col" aria-label="Contenders, gap to the finish line">
+      <div ref={listRef} role="group" className="relative flex flex-col" aria-label="Contenders, gap to the finish line">
         {view.rows.map((row) => (
           <LaneRow key={row.driver} row={row} model={model} trackW={trackW} chequerId={chequerId} />
         ))}
