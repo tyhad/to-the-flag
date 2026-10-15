@@ -36,7 +36,7 @@ function fakeOdds(wdc: Partial<OddsRow>[], extra: Partial<OddsResult> = {}, wcc:
   };
   return {
     asOfRound: 8, roundsCompleted: 8, lowConfidence: false, nSims: 1000, seed: 1,
-    params: {} as OddsResult["params"], wdc: wdc.map(row), wcc: wcc.map(row), maxStdError: 0.01, ...extra,
+    modelVersion: "v2", params: {} as OddsResult["params"], wdc: wdc.map(row), wcc: wcc.map(row), maxStdError: 0.01, ...extra,
   };
 }
 

@@ -316,16 +316,26 @@ export function runCalibrationCli(args: string[] = []): void {
   console.log(table(seasonRows).join("\n"));
   console.log("");
 
-  // Grid of Settings
-  const grid: { recencyHalfLife: number; priorStrength: number; label: string }[] = [];
-  for (const hl of [8, 16, Number.POSITIVE_INFINITY]) {
-    for (const prior of [0.5, 1, 2, 3]) {
-      const hlLabel = Number.isFinite(hl) ? `hl=${hl}` : "no decay";
-      grid.push({
-        recencyHalfLife: hl,
-        priorStrength: prior,
-        label: `${hlLabel}, prior=${prior}`,
-      });
+  // Grid of Settings: paceStages × recencyHalfLife × priorStrength (≈ 48 cells)
+  interface GridItem {
+    paceStages: number;
+    recencyHalfLife: number;
+    priorStrength: number;
+    label: string;
+  }
+  const grid: GridItem[] = [];
+  for (const ps of [0, 3, 5, 8]) {
+    for (const hl of [8, 16, Number.POSITIVE_INFINITY]) {
+      for (const prior of [0.5, 1, 2, 3]) {
+        const hlLabel = Number.isFinite(hl) ? `hl=${hl}` : "no decay";
+        const psLabel = ps === 0 ? "all" : `top${ps}`;
+        grid.push({
+          paceStages: ps,
+          recencyHalfLife: hl,
+          priorStrength: prior,
+          label: `stages=${psLabel}, ${hlLabel}, prior=${prior}`,
+        });
+      }
     }
   }
 
@@ -341,10 +351,23 @@ export function runCalibrationCli(args: string[] = []): void {
     ],
   ];
 
+  const adopted: GridItem[] = [];
+
   for (const item of grid) {
+    // Skip the exact default (paceStages=0, no decay, prior=3) — that is the baseline
+    const isBaseline =
+      item.paceStages === 0 &&
+      item.recencyHalfLife === Number.POSITIVE_INFINITY &&
+      item.priorStrength === 3;
+    if (isBaseline) continue;
+
     const candEval = evaluateSetting(
       seasons,
-      { recencyHalfLife: item.recencyHalfLife, priorStrength: item.priorStrength },
+      {
+        paceStages: item.paceStages,
+        recencyHalfLife: item.recencyHalfLife,
+        priorStrength: item.priorStrength,
+      },
       item.label,
       nSims,
     );
@@ -355,11 +378,20 @@ export function runCalibrationCli(args: string[] = []): void {
       formatDiff(comp.validationComp),
       `${comp.verdict.historySeasonsImproved}/4`,
       formatDiff(comp.confirmationComp),
-      comp.verdict.adopt ? "ADOPT" : "REJECT",
+      comp.verdict.adopt ? "ADOPT" : "reject",
     ]);
+    if (comp.verdict.adopt) adopted.push(item);
   }
 
   console.log(table(candidateRows).join("\n"));
+  console.log("");
+
+  if (adopted.length === 0) {
+    console.log("Verdict: NOTHING ADOPTED — v1 defaults unchanged.");
+  } else {
+    console.log(`Verdict: ${adopted.length} setting(s) passed D30:`);
+    for (const a of adopted) console.log(`  ${a.label}`);
+  }
   console.log("");
   console.log("Note: 2026 confirmation is printed last and only checked for non-regression (<= 1 SE).");
 }

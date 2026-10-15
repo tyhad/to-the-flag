@@ -346,7 +346,7 @@ describe("what counts as clearly different", () => {
   const records = walkForward(real, { nSims: 800 });
 
   test("a tiny gain is not clear even when it is very consistent", () => {
-    const tiny = walkForward(real, { nSims: 800, priorStrength: 3.05 });
+    const tiny = walkForward(real, { nSims: 800, priorStrength: 1.05 });
     const c = compareCells(tiny, records);
     expect(Math.abs(c.meanDiff)).toBeLessThan(MATERIAL_DIFFERENCE);
     expect(c.clear).toBe(false);
@@ -375,17 +375,17 @@ describe("docs/MODEL.md", () => {
   });
 
   test("states the defaults it describes", () => {
-    expect(card).toMatch(/\| `priorStrength` \| 3 \|/);
-    expect(card).toMatch(/\| `recencyHalfLife` \| none \|/);
+    expect(card).toMatch(/\| `priorStrength` \| 1 \|/);
+    expect(card).toMatch(/\| `recencyHalfLife` \| 8 \|/);
     expect(card).toMatch(/\| `nSims` \| 10,000 \|/);
-    expect(defaultOddsParams.priorStrength).toBe(3);
-    expect(defaultOddsParams.recencyHalfLife).toBe(Infinity);
+    expect(defaultOddsParams.priorStrength).toBe(1);
+    expect(defaultOddsParams.recencyHalfLife).toBe(8);
     expect(defaultOddsParams.nSims).toBe(10_000);
   });
 
   test("records the results and the limits that matter: beats uniform, loses to points so far, one season", () => {
     expect(card).toContain("beats the uniform baseline");
-    expect(card).toContain("loses to \"points so far\"");
+    expect(card).toContain("Against \"points so far\" the model is level");
     expect(card).toContain("One season of data");
     expect(card).toContain("Title odds cannot be calibrated");
   });

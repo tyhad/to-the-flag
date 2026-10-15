@@ -26,15 +26,21 @@ export interface StrengthParams {
 }
 
 export const defaultStrengthParams: StrengthParams = {
-  // No decay. The Step 10 backtest (docs/MODEL.md) found any decay clearly worse on the 2026 season, whose pace order
-  // barely moved. A season with big mid-season shifts may want a finite half-life (8 to 16 rounds): revisit with more seasons.
-  recencyHalfLife: Number.POSITIVE_INFINITY,
+  // v2 (Step 6, D30 protocol): half-life 8 rounds. With 4 seasons of data, hl=8 beats no-decay on the training
+  // seasons (2022-2024) for top-5 pace stages; it is also the top-training setting that passes validation (2025),
+  // 4/4 history seasons, and the 2026 confirmation check. A season with no mid-season shifts may prefer no-decay;
+  // revisit with the next season.
+  recencyHalfLife: 8,
   sprintWeight: 0.5,
-  // 1 (the weight first sketched in docs/PHASE_3.md) leaves one race of a 20-car field over-dispersed: its strengths
-  // spread wider than a full season's. 3 shrinks small samples and still lets 16 rounds speak. Revisit in the Step 10 backtest.
-  priorStrength: 3,
+  // v2 (Step 6, D30 protocol): prior 1. With paceStages=5 a weaker prior (1 vs 3) no longer over-disperses early
+  // rounds: the early-season D30 check (rounds 3-5) passes. prior=0.5 also passes but differs by only 0.005 per
+  // race from prior=1 on training (within 1 SE), so the more conservative value is kept.
+  priorStrength: 1,
   dnfPriorSessions: 4,
-  paceStages: 0,
+  // v2 (Step 6): top-5 pace stages. The Plackett-Luce fit uses only the first 5 finishing stages per race.
+  // This is the largest structural change: it removes the ~2% floor win-probability that the full-order fit
+  // gave to midfield drivers who almost never win. Improves all 4 history seasons (4/4).
+  paceStages: 5,
 };
 
 export interface StrengthFit {

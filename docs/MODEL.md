@@ -15,7 +15,10 @@ A Monte Carlo simulation of the rest of the season, built only from this season'
    model (the chance a driver beats the others is `exp(strength)` over the sum for the drivers still in the running).
    Only classified finishers take part, in finishing order, so **a retirement never makes a driver look slow**. A
    dummy driver of strength 1 that every driver beats once and loses to once keeps the fit finite and pulls a driver
-   with little data towards the average (`priorStrength`). Strengths are centred on 0.
+   with little data towards the average (`priorStrength`). Strengths are centred on 0. **Model v2 fits only the first
+   5 finishing places of each race** (`paceStages`, a "top-heavy" fit): who beat whom further back says little about
+   who can win, and using every place gave midfield drivers a floor of about 2% to win. `paceStages: 0` uses every
+   place (v1).
 2. **Retirements.** A driver's chance of retiring in a race is their own record in races, blended with the field's
    rate (the field counts as `dnfPriorSessions` virtual races). In a sprint the chance is the race chance times
    `sprintDnfFactor`.
@@ -36,14 +39,16 @@ A Monte Carlo simulation of the rest of the season, built only from this season'
 | `nSims` | 10,000 | simulated seasons; sampling error of a probability is at most `0.5 / sqrt(nSims)` (0.5 points) |
 | `seed` | derived | hash of season, round, scenario locks and the parameters; the same inputs always give the same odds |
 | `formWeight` | 1 | strengths are multiplied by this; 0 makes every driver equal (the slider, D23) |
-| `recencyHalfLife` | none | rounds after which a session counts half as much; "none" means every session counts the same |
+| `recencyHalfLife` | 8 | rounds after which a session counts half as much; "none" means every session counts the same (v1 default) |
 | `sprintWeight` | 0.5 | weight of a sprint next to a race in the pace fit |
-| `priorStrength` | 3 | weight of the dummy driver's comparisons; higher means more shrinkage towards equal |
+| `priorStrength` | 1 | weight of the dummy driver's comparisons; higher means more shrinkage towards equal (v1 default: 3) |
 | `strengthSigma` | 0.25 | noise on a driver's strength; for a driver with `n` effective races it is `0.25 * sqrt(6 / (6 + n))` |
 | `dnfPriorSessions` | 4 | how many virtual races the field's retirement rate counts for |
 | `sprintDnfFactor` | 0.5 | sprint retirement chance = race chance times this |
 | `includeDnf` | true | retirements on or off |
-| `paceStages` | 0 | finishing stages used in the pace fit; 0 means all places (v1 behavior) |
+| `paceStages` | 5 | finishing stages used in the pace fit; 0 means all places (v1 behavior) |
+
+v1 is reproducible by passing `{ recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0 }`. `MODEL_VERSION` is `"v2"`.
 
 Fixed in the code, not parameters: a retirement rate is kept between 0.1% and 99.9%; with no race results yet the
 field rate is 5%; the odds are marked `low confidence` while fewer than 5 rounds are complete (`LOW_CONFIDENCE_ROUNDS`);
@@ -63,70 +68,84 @@ forecast was by the actual winner; for uniform it is the log of the field size.
 
 | Forecast | win log loss | win Brier | winner -ln p | podium log loss | podium Brier |
 |---|---|---|---|---|---|
-| **Model (defaults)** | 0.143 | 0.0394 | 2.220 | 0.298 | 0.0948 |
+| **Model (v2 defaults)** | 0.129 | 0.0374 | 1.944 | 0.256 | 0.0842 |
 | Uniform | 0.185 | 0.0434 | 3.091 | 0.398 | 0.1178 |
 | Points so far | 0.134 | 0.0380 | 2.023 | 0.253 | 0.0824 |
 
 - The model **beats the uniform baseline** on every score.
-- The model **loses to "points so far"** on every score. Race by race (win and podium log loss added up) the model is
-  worse by 0.055 per race, standard error 0.010: clearly worse. It is better than guessing, but in 2026 a plain share
-  of the points predicted single races better.
+- Against "points so far" the model is level: win log loss is better (0.129 against 0.134), podium log loss slightly
+  worse (0.256 against 0.253). Race by race (win and podium log loss added up) the difference is -0.001 per race,
+  standard error 0.007: not clearly different. (With the v1 defaults the model was clearly worse, by 0.055 per race.)
 
-### Settings tried
+These numbers are the 2026 season only and are the **confirmation** season of the Phase 4 protocol (see below); they
+were not used to choose the v2 defaults.
 
-Total = win log loss + podium log loss, over the same 11 races and the same random numbers. `*` is the default.
+### Settings tried on 2026 alone (Phase 3, Step 10, rerun with v2 code)
+
+Total = win log loss + podium log loss, over the same 11 races and the same random numbers, with `paceStages` 5.
+`*` is the default.
 
 | half-life \ prior | 0.5 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| 4 rounds | 0.454 | 0.456 | 0.460 | 0.467 |
-| 8 rounds | 0.444 | 0.446 | 0.450 | 0.456 |
-| 16 rounds | 0.438 | 0.439 | 0.444 | 0.449 |
-| no decay | **0.431** | 0.432 | 0.436 | 0.441 `*` |
+| 4 rounds | 0.384 | 0.395 | 0.415 | 0.431 |
+| 8 rounds | 0.377 | 0.386 `*` | 0.401 | 0.415 |
+| 16 rounds | 0.374 | 0.381 | 0.395 | 0.407 |
+| no decay | **0.372** | 0.378 | 0.389 | 0.400 |
 
-Less decay and a weaker prior were better in every row and column. "Clearly better" is defined in the script as more
-than two standard errors across races **and** at least 0.005 per race (a very consistent but tiny gain is not worth a change).
+On 2026 alone, less decay is still better (no decay beats the default by 0.014 per race, standard error 0.003). That
+season's pace order barely moved. It is **not** a reason to change the default, because the rule forbids tuning on
+2026: the half-life was chosen on the training seasons (below), and 2026 only had to not be worse than v1 by more than
+one standard error.
 
-- **Changed: `recencyHalfLife` from 8 rounds to no decay.** It is clearly better than 8 (0.015 per race, standard error
-  0.004) and than 16 (0.008, standard error 0.002), and it is better in both halves of the test (rounds 6 to 11 and 12 to 16).
-  The 2026 pace order barely moved, so a long memory won. A season with big mid-season shifts may want a half-life of 8 to
-  16 rounds; this should be checked again when another season is available.
-- **Not changed: `priorStrength` stays 3.** A weaker prior (0.5) also tested clearly better, by 0.010 per race (standard
-  error 0.003). But the test starts at round 6, so it cannot judge rounds 1 to 5, where little data makes the fit
-  over-confident: on synthetic data one race with a weak prior spread the strengths wider than a full season's. The
-  prior costs about 0.01 per race here and protects the early season. This is a judgment, not a measurement; it is the
-  first thing to revisit with more data.
-- `strengthSigma` (0, 0.25, 0.5) makes no visible difference to single-race forecasts (total 0.441, 0.441, 0.442). It
+- `strengthSigma` (0, 0.25, 0.5) makes no visible difference to single-race forecasts (total 0.386, 0.386, 0.386). It
   acts across a whole simulated season, so this test cannot say whether 0.25 is right for the title odds.
+
+### Phase 4, Step 6: multi-season calibration (protocol D30)
+
+Run `bun run calibrate` (needs the history files from `F1GStats/history`; not in git). Tune on 2022 to 2024, validate on
+2025, confirm once on 2026, over `paceStages` {0, 3, 5, 8} x `recencyHalfLife` {8, 16, none} x `priorStrength`
+{0.5, 1, 2, 3}, against the v1 defaults (`paceStages` 0, no decay, prior 3). A setting is adopted only if all four hold:
+validation beats v1 by more than 2 SE and at least 0.005 per race; at least 3 of the 4 history seasons improve; 2026 is
+not worse by more than 1 SE; rounds 3 to 5 of every season are not worse by more than 1 SE.
+
+**Adopted (v2):** `paceStages` 5, `recencyHalfLife` 8, `priorStrength` 1. Reasons, as recorded when the defaults were
+set: `paceStages` 5 is the largest structural change and improved all 4 history seasons (it removes the ~2% floor win
+probability of midfield drivers); with it, `priorStrength` 1 no longer over-disperses the early rounds, so the
+early-season check passes; `priorStrength` 0.5 also passed but differs from 1 by only 0.005 per race on training
+(within 1 SE), so the more conservative value was kept; half-life 8 beat no decay on 2022 to 2024 and is the top
+training setting that passes validation, history, 2026 and early season.
+
+TODO (owner): paste the four tables printed by `bun run calibrate` here (training, validation, 2026, early season),
+and list the rejected settings with their numbers. They are not in this card yet.
 
 ### Calibration
 
-When the model says a given chance, how often did it happen (defaults, all driver-race pairs)?
+When the model says a given chance, how often did it happen (v2 defaults, 2026, all driver-race pairs)?
 
 | Forecast chance | win: pairs | forecast | happened | podium: pairs | forecast | happened |
 |---|---|---|---|---|---|---|
-| 0-5% | 172 | 1.9% | 0.0% | 67 | 2.2% | 0.0% |
-| 5-10% | 32 | 7.7% | 9.4% | 72 | 7.4% | 1.4% |
-| 10-20% | 36 | 13.1% | 19.4% | 39 | 13.3% | 17.9% |
-| 20-40% | 2 | 27.9% | 50.0% | 54 | 29.9% | 42.6% |
-| 40-70% | 0 | - | - | 10 | 48.1% | 20.0% |
+| 0-5% | 169 | 0.9% | 0.0% | 150 | 2.4% | 0.0% |
+| 5-10% | 28 | 7.8% | 10.7% | 10 | 6.4% | 20.0% |
+| 10-20% | 35 | 13.4% | 14.3% | 11 | 15.0% | 18.2% |
+| 20-40% | 10 | 26.6% | 30.0% | 44 | 29.8% | 36.4% |
+| 40-70% | 0 | - | - | 25 | 49.8% | 48.0% |
+| 70-100% | 0 | - | - | 2 | 73.0% | 50.0% |
 
-Read with care: there are only 11 winners, so the win columns above 10% rest on a handful of events (the 20-40% row is
-2 pairs). The clearest signals: at the back of the field the model gives about 2% to drivers who never won (about 3 wins
-expected, none seen), and in the middle (10-40%) the drivers it favoured did somewhat better than forecast. Together
-that looks **too flat**: not enough weight on the favourites and too much on the back. One likely cause is that the
-shrinkage and the noise keep every driver's chance from getting small; that is a guess, not something tested.
+Read with care: there are only 11 winners, so the win columns rest on a handful of events. With the v1 defaults the
+model was too flat (about 2% to drivers who never won, the favourites doing better than forecast). The top-5 fit
+removes most of that: the back of the field is now at 0.9% for a win, and the middle rows are close to what happened.
 
 ## Limits
 
-- **One season of data.** There is no prior from earlier seasons, so early-season odds are wide and are flagged `low
+- **One season of data.** The model fits only the current season; history is used to choose the settings, not as a prior (Phase 7), so early-season odds are wide and are flagged `low
   confidence` below 5 completed rounds.
 - **About 11 test races and 11 winners.** The backtest can tell a model from guessing and a good setting from a bad one
-  when the difference is large; it cannot tell a good model from a very good one. The grid was chosen on the same 11
-  races it is judged on, so the gains above are somewhat optimistic.
+  when the difference is large; it cannot tell a good model from a very good one. The 2026 tables above were not used
+  to choose the v2 defaults; the choice rests on 2022 to 2025 (Step 6).
 - **Title odds cannot be calibrated.** A single season has exactly one champion. The backtest checks race forecasts, a
   proxy; the title odds themselves are only sanity-checked (clinched always 100% of simulations, eliminated never, a
   locked session moves the numbers the way the points do).
-- **What-if odds depend on the pace gap, and the pace gap depends on how old results are weighed.** The scenario "ANT out of the next four races, RUS wins all four" gives RUS 42% with a half-life of 8 rounds and 50% with no decay (the default). Treat the number as one reading of a close contest, not a measurement.
+- **What-if odds depend on the pace gap, and the pace gap depends on how old results are weighed.** In v1 the scenario "ANT out of the next four races, RUS wins all four" gave RUS 42% with a half-life of 8 rounds and 50% with no decay. The v2 figure is measured in Step 9. Treat the number as one reading of a close contest, not a measurement.
 - **What the model does not know:** upgrades, tracks, weather, grid positions, penalties, reliability beyond a driver's
   own record, who is injured or about to leave. It sees only where drivers finished and whether they retired.
 - **Strength uncertainty is a heuristic**, not a full Bayesian posterior: one noise size, shrinking with the number of
@@ -140,10 +159,11 @@ shrinkage and the noise keep every driver's chance from getting small; that is a
 
 ## Changes to the defaults
 
-| Parameter | Planned | Now | Why |
+| Parameter | v1 | v2 | Why |
 |---|---|---|---|
-| `priorStrength` | 1 | 3 | With 1, one race of a 20-car field gave strengths more spread out than a full season's (Step 4); 3 shrinks small samples and still lets 16 rounds speak |
-| `recencyHalfLife` | 8 rounds | none | Clearly better in the backtest (Step 10), see above |
+| `paceStages` | 0 (all places) | 5 | Top-5 pace fit, largest gain, improved 4 of 4 history seasons (Phase 4, Steps 5 and 6) |
+| `priorStrength` | 3 | 1 | With top-5 stages a weak prior no longer over-disperses the early rounds (D30 early-season check passes) |
+| `recencyHalfLife` | none | 8 rounds | Best on 2022 to 2024 with top-5 stages; passes validation, history, 2026 and early season |
 
 Rerun `bun run backtest` after any change to the model; `bun run backtest -- path/to/f1gstats.sqlite` uses the live
 data instead of the snapshot (the numbers then differ from the tables here).

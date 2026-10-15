@@ -58,14 +58,14 @@ describe("simulateSeason: basics", () => {
     expect(defaultOddsParams).toEqual({
       nSims: 10_000,
       formWeight: 1,
-      recencyHalfLife: Infinity, // no decay: the Step 10 backtest found any decay clearly worse
+      recencyHalfLife: 8, // v2: hl=8 is best on training seasons with paceStages=5 (Step 6 D30 protocol)
       sprintWeight: 0.5,
-      priorStrength: 3,
+      priorStrength: 1, // v2: weaker prior OK now that early-season D30 check passes with top-5 stages
       strengthSigma: 0.25,
       dnfPriorSessions: 4,
       sprintDnfFactor: 0.5,
       includeDnf: true,
-      paceStages: 0,
+      paceStages: 5, // v2: top-5 pace stages, the largest structural gain (Step 6)
     });
   });
 
@@ -134,12 +134,16 @@ describe("deriveSeed", () => {
   });
 
   test("paceStages: 0 gives the exact same seed as omitting it (legacy compatibility)", () => {
-    const { paceStages: _ignored, ...legacyParams } = defaultOddsParams;
-    expect(deriveSeed(state, scenario, defaultOddsParams)).toBe(
-      deriveSeed(state, scenario, legacyParams as OddsParams),
+    // When paceStages is 0 it is stripped before hashing, so an old client that never sent paceStages
+    // gets the same seed as a new client that explicitly sets it to 0.
+    const paramsWithZero = { ...defaultOddsParams, paceStages: 0 };
+    const { paceStages: _ignored, ...paramsWithout } = paramsWithZero;
+    expect(deriveSeed(state, scenario, paramsWithZero)).toBe(
+      deriveSeed(state, scenario, paramsWithout as OddsParams),
     );
-    expect(deriveSeed(state, scenario, { ...defaultOddsParams, paceStages: 5 })).not.toBe(
-      deriveSeed(state, scenario, defaultOddsParams),
+    // The current default (paceStages=5) gives a different seed than paceStages=0
+    expect(deriveSeed(state, scenario, defaultOddsParams)).not.toBe(
+      deriveSeed(state, scenario, { ...defaultOddsParams, paceStages: 0 }),
     );
   });
 

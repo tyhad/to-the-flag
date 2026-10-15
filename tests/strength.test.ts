@@ -59,8 +59,10 @@ const spread = (xs: number[]) => {
   const m = xs.reduce((s, x) => s + x, 0) / xs.length;
   return Math.sqrt(xs.reduce((s, x) => s + (x - m) ** 2, 0) / xs.length);
 };
+/** The v1 settings (no decay, prior 3, every place). The pace-math tests below check the full-order Plackett-Luce fit. */
+const V1 = { recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0 };
 const thetaOf = (state: SeasonState, params = {}) => {
-  const fit = fitRaw(state, params);
+  const fit = fitRaw(state, { ...V1, ...params });
   return codes.map((c) => val(fit.theta, c));
 };
 
@@ -89,7 +91,7 @@ describe("fitStrengths: pace", () => {
 
   test("the result is a stationary point of the regularised Plackett-Luce likelihood (independent check)", () => {
     const state = simulated(6, 21);
-    const params = { recencyHalfLife: 8, sprintWeight: 0.5, priorStrength: 1, dnfPriorSessions: 4 };
+    const params = { recencyHalfLife: 8, sprintWeight: 0.5, priorStrength: 1, dnfPriorSessions: 4, paceStages: 0 };
     const fit = fitRaw(state, params);
     const theta = codes.map((c) => val(fit.theta, c));
     const asOf = state.asOfRound;
@@ -470,7 +472,7 @@ describe("fitStrengths: general", () => {
   });
 
   test("the default parameters are the documented ones", () => {
-    expect(defaultStrengthParams).toEqual({ recencyHalfLife: Infinity, sprintWeight: 0.5, priorStrength: 3, dnfPriorSessions: 4, paceStages: 0 });
+    expect(defaultStrengthParams).toEqual({ recencyHalfLife: 8, sprintWeight: 0.5, priorStrength: 1, dnfPriorSessions: 4, paceStages: 5 });
     expect(fitStrengths(simulated(5, 2))).toEqual(fitStrengths(simulated(5, 2), defaultStrengthParams));
   });
 
@@ -487,13 +489,21 @@ describe("fitStrengths: general", () => {
   });
 
   describe("top-heavy pace fit (paceStages)", () => {
-    test("with paceStages: 0 the fitted strengths are identical to omitting it", () => {
+    test("omitting paceStages is the same as the v2 default of 5", () => {
       const s = simulated(10, 42);
       const fitDefault = fitRaw(s);
-      const fitZero = fitRaw(s, { paceStages: 0 });
-      expect(fitZero.theta).toEqual(fitDefault.theta);
-      expect(fitZero.effectiveRaces).toEqual(fitDefault.effectiveRaces);
-      expect(fitZero.dnfRate).toEqual(fitDefault.dnfRate);
+      const fitFive = fitRaw(s, { paceStages: 5 });
+      expect(fitFive.theta).toEqual(fitDefault.theta);
+      expect(fitFive.effectiveRaces).toEqual(fitDefault.effectiveRaces);
+      expect(fitFive.dnfRate).toEqual(fitDefault.dnfRate);
+    });
+
+    test("v1 stays reproducible: paceStages 0 with no decay and prior 3 is the full-order fit", () => {
+      const s = simulated(10, 42);
+      const v1 = fitRaw(s, V1);
+      const explicit = fitRaw(s, { recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0 });
+      expect(v1.theta).toEqual(explicit.theta);
+      expect(fitRaw(s, { paceStages: 0 }).theta).not.toEqual(fitRaw(s).theta);
     });
 
     test("a value of at least the field size equals paceStages: 0", () => {

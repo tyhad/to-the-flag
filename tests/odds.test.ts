@@ -230,14 +230,14 @@ describe("computeOdds", () => {
   });
 });
 
-// Computed by running the model once and reviewed by hand. AAA and BBB are level (43 points, one win and one second each)
-// and, with no decay in the fit, equally fast, so their average points are almost the same (83.44 and 83.49); a tie at
-// the top goes to AAA by id, which is why AAA wins more seasons. (With a half-life of 8 rounds BBB, who won the latest
-// round, was a little faster: AAA 557, BBB 409, CCC 34.)
+// v2 defaults (paceStages=5, priorStrength=1, recencyHalfLife=8). With top-5 stages the fit concentrates
+// probability on front runners, so CCC (who always finishes 3rd) drops from 33 to 10 wins. BBB won the
+// most recent race so hl=8 makes them slightly faster in the fit; AAA still ties on points and wins more
+// by id in countback. Prior=1 (vs 3) lets the two-race fit separate the drivers more.
 const GOLDEN_TINY = {
-  wdc: { AAA: 568, BBB: 399, CCC: 33 },
+  wdc: { AAA: 620, BBB: 370, CCC: 10 },
   wcc: { red: 1000 },
-  points: { AAA: 83.44, BBB: 83.49, CCC: 65.04 },
+  points: { AAA: 84.22, BBB: 84.73, CCC: 63.03 },
 };
 
 // ---------- the real fixture ----------
