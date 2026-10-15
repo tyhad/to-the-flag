@@ -48,6 +48,13 @@ describe.skipIf(!existsSync(FIXTURE))("real fixture season-2026-r16", () => {
     expect(remainingSessions(state)).toHaveLength(8);
   });
 
+  test("grid: every row has a positive integer grid, counts are unchanged", () => {
+    const state = load();
+    expect(state.results.every((r) => Number.isInteger(r.grid) && r.grid > 0)).toBe(true);
+    expect(state.results.filter((r) => r.kind === "race")).toHaveLength(352);
+    expect(state.results.filter((r) => r.kind === "sprint")).toHaveLength(110);
+  });
+
   test("qualifying: 347 rows (5 missing)", () => {
     const state = load();
     expect(state.qualifying).toHaveLength(347);

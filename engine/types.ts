@@ -17,6 +17,8 @@ export interface ResultRow {
   points: number;
   /** false = did not finish or was not classified (DNF); the odds model treats such a row as a retirement */
   classified: boolean;
+  /** starting grid position (1-based; pit-lane starts stored as field size) */
+  grid: number;
 }
 
 export interface QualiRow {

@@ -31,7 +31,7 @@ interface ScheduleDb { round: number; race_name: string | null; has_sprint: numb
 interface ResultDb {
   round: number; session: string; driver_abbr: string; driver_name: string | null;
   team_name: string | null; constructor_id: string | null; position: number | null; points: number;
-  is_classified: number;
+  is_classified: number; grid: number | null;
 }
 interface StandingDb { driver_abbr: string; driver_name: string | null; points: number }
 interface QualiDb { round: number; driver_abbr: string; position: number | null }
@@ -95,10 +95,15 @@ function readSeason(db: Database): SeasonState {
   // Results (decision d: team = constructor_id)
   const resultRows = db
     .query<ResultDb, [number]>(
-      `SELECT round, session, driver_abbr, driver_name, team_name, constructor_id, position, points, is_classified
+      `SELECT round, session, driver_abbr, driver_name, team_name, constructor_id, position, points, is_classified, grid
        FROM race_results WHERE season = ? ORDER BY round, session, position`,
     )
     .all(season);
+  const sessionSizes = new Map<string, number>();
+  for (const r of resultRows) {
+    const key = `${r.round}:${r.session}`;
+    sessionSizes.set(key, (sessionSizes.get(key) ?? 0) + 1);
+  }
   const results: ResultRow[] = [];
   const driverNames = new Map<string, string>();
   const teamNames = new Map<string, string>();
@@ -112,12 +117,15 @@ function readSeason(db: Database): SeasonState {
     }
     if (r.position == null) throw new DataInconsistentError(`${where}: position is null`);
     if (!r.constructor_id) throw new DataInconsistentError(`${where}: constructor_id is empty`);
+    if (r.grid == null) throw new DataInconsistentError(`${where}: grid is null`);
+    const fieldSize = sessionSizes.get(`${r.round}:${r.session}`) ?? 0;
     results.push({
       round: r.round,
       kind: r.session === "Race" ? "race" : "sprint",
       driver: r.driver_abbr,
       team: r.constructor_id,
       position: r.position,
+      grid: r.grid === 0 ? fieldSize : r.grid,
       points: r.points,
       classified: r.is_classified !== 0,
     });

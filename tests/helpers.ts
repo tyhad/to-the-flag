@@ -25,7 +25,9 @@ import type { ResultRow, RoundInfo, SeasonState, SessionKey } from "../engine/ty
  * `dnf` lists drivers from `order` who did not finish (classified = false). They keep their place in the
  * order and score 0, as a retired driver does in the real data.
  */
-export type SessionSpec = string[] | { order: string[]; tier?: DistanceTier; dnf?: string[] };
+export type SessionSpec =
+  | string[]
+  | { order: string[]; tier?: DistanceTier; dnf?: string[]; grid?: number[] | Record<string, number> };
 
 export interface MakeStateOptions {
   season?: number;
@@ -86,14 +88,22 @@ export function makeState(opts: MakeStateOptions): SeasonState {
     if (new Set(order).size !== order.length) throw new Error(`makeState: duplicate driver in ${key}`);
     const dnf = new Set(Array.isArray(spec) ? [] : (spec.dnf ?? []));
     for (const d of dnf) if (!order.includes(d)) throw new Error(`makeState: dnf driver ${d} is not in the order of ${key}`);
+    const gridSpec = !Array.isArray(spec) ? spec.grid : undefined;
     order.forEach((driver, i) => {
       const classified = !dnf.has(driver);
+      let grid = i + 1;
+      if (Array.isArray(gridSpec)) {
+        if (gridSpec[i] !== undefined) grid = gridSpec[i];
+      } else if (gridSpec && typeof gridSpec === "object") {
+        if (gridSpec[driver] !== undefined) grid = gridSpec[driver];
+      }
       results.push({
         round,
         kind,
         driver,
         team: teamAt(driver, round),
         position: i + 1,
+        grid,
         points: !classified ? 0 : kind === "race" ? gpPoints(i + 1, tier) : sprintPoints(i + 1),
         classified,
       });

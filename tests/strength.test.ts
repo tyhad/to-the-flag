@@ -307,8 +307,8 @@ describe("fitStrengths: effectiveRaces", () => {
       rounds: 3, sprints: [3], completed: 2, teams: teamsXY,
       results: { "1:race": ["AAA", "BBB"], "2:race": ["AAA", "BBB"] },
     });
-    state.results.push({ round: 3, kind: "sprint", driver: "XXX", team: "red", position: 1, points: 8, classified: true });
-    state.results.push({ round: 3, kind: "sprint", driver: "AAA", team: "red", position: 2, points: 7, classified: true });
+    state.results.push({ round: 3, kind: "sprint", driver: "XXX", team: "red", position: 1, grid: 1, points: 8, classified: true });
+    state.results.push({ round: 3, kind: "sprint", driver: "AAA", team: "red", position: 2, grid: 2, points: 7, classified: true });
     const fit = fitStrengths(state, { sprintWeight: 0.5 });
     expect(fit.effectiveRaces.XXX).toBeCloseTo(0.5, 12);
   });

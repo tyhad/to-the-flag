@@ -27,10 +27,20 @@ describe("loadSeason: happy path", () => {
   test("results use driver_abbr and constructor_id", () => {
     expect(state.results).toHaveLength(10);
     expect(state.results[0]).toEqual({
-      round: 1, kind: "race", driver: "AAA", team: "alpha", position: 1, points: 25, classified: true,
+      round: 1, kind: "race", driver: "AAA", team: "alpha", position: 1, grid: 1, points: 25, classified: true,
     });
     expect(state.results.filter((r) => r.kind === "sprint")).toHaveLength(3);
     expect(state.results.reduce((a, r) => a + r.points, 0)).toBe(149);
+  });
+
+  test("pit-lane start (grid 0 in DB) maps to the session field size", () => {
+    const path = buildDb((seed) => {
+      const aaa = seed.results.find((r) => r.round === 1 && r.session === "Race" && r.abbr === "AAA");
+      if (aaa) aaa.grid = 0;
+    });
+    const loaded = loadSeason(path);
+    const aaa = loaded.results.find((r) => r.round === 1 && r.kind === "race" && r.driver === "AAA");
+    expect(aaa?.grid).toBe(4);
   });
 
   test("every result is classified unless the database says otherwise", () => {
@@ -200,6 +210,15 @@ describe("loadSeason: refuses bad input", () => {
       if (r) r.constructorId = null;
     });
     expect(() => loadSeason(path)).toThrow(DataInconsistentError);
+  });
+
+  test("result row with null grid -> DataInconsistentError", () => {
+    const path = buildDb((seed) => {
+      const r = seed.results[0];
+      if (r) r.grid = null;
+    });
+    expect(() => loadSeason(path)).toThrow(DataInconsistentError);
+    expect(() => loadSeason(path)).toThrow(/grid is null/);
   });
 
   test("results for a round that is not in the schedule -> DataInconsistentError", () => {

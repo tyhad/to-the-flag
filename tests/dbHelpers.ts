@@ -22,6 +22,8 @@ export interface SeedResult {
   points: number;
   /** default true; false writes is_classified = 0 (a DNF) */
   classified?: boolean;
+  /** default position; can be set explicitly (including 0 for pit-lane start) */
+  grid?: number | null;
 }
 
 export interface Seed {
@@ -52,6 +54,7 @@ export function sessionRows(
     teamName: TEAM_NAMES[constructorId] ?? constructorId,
     constructorId,
     position: i + 1,
+    grid: i + 1,
     points: session === "Race" ? gpPoints(i + 1) : sprintPoints(i + 1),
     classified: true,
   }));
@@ -111,6 +114,7 @@ export function fixtureSeed(): Seed {
       teamName: teamName.get(r.team) ?? r.team,
       constructorId: r.team,
       position: r.position,
+      grid: r.grid ?? r.position,
       points: r.points,
       // fixture rows written before Step 2 of Phase 3 have no flag; they count as classified
       classified: r.classified ?? true,
@@ -179,9 +183,11 @@ export function buildDb(mutate?: (seed: Seed) => void): string {
   for (const r of seed.results) {
     db.query(
       `INSERT INTO race_results (season, round, session, driver_abbr, driver_name, team_name,
-        constructor_id, position, points, is_classified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        constructor_id, grid, position, points, is_classified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
-      seed.season, r.round, r.session, r.abbr, r.name, r.teamName, r.constructorId, r.position, r.points,
+      seed.season, r.round, r.session, r.abbr, r.name, r.teamName, r.constructorId,
+      r.grid !== undefined ? r.grid : r.position,
+      r.position, r.points,
       r.classified === false ? 0 : 1,
     );
   }
