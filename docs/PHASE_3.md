@@ -1,6 +1,6 @@
 # Phase 3: Odds ("Likely?")
 
-**Status: built and verified on `phase-3-odds` (Steps 1 to 11); what remains is the pull request to `main`.** Branch: `phase-3-odds`. One commit per step. Tests first wherever there is logic. Read `SPEC.md` (sections 4, 7, 8 F3, 9), `DESIGN.md`, `docs/PHASE_1.md`, `docs/PHASE_2.md`, and `docs/FEED.md` before starting.
+   **Status: done and merged to `main` (PR #3).** One commit per step.
 
 **Scope:** a season-only Monte Carlo model, its API feed, the "Likely?" tab with a form-weight slider, a backtest, and a model card.
 **Not in Phase 3:** multi-season priors (`prior_carryover` stays reserved), starting-grid or track adjustments, WCC Path Solver, LAN mode, image export.
