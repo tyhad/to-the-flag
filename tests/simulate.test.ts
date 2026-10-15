@@ -65,6 +65,7 @@ describe("simulateSeason: basics", () => {
       dnfPriorSessions: 4,
       sprintDnfFactor: 0.5,
       includeDnf: true,
+      paceStages: 0,
     });
   });
 
@@ -81,7 +82,16 @@ describe("simulateSeason: basics", () => {
   });
 
   test("nonsense parameters are refused", () => {
-    for (const bad of [{ nSims: 0 }, { nSims: 1.5 }, { formWeight: 1.5 }, { formWeight: -0.1 }, { strengthSigma: -1 }, { sprintDnfFactor: -1 }]) {
+    for (const bad of [
+      { nSims: 0 },
+      { nSims: 1.5 },
+      { formWeight: 1.5 },
+      { formWeight: -0.1 },
+      { strengthSigma: -1 },
+      { sprintDnfFactor: -1 },
+      { paceStages: -1 },
+      { paceStages: 1.5 },
+    ]) {
       expect(() => simulateSeason(state, undefined, bad)).toThrow(RangeError);
     }
   });
@@ -121,6 +131,24 @@ describe("deriveSeed", () => {
     expect(deriveSeed(state, scenario, { ...defaultOddsParams, seed: 5 })).toBe(deriveSeed(state, scenario, defaultOddsParams));
     expect(simulateSeason(state, scenario, { nSims: 10 }).seed).toBe(deriveSeed(state, scenario, { ...defaultOddsParams, nSims: 10 }));
     expect(simulateSeason(state, scenario, { nSims: 10, seed: 5 }).seed).toBe(5);
+  });
+
+  test("paceStages: 0 gives the exact same seed as omitting it (legacy compatibility)", () => {
+    const { paceStages: _ignored, ...legacyParams } = defaultOddsParams;
+    expect(deriveSeed(state, scenario, defaultOddsParams)).toBe(
+      deriveSeed(state, scenario, legacyParams as OddsParams),
+    );
+    expect(deriveSeed(state, scenario, { ...defaultOddsParams, paceStages: 5 })).not.toBe(
+      deriveSeed(state, scenario, defaultOddsParams),
+    );
+  });
+
+  test("with paceStages: 0 simulation results are identical to omitting it", () => {
+    const r1 = simulateSeason(state, scenario, { nSims: 100, seed: 999 });
+    const r2 = simulateSeason(state, scenario, { nSims: 100, seed: 999, paceStages: 0 });
+    expect(r2.driverWins).toEqual(r1.driverWins);
+    expect(r2.teamWins).toEqual(r1.teamWins);
+    expect(r2.driverPointSums).toEqual(r1.driverPointSums);
   });
 });
 

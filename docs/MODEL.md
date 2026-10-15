@@ -43,6 +43,7 @@ A Monte Carlo simulation of the rest of the season, built only from this season'
 | `dnfPriorSessions` | 4 | how many virtual races the field's retirement rate counts for |
 | `sprintDnfFactor` | 0.5 | sprint retirement chance = race chance times this |
 | `includeDnf` | true | retirements on or off |
+| `paceStages` | 0 | finishing stages used in the pace fit; 0 means all places (v1 behavior) |
 
 Fixed in the code, not parameters: a retirement rate is kept between 0.1% and 99.9%; with no race results yet the
 field rate is 5%; the odds are marked `low confidence` while fewer than 5 rounds are complete (`LOW_CONFIDENCE_ROUNDS`);

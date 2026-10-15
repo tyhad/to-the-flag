@@ -64,6 +64,9 @@ function checkParams(p: OddsParams): void {
   if (!(p.formWeight >= 0 && p.formWeight <= 1)) throw new RangeError(`formWeight must be between 0 and 1, got ${p.formWeight}`);
   if (!(p.strengthSigma >= 0)) throw new RangeError(`strengthSigma must be 0 or more, got ${p.strengthSigma}`);
   if (!(p.sprintDnfFactor >= 0)) throw new RangeError(`sprintDnfFactor must be 0 or more, got ${p.sprintDnfFactor}`);
+  if (!Number.isInteger(p.paceStages) || p.paceStages < 0) {
+    throw new RangeError(`paceStages must be an integer of 0 or more, got ${p.paceStages}`);
+  }
 }
 
 /** JSON with object keys sorted at every level, so equal data always gives equal text. */
@@ -81,6 +84,9 @@ function canonicalJson(value: unknown): string {
 /** The default seed: a stable hash of the season, the round, the scenario's locks and the model parameters (not the seed). */
 export function deriveSeed(state: SeasonState, scenario: Scenario | undefined, params: OddsParams): number {
   const { seed: _ignored, ...modelParams } = params;
+  if (modelParams.paceStages === 0) {
+    delete (modelParams as Partial<OddsParams>).paceStages;
+  }
   return hashSeed(String(state.season), String(state.asOfRound), canonicalJson(scenario?.locks ?? {}), canonicalJson(modelParams));
 }
 

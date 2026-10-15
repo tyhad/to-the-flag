@@ -21,6 +21,8 @@ export interface StrengthParams {
   priorStrength: number;
   /** how many virtual races the field's retirement rate counts for */
   dnfPriorSessions: number;
+  /** number of finishing stages used in the pace fit (0 = all places, v1 behavior) */
+  paceStages: number;
 }
 
 export const defaultStrengthParams: StrengthParams = {
@@ -32,6 +34,7 @@ export const defaultStrengthParams: StrengthParams = {
   // spread wider than a full season's. 3 shrinks small samples and still lets 16 rounds speak. Revisit in the Step 10 backtest.
   priorStrength: 3,
   dnfPriorSessions: 4,
+  paceStages: 0,
 };
 
 export interface StrengthFit {
@@ -57,6 +60,9 @@ function checkParams(p: StrengthParams): void {
   if (!(p.recencyHalfLife > 0)) throw new RangeError(`recencyHalfLife must be positive, got ${p.recencyHalfLife}`);
   if (!(p.sprintWeight >= 0)) throw new RangeError(`sprintWeight must be 0 or more, got ${p.sprintWeight}`);
   if (!(p.dnfPriorSessions >= 0)) throw new RangeError(`dnfPriorSessions must be 0 or more, got ${p.dnfPriorSessions}`);
+  if (!Number.isInteger(p.paceStages) || p.paceStages < 0) {
+    throw new RangeError(`paceStages must be an integer of 0 or more, got ${p.paceStages}`);
+  }
 }
 
 interface Ranking {
@@ -106,9 +112,15 @@ export function fitStrengths(state: SeasonState, partial: Partial<StrengthParams
 
   if (rankings.length > 0) {
     // MM algorithm for Plackett-Luce (Hunter 2004). gamma = exp(theta); the dummy driver has gamma 1 and is not updated.
-    // wins[i]: weight of the stages i wins (every place but the last), plus one prior win against the dummy.
+    // When paceStages > 0, only the first K stages of each finishing order are used.
+    const stagesFor = (m: number) => (params.paceStages > 0 ? Math.min(params.paceStages, m - 1) : m - 1);
+
+    // wins[i]: weight of the stages i wins, plus one prior win against the dummy.
     const wins = new Float64Array(n);
-    for (const rk of rankings) for (let j = 0; j < rk.order.length - 1; j++) wins[rk.order[j]!]! += rk.weight;
+    for (const rk of rankings) {
+      const S = stagesFor(rk.order.length);
+      for (let j = 0; j < S; j++) wins[rk.order[j]!]! += rk.weight;
+    }
     for (let i = 0; i < n; i++) if (inFit[i]) wins[i]! += params.priorStrength;
 
     const gamma = new Float64Array(n).fill(1);
@@ -118,12 +130,13 @@ export function fitStrengths(state: SeasonState, partial: Partial<StrengthParams
       for (const rk of rankings) {
         const { order, weight } = rk;
         const m = order.length;
+        const S = stagesFor(m);
         const suffix = new Float64Array(m + 1);
         for (let j = m - 1; j >= 0; j--) suffix[j] = suffix[j + 1]! + gamma[order[j]!]!;
-        // the driver at place j is in the choice set of stages 0..min(j, m - 2)
+        // the driver at place j is in the choice set of stages 0..min(j, S - 1)
         let running = 0;
         for (let j = 0; j < m; j++) {
-          if (j <= m - 2) running += weight / suffix[j]!;
+          if (j <= S - 1) running += weight / suffix[j]!;
           denom[order[j]!]! += running;
         }
       }

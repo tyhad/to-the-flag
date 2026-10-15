@@ -470,7 +470,7 @@ describe("fitStrengths: general", () => {
   });
 
   test("the default parameters are the documented ones", () => {
-    expect(defaultStrengthParams).toEqual({ recencyHalfLife: Infinity, sprintWeight: 0.5, priorStrength: 3, dnfPriorSessions: 4 });
+    expect(defaultStrengthParams).toEqual({ recencyHalfLife: Infinity, sprintWeight: 0.5, priorStrength: 3, dnfPriorSessions: 4, paceStages: 0 });
     expect(fitStrengths(simulated(5, 2))).toEqual(fitStrengths(simulated(5, 2), defaultStrengthParams));
   });
 
@@ -482,6 +482,82 @@ describe("fitStrengths: general", () => {
     expect(() => fitStrengths(state, { recencyHalfLife: Number.NaN })).toThrow(RangeError);
     expect(() => fitStrengths(state, { sprintWeight: -0.1 })).toThrow(RangeError);
     expect(() => fitStrengths(state, { dnfPriorSessions: -1 })).toThrow(RangeError);
+    expect(() => fitStrengths(state, { paceStages: -1 })).toThrow(RangeError);
+    expect(() => fitStrengths(state, { paceStages: 1.5 })).toThrow(RangeError);
+  });
+
+  describe("top-heavy pace fit (paceStages)", () => {
+    test("with paceStages: 0 the fitted strengths are identical to omitting it", () => {
+      const s = simulated(10, 42);
+      const fitDefault = fitRaw(s);
+      const fitZero = fitRaw(s, { paceStages: 0 });
+      expect(fitZero.theta).toEqual(fitDefault.theta);
+      expect(fitZero.effectiveRaces).toEqual(fitDefault.effectiveRaces);
+      expect(fitZero.dnfRate).toEqual(fitDefault.dnfRate);
+    });
+
+    test("a value of at least the field size equals paceStages: 0", () => {
+      const s = simulated(10, 42); // 20 drivers
+      const fitZero = fitRaw(s, { paceStages: 0 });
+      const fit20 = fitRaw(s, { paceStages: 20 });
+      const fit25 = fitRaw(s, { paceStages: 25 });
+      expect(fit20.theta).toEqual(fitZero.theta);
+      expect(fit25.theta).toEqual(fitZero.theta);
+    });
+
+    test("on synthetic data with a heavy-tailed truth, top-K fit recovers top three strengths with lower error", () => {
+      const nDrivers = 20;
+      const testCodes = Array.from({ length: nDrivers }, (_, i) => `D${String(i + 1).padStart(2, "0")}`);
+      const testTeams = Object.fromEntries(
+        Array.from({ length: nDrivers / 2 }, (_, t) => [`t${t + 1}`, [testCodes[2 * t]!, testCodes[2 * t + 1]!]]),
+      );
+      // Heavy-tailed: top 3 are strong, 17 tail drivers have low ability and heavy-tailed noise
+      const truth = testCodes.map((_, i) => (i === 0 ? 3.0 : i === 1 ? 2.0 : i === 2 ? 1.0 : -1.5));
+      const meanTop3True = (truth[0]! + truth[1]! + truth[2]!) / 3;
+
+      let errAllTotal = 0;
+      let errTopKTotal = 0;
+      const reps = 25;
+
+      for (let rep = 1; rep <= reps; rep++) {
+        const rng = createRng(rep * 101);
+        const results: Record<string, string[]> = {};
+        for (let r = 1; r <= 15; r++) {
+          const scored = testCodes.map((c, i) => {
+            const u1 = rng.normal();
+            const u2 = rng.normal();
+            const u3 = rng.normal();
+            const chi2 = (u1 * u1 + u2 * u2 + u3 * u3) / 3;
+            const t3 = rng.normal() / Math.sqrt(chi2);
+            return { c, score: truth[i]! + t3 };
+          });
+          scored.sort((a, b) => b.score - a.score);
+          results[`${r}:race`] = scored.map((s) => s.c);
+        }
+        const state = makeState({ rounds: 15, completed: 15, teams: testTeams, results });
+        const fAll = fitRaw(state, { paceStages: 0, priorStrength: 1 });
+        const fTopK = fitRaw(state, { paceStages: 5, priorStrength: 1 });
+
+        const meanTop3All = (fAll.theta[testCodes[0]!]! + fAll.theta[testCodes[1]!]! + fAll.theta[testCodes[2]!]!) / 3;
+        const meanTop3K = (fTopK.theta[testCodes[0]!]! + fTopK.theta[testCodes[1]!]! + fTopK.theta[testCodes[2]!]!) / 3;
+
+        const errAll = [0, 1, 2].reduce(
+          (s, i) => s + Math.abs(fAll.theta[testCodes[i]!]! - meanTop3All - (truth[i]! - meanTop3True)),
+          0,
+        );
+        const errTopK = [0, 1, 2].reduce(
+          (s, i) => s + Math.abs(fTopK.theta[testCodes[i]!]! - meanTop3K - (truth[i]! - meanTop3True)),
+          0,
+        );
+
+        errAllTotal += errAll;
+        errTopKTotal += errTopK;
+      }
+
+      const avgErrAll = errAllTotal / reps;
+      const avgErrTopK = errTopKTotal / reps;
+      expect(avgErrTopK).toBeLessThan(avgErrAll);
+    });
   });
 
   describe("the Round 16 fixture", () => {
