@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.7. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. D1 (TypeScript engine) and D2 (theme) are approved.
+**Status:** DRAFT v0.8. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal) has a task list in `docs/PHASE_4.md` and has not started; Phases 5 to 7 are planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -178,6 +178,10 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 | 1. Engine core (done; see `docs/PHASE_1.md`) | F1, F2 (WDC) in TypeScript with fixtures and unit tests (points tables, shortened races, countback, remaining points) | Tests pass on fixtures including a countback tie, each shortened-race column, and the sprint 50% threshold |
 | 2. UI + feed (done; see `docs/PHASE_2.md`) | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
 | 3. Odds (done; see `docs/PHASE_3.md`, `docs/MODEL.md`) | F3, its UI tab, the odds feed, a backtest and a model card | Seeded runs are reproducible; win counts sum to the number of simulations; eliminated drivers never win; the low-confidence tag works; the backtest beats the uniform baseline (it does not beat "points so far"; see the model card) |
+| 4. Model v2 (see `docs/PHASE_4.md`) | History data (2022 to 2025), a multi-season calibration harness, a top-heavy pace fit, the grid signal, model versioning | v2 defaults are adopted only if they pass the protocol in `docs/PHASE_4.md` (D30); the grid signal is adopted or rejected with numbers; v1 stays reproducible |
+| 5. WCC Path Solver (planned) | "Possible?" for constructors | To be defined when the phase starts |
+| 6. Access and ops (planned) | LAN mode with a write token, a one-command refresh script, PNG export | To be defined when the phase starts |
+| 7. Multi-season prior (planned) | `prior_carryover` using the history data | To be defined when the phase starts |
 
 Implement one phase at a time. Each phase must run and be verified before the next starts.
 
@@ -222,3 +226,7 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D26 | An active scenario that no longer fits the season | `GET /api/feed/odds` ignores it and returns the base odds with `scenario: null`, so a live overlay keeps working. The UI says in plain words that the locks do not fit | Decided |
 | D27 | What "Likely?" lists | Drivers who are alive get a bar (`<1%` for a long shot); a clinched driver and the count of drivers who are out are stated in words. The teams' table lists teams that won at least one simulated season | Decided |
 | D28 | Change against the odds without locks | Whole percentage points ("▲ 12 pp"). It reads "●" when the shown values are equal, when it rounds to 0, or when it is smaller than two standard errors of the difference (two runs of the model never agree exactly). Bar colors follow the number shown, not the raw estimate | Decided |
+| D29 | History data | Seasons 2022 to 2025 fetched with F1GStats into `../F1GStats/history/f1gstats-<season>.sqlite`, not committed, used only by scripts to evaluate and tune | Proposed |
+| D30 | Evaluation protocol | Tune on 2022 to 2024, validate on 2025, confirm once on 2026. Adopt a change only if it beats the current model by more than 2 standard errors and at least 0.005 per race on the validation season, improves at least 3 of 4 history seasons, and is not worse than 1 standard error on 2026 or on rounds 3 to 5 | Proposed |
+| D31 | Model versioning | `MODEL_VERSION` (`v1`, `v2`) in `OddsResult` and the feed; v1 stays reproducible with parameters | Proposed |
+| D32 | Roadmap after Phase 4 | Phase 5 WCC Path Solver, Phase 6 LAN mode + write token + small ops tools, Phase 7 multi-season prior; the owner may reorder | Proposed |

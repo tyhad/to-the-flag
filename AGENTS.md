@@ -8,13 +8,15 @@ Personal, local-first tool: no accounts, no hosting.
 
 ## Current status
 Phases 0 (data, in the separate `F1GStats` repo), 1 (engine), 2 (API, web UI, overlay feed) and 3 (Monte Carlo odds: the "Likely?" tab, `/api/feed/odds`, the backtest and the model card) are done.
-There is no active task list. Ask the owner what comes next. Ideas and known weaknesses are in `docs/MODEL.md` (the model loses to "points so far" at predicting a single race) and `docs/PHASE_3.md` ("Known limits").
+Phase 4 (model v2: history data, calibration, grid signal) has a task list: `docs/PHASE_4.md`. Do not start it until the owner says so; then follow it step by step.
+Phases 5 (WCC Path Solver), 6 (LAN mode, write token, small ops tools) and 7 (multi-season prior) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.
 2. `DESIGN.md`: visual rules and tokens.
 3. `docs/PHASE_2.md` and `docs/PHASE_1.md` describe the finished web UI, feed and engine; read them for behavior and limits. `docs/FEED.md` documents the overlay feed.
 4. `docs/PHASE_3.md` (the odds task list, as built) and `docs/MODEL.md` (the model card: parameters, backtest results, limits). Read `docs/MODEL.md` before changing anything in the odds model.
+5. `docs/PHASE_4.md`: the model v2 task list, including the evaluation protocol and the adoption rule.
 
 If code and documents disagree, follow the documents and ask the owner.
 
@@ -47,6 +49,7 @@ Phase 1 must provide these scripts with exactly these names:
 - Team colors come only from `teamColor()` in `web/theme/teams.ts`. Never type a team hex anywhere else.
 - "Possible?" (no model) and "Likely?" (Monte Carlo) stay visually separate.
 - Never show 0% or 100% from simulation; show `<1%` / `>99%`. Label simulated numbers "Model estimate".
+- Model changes need evidence: follow the protocol and adoption rule in `docs/PHASE_4.md`, never tune on the 2026 season before the confirmation run, and record every result in `docs/MODEL.md`.
 - Odds code lives in flat files in `engine/`, uses only the seeded `createRng` (never `Math.random`), and formats every probability through `formatProbability`.
 - `PORT` (default 3100) and `HOST` (default 127.0.0.1) come from env. Never hardcode `localhost` in URLs.
 - The browser never touches SQLite. It gets one `SeasonState` from `/api/season` and runs the engine locally.
