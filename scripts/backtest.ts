@@ -276,7 +276,7 @@ export function runSigmas(state: SeasonState, sigmas: readonly number[] = SIGMAS
 }
 
 /** Win and podium log loss of one race, added up: one number per race, to compare forecasts race by race. */
-function raceLosses(records: readonly RaceRecord[], method: Method): number[] {
+export function raceLosses(records: readonly RaceRecord[], method: Method): number[] {
   return records.map((r) => logLoss(pairsOf([r], method, "win")) + logLoss(pairsOf([r], method, "podium")));
 }
 

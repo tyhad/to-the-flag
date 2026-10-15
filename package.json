@@ -8,6 +8,7 @@
     "build": "bun scripts/build.ts",
     "check": "bun scripts/check.ts",
     "backtest": "bun scripts/backtest.ts",
+    "calibrate": "bun scripts/calibrate.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
