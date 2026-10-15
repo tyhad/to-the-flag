@@ -140,13 +140,16 @@ export function cleanupDbs(): void {
 }
 
 /** Builds a database from the default seed, optionally changed by `mutate`. Returns the file path. */
-export function buildDb(mutate?: (seed: Seed) => void): string {
+export function buildDb(mutate?: (seed: Seed) => void, targetPath?: string): string {
   const seed = defaultSeed();
   mutate?.(seed);
 
-  const dir = mkdtempSync(join(tmpdir(), "ttf-"));
-  dirs.push(dir);
-  const path = join(dir, "f1gstats.sqlite");
+  let path = targetPath;
+  if (!path) {
+    const dir = mkdtempSync(join(tmpdir(), "ttf-"));
+    dirs.push(dir);
+    path = join(dir, "f1gstats.sqlite");
+  }
   const db = new Database(path, { create: true });
 
   db.run("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)");
