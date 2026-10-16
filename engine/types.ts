@@ -34,6 +34,16 @@ export interface RoundInfo {
   status: "completed" | "scheduled";
 }
 
+/** The real starting grid of the next race, when it is known (qualifying has run). Phase 4, Step 8. */
+export interface UpcomingGrid {
+  /** the round whose race this grid is for */
+  round: number;
+  /** driver code -> starting place (1-based; a pit-lane start is stored as the field size) */
+  grid: Record<string, number>;
+  /** where the data file says the grid came from (`grid_source`), for display and debugging only */
+  source: string;
+}
+
 export interface SeasonState {
   season: number;
   /** latest completed round (0 if none) */
@@ -45,6 +55,8 @@ export interface SeasonState {
   teams: { id: string; name: string }[];
   health: { status: "ok" | "warn" | "fail"; checkedAt: string };
   schemaVersion?: number;
+  /** the real grid of the next race, when known; the season simulation uses it for that race (Step 8) */
+  upcomingGrid?: UpcomingGrid;
 }
 
 export interface SessionLock {

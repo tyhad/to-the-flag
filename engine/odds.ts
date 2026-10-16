@@ -39,6 +39,8 @@ export interface OddsResult {
   params: OddsParams;
   /** "v1" or "v2" — the model version that produced this result (D31) */
   modelVersion: typeof MODEL_VERSION;
+  /** the round whose real starting grid the model used, or null when it used none (Phase 4, Step 8) */
+  gridKnownRound: number | null;
   /** drivers with wins > 0, or alive or clinched; best first */
   wdc: OddsRow[];
   /** teams with wins > 0; best first */
@@ -115,6 +117,7 @@ export function computeOdds(state: SeasonState, scenario?: Scenario, params: Par
     seed: sim.seed,
     params: sim.params,
     modelVersion: MODEL_VERSION,
+    gridKnownRound: sim.gridKnownRound,
     wdc,
     wcc,
     maxStdError,

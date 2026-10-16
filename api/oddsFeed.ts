@@ -33,6 +33,8 @@ export interface OddsFeedFields {
   model: "estimate";
   label: "Model estimate";
   low_confidence: boolean;
+  /** the round whose real starting grid the model used, or null when it used none */
+  grid_known_round: number | null;
   n_sims: number;
   scenario: ScenarioMeta | null;
   wdc: FeedOddsRow[];
@@ -131,6 +133,7 @@ export function buildOddsPayload(
     model: "estimate",
     label: "Model estimate",
     low_confidence: odds.lowConfidence,
+    grid_known_round: odds.gridKnownRound,
     n_sims: odds.nSims,
     scenario,
     wdc,

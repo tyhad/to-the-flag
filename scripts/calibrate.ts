@@ -1,7 +1,8 @@
 /**
  * Usage: bun scripts/calibrate.ts [--sims N] [--history <dir>] [--live <path>] [--grid-signal]
  *
- * `--grid-signal` runs only the Step 7 section (the grid term); without it, Step 6 (the settings grid) runs first.
+ * `--grid-signal` runs only the Step 7 section (the grid term); `--qualifying-noise` only the Step 8 estimate of the
+ * qualifying noise. Without a flag, Step 6 (the settings grid) runs first, then Step 7, then Step 8.
  *
  * Evaluation harness for Model calibration across multiple seasons (Phase 4, Step 4).
  * Evaluates candidate settings against current defaults under protocol D30:
@@ -18,11 +19,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadSeasons } from "../data/loadHistory";
 import { loadSeason } from "../data/loadSeason";
-import type { OddsParams, SeasonState } from "../engine";
+import { fitStrengths, type OddsParams, type SeasonState } from "../engine";
 import {
   compareCells,
   MATERIAL_DIFFERENCE,
+  gridOf,
   scoreMethod,
+  stateBefore,
   walkForward,
   type CellComparison,
   type RaceRecord,
@@ -327,6 +330,90 @@ export function evaluateGridSignal(
   return { baseline, candidates, selected, verdict: chosen ? chosen.comparison.verdict : null };
 }
 
+// ---------- Step 8: how noisy is qualifying? ----------
+
+/** Qualifying noise sizes tried (the Gumbel scale of the simulated qualifying, next to the race's scale of 1). */
+export const QUALIFYING_NOISES = [0.25, 0.5, 0.75, 1, 1.5, 2, 3] as const;
+/** Strengths need at least two races behind them, as in the early-season check. */
+export const FIRST_GRID_ROUND = 3;
+
+/**
+ * Log probability of a grid under the simulated qualifying: key = strength + noise * Gumbel, best key on pole. That is
+ * a Plackett-Luce order with strengths divided by the noise: the sum over places of
+ * `s/noise - ln(sum of exp(s/noise) over the drivers still unplaced)`. `strengthsPoleFirst` is in grid order.
+ */
+export function gridLogLikelihood(strengthsPoleFirst: readonly number[], noise: number): number {
+  const scaled = strengthsPoleFirst.map((s) => s / noise);
+  let total = 0;
+  for (let k = 0; k < scaled.length; k++) {
+    const max = Math.max(...scaled.slice(k));
+    let rest = 0;
+    for (let j = k; j < scaled.length; j++) rest += Math.exp(scaled[j]! - max);
+    total += scaled[k]! - (max + Math.log(rest));
+  }
+  return total;
+}
+
+/** For each race from round 3 on: the strengths (fitted before that round) of the drivers, in the order they started. */
+function gridStrengths(season: SeasonState): number[][] {
+  const out: number[][] = [];
+  for (let round = FIRST_GRID_ROUND; round <= season.asOfRound; round++) {
+    const grid = gridOf(season, round);
+    const drivers = Object.keys(grid).sort((a, b) => grid[a]! - grid[b]!);
+    if (drivers.length < 2) continue;
+    const { theta } = fitStrengths(stateBefore(season, round));
+    out.push(drivers.map((d) => theta[d] ?? 0));
+  }
+  return out;
+}
+
+export interface LikelihoodCell {
+  /** mean log likelihood of one grid */
+  mean: number;
+  /** standard error of that mean across grids */
+  se: number;
+  /** grids counted */
+  n: number;
+}
+
+function cell(values: readonly number[]): LikelihoodCell {
+  const n = values.length;
+  if (n === 0) return { mean: Number.NaN, se: Number.NaN, n: 0 };
+  const mean = values.reduce((a, b) => a + b, 0) / n;
+  const variance = n > 1 ? values.reduce((a, v) => a + (v - mean) ** 2, 0) / (n - 1) : 0;
+  return { mean, se: Math.sqrt(variance / n), n };
+}
+
+export interface QualifyingNoiseFit {
+  byNoise: { noise: number; training: LikelihoodCell; validation: LikelihoodCell; confirmation: LikelihoodCell }[];
+  /** the noise with the highest mean log likelihood on the training seasons; a tie goes to the smaller noise */
+  selected: number;
+}
+
+/** Estimates `qualifyingNoise` from the real grids. The choice uses the training seasons only. */
+export function fitQualifyingNoise(seasons: CalibrationSeasons, noises: readonly number[] = QUALIFYING_NOISES): QualifyingNoiseFit {
+  const train = seasons.training.flatMap(gridStrengths);
+  const valid = gridStrengths(seasons.validation);
+  const conf = gridStrengths(seasons.confirmation);
+  const byNoise = [...noises]
+    .sort((a, b) => a - b)
+    .map((noise) => ({
+      noise,
+      training: cell(train.map((g) => gridLogLikelihood(g, noise))),
+      validation: cell(valid.map((g) => gridLogLikelihood(g, noise))),
+      confirmation: cell(conf.map((g) => gridLogLikelihood(g, noise))),
+    }));
+  let selected = byNoise[0]!.noise;
+  let best = byNoise[0]!.training.mean;
+  for (const row of byNoise) {
+    if (row.training.mean > best) {
+      best = row.training.mean;
+      selected = row.noise;
+    }
+  }
+  return { byNoise, selected };
+}
+
 // ---------- Formatting & CLI ----------
 
 const fmt = (x: number, digits = 3) => x.toFixed(digits);
@@ -355,6 +442,10 @@ export function runCalibrationCli(args: string[] = []): void {
 
   if (args.includes("--grid-signal")) {
     printGridSignal(seasons, nSims);
+    return;
+  }
+  if (args.includes("--qualifying-noise")) {
+    printQualifyingNoise(seasons);
     return;
   }
 
@@ -461,6 +552,23 @@ export function runCalibrationCli(args: string[] = []): void {
   console.log("Note: 2026 confirmation is printed last and only checked for non-regression (<= 1 SE).");
   console.log("");
   printGridSignal(seasons, nSims);
+  console.log("");
+  printQualifyingNoise(seasons);
+}
+
+/** Step 8: the qualifying noise. Estimated on training; validation and 2026 are shown for information. */
+export function printQualifyingNoise(seasons: CalibrationSeasons): void {
+  console.log("=== Qualifying Noise (Step 8) ===");
+  console.log("Mean log likelihood of one real grid, given the strengths fitted before the race (higher = better), key =");
+  console.log("strength + noise * Gumbel. Rounds 3 onward. The noise is chosen on 2022-2024 only; 2026 is printed last.\n");
+  const fit = fitQualifyingNoise(seasons);
+  const f = (c: LikelihoodCell) => `${c.mean.toFixed(3)} (±${c.se.toFixed(3)})`;
+  const rows: string[][] = [["noise", "Train (22-24)", "Valid (2025)", "Confirm (2026)"]];
+  for (const r of fit.byNoise) rows.push([String(r.noise), f(r.training), f(r.validation), f(r.confirmation)]);
+  console.log(table(rows).join("\n"));
+  console.log("");
+  const edge = fit.selected === fit.byNoise[0]!.noise || fit.selected === fit.byNoise[fit.byNoise.length - 1]!.noise;
+  console.log(`Chosen on training: qualifyingNoise ${fit.selected}.${edge ? " (at the edge of the grid tried: extend the grid before using it)" : ""}`);
 }
 
 /** Step 7: the grid term. Training and validation first, the 2026 confirmation last. */

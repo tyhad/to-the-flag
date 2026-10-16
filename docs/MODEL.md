@@ -47,7 +47,8 @@ A Monte Carlo simulation of the rest of the season, built only from this season'
 | `sprintDnfFactor` | 0.5 | sprint retirement chance = race chance times this |
 | `includeDnf` | true | retirements on or off |
 | `paceStages` | 5 | finishing stages used in the pace fit; 0 means all places (v1 behavior) |
-| `gridWeight` | 0 | weight of the starting grid in a **race forecast** (`forecastRace` with a grid): the finishing key gets `gridWeight * (-ln(grid place))` added; 0 ignores the grid (v2). Not used by the season simulation yet (Phase 4, Step 8). Step 7 evaluates it; the verdict is below |
+| `gridWeight` | 0 (adopted value: 1, see below) | weight of the starting grid in a race: the finishing key gets `gridWeight * (-ln(grid place))` added; 0 ignores the grid (v2). Used by `forecastRace` when it is given a grid, and by the season simulation for races that have a grid (a real one, or a simulated one) |
+| `qualifyingNoise` | 0 (to be set, see below) | Gumbel scale of the simulated qualifying for a race with no real grid: qualifying key = strength + `qualifyingNoise` * Gumbel, and the order of the keys is the grid. 0 simulates no grid, so later races ignore the grid. Only used when `gridWeight` is above 0 |
 
 v1 is reproducible by passing `{ recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0 }`. `MODEL_VERSION` is `"v2"`.
 
@@ -129,9 +130,47 @@ weight is chosen on 2022 to 2024 only, then judged with the D30 rule on 2025 and
 
 Run `bun run calibrate -- --grid-signal` (needs the history files; not in git).
 
-TODO (owner): paste the printed tables here (per-season and training differences, validation, then 2026), and state
-the verdict: adopted with weight N, or not adopted with the numbers. If it is not adopted, Step 8 is skipped and
-`gridWeight` stays 0.
+Result of `bun run calibrate -- --grid-signal` (2000 simulations per forecast; differences are per race, candidate minus
+`gridWeight` 0, negative is better; the number in brackets is the standard error):
+
+| gridWeight | 2022 | 2023 | 2024 | Train (22-24) | Valid (2025) | Seasons improved |
+|---|---|---|---|---|---|---|
+| 0.25 | -0.022 (±0.005) | -0.028 (±0.004) | -0.028 (±0.007) | -0.026 (±0.003) | -0.029 (±0.006) | 4/4 |
+| 0.5 | -0.037 (±0.009) | -0.049 (±0.008) | -0.047 (±0.014) | -0.045 (±0.006) | -0.050 (±0.011) | 4/4 |
+| 0.75 | -0.045 (±0.013) | -0.065 (±0.012) | -0.060 (±0.020) | -0.057 (±0.009) | -0.065 (±0.017) | 4/4 |
+| 1 | -0.049 (±0.017) | -0.075 (±0.016) | -0.065 (±0.026) | -0.063 (±0.012) | -0.073 (±0.023) | 4/4 |
+
+Chosen on the training seasons: `gridWeight` 1. Confirmation (printed last):
+
+| Season | Race diff | Early (rounds 3-5) diff |
+|---|---|---|
+| 2022 | -0.049 (±0.017) | -0.108 (±0.013) |
+| 2023 | -0.075 (±0.016) | -0.079 (±0.055) |
+| 2024 | -0.065 (±0.026) | -0.073 (±0.033) |
+| 2025 (validation) | -0.073 (±0.023) | -0.139 (±0.010) |
+| 2026 (confirmation) | -0.084 (±0.022) | -0.038 (±0.040) |
+
+**Verdict: `gridWeight` 1 is adopted (passes D30).** Validation beats v2 by 3.2 standard errors and 0.073 per race, all four
+history seasons improve, 2026 is better by 3.8 standard errors, and rounds 3 to 5 are not worse in any season.
+Limit: 1 is the largest weight in the coarse grid and the score was still improving from 0.75 to 1, so the best weight
+may be above 1. The protocol does not allow widening the grid after seeing the result; a larger weight needs a new,
+declared evaluation (a later phase).
+
+### Phase 4, Step 8: the grid in the season simulation
+
+The simulation uses a grid for every race (not sprints) when `gridWeight` is above 0:
+- **The real grid** of the next race (`SeasonState.upcomingGrid`, read from the data file's `starting_grid`) is used as is.
+  The odds then say so (`gridKnownRound`, the "Grid known: Round N" tag in the panel, `grid_known_round` in the feed).
+- **A simulated grid** for every later race: each simulated season's strengths plus `qualifyingNoise` times Gumbel noise
+  give a qualifying order, which is the grid for that race. This keeps the model consistent: the grid weight was measured
+  on real grids, so the simulation has to give later races grids that look like real ones.
+- `gridWeight` 0 reproduces v2 exactly. `qualifyingNoise` 0 simulates no grid (the real next-race grid is still used).
+
+`qualifyingNoise` is estimated by `bun run calibrate -- --qualifying-noise`: the noise that makes the real grids of
+2022 to 2024 most likely given the strengths fitted before each race (a Plackett-Luce likelihood), 7 values from 0.25 to 3.
+
+TODO (owner): paste the printed table and the chosen value here. The defaults (`gridWeight` 1 and the chosen
+`qualifyingNoise`) are set together, so that v2 seeds and golden snapshots change only once.
 
 ### Calibration
 
@@ -161,7 +200,7 @@ removes most of that: the back of the field is now at 0.9% for a win, and the mi
   proxy; the title odds themselves are only sanity-checked (clinched always 100% of simulations, eliminated never, a
   locked session moves the numbers the way the points do).
 - **What-if odds depend on the pace gap, and the pace gap depends on how old results are weighed.** In v1 the scenario "ANT out of the next four races, RUS wins all four" gave RUS 42% with a half-life of 8 rounds and 50% with no decay. The v2 figure is measured in Step 9. Treat the number as one reading of a close contest, not a measurement.
-- **What the model does not know:** upgrades, tracks, weather, grid positions, penalties, reliability beyond a driver's
+- **What the model does not know:** upgrades, tracks, weather, penalties, grid positions beyond the next race (those are only simulated), reliability beyond a driver's
   own record, who is injured or about to leave. It sees only where drivers finished and whether they retired.
 - **Strength uncertainty is a heuristic**, not a full Bayesian posterior: one noise size, shrinking with the number of
   races, the same for every driver with the same amount of data.

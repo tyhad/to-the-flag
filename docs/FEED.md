@@ -189,6 +189,7 @@ not a fact: show `label` next to the numbers. The odds are for the active scenar
   "model": "estimate",
   "label": "Model estimate",
   "low_confidence": false,
+  "grid_known_round": null,
   "n_sims": 10000,
   "scenario": { "id": "c1f7b8d0-5e12-4a92-881b-3f21a5a92bc1", "name": "No ANT" },
   "wdc": [
@@ -212,6 +213,9 @@ not a fact: show `label` next to the numbers. The odds are for the active scenar
 
 - `available`, `model`, `label`: always `true`, `"estimate"` and `"Model estimate"`.
 - `low_confidence`: `true` while fewer than 5 rounds are complete. Show a warning next to the numbers.
+- `grid_known_round`: the round whose real starting grid the model used for its next race, or `null` when it used none
+  (no grid in the data yet, or the model's grid weight is 0). Later races use a simulated grid either way; this field
+  only says whether the next race's grid is the real one.
 - `n_sims`: number of simulated seasons. The odds carry a sampling error of at most `0.5 / sqrt(n_sims)` (0.5 points of
   percentage at 10,000 simulations).
 - `scenario`: `{ id, name }` of the active scenario, or `null`. An active scenario that no longer fits the season (for

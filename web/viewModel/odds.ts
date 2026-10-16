@@ -152,6 +152,8 @@ export interface OddsView {
   estimateLabel: string;
   asOf: string;
   lowConfidence: { tag: string; note: string } | null;
+  /** Set when the model used the real starting grid of the next race (Phase 4, Step 8). */
+  gridKnown: { tag: string } | null;
   rows: OddsBarRow[];
   /** Drivers who have won the title, in words (drivers' table only). */
   clinched: string[];
@@ -206,6 +208,7 @@ export function buildOddsView({ result, base, state, table, formPercent, hasLock
     lowConfidence: result.lowConfidence
       ? { tag: "Low confidence", note: `Fewer than ${LOW_CONFIDENCE_ROUNDS} rounds are complete, so these numbers can move a lot.` }
       : null,
+    gridKnown: result.gridKnownRound === null ? null : { tag: `Grid known: Round ${result.gridKnownRound}` },
     rows,
     clinched,
     outLine: out > 0 ? `${plural(out, "driver is", "drivers are")} out of the title fight.` : null,

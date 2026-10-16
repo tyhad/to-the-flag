@@ -127,6 +127,12 @@ describe("the Likely panel in each state", () => {
     expect(html).toContain("Fewer than 5 rounds are complete");
   });
 
+  test("the grid tag shows only when the real grid was used, and names the round", () => {
+    const used = render({ status: "ready", result: { ...result, gridKnownRound: 17 }, base: null, errorKind: null });
+    expect(used).toContain("Grid known: Round 17");
+    expect(render(ready)).not.toContain("Grid known");
+  });
+
   test("a what-if is said in words", () => {
     expect(render(ready, { formPercent: 50 })).toContain("What-if: form weight 50%.");
     expect(render(ready)).not.toContain("What-if");

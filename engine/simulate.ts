@@ -35,6 +35,12 @@ export interface OddsParams extends StrengthParams {
    * it is given a grid; the season simulation does not use it yet (Step 8).
    */
   gridWeight: number;
+  /**
+   * Phase 4, Step 8: how noisy the simulated qualifying is. For a race with no known grid, each driver's qualifying
+   * key is the simulated strength plus `qualifyingNoise` times Gumbel noise, and the order of those keys is the grid
+   * the grid term sees. 0 simulates no grid (later races then ignore the grid). Only used when `gridWeight` is above 0.
+   */
+  qualifyingNoise: number;
 }
 
 export const defaultOddsParams: OddsParams = {
@@ -45,6 +51,7 @@ export const defaultOddsParams: OddsParams = {
   sprintDnfFactor: 0.5,
   includeDnf: true,
   gridWeight: 0,
+  qualifyingNoise: 0,
 };
 
 export interface SimulationResult {
@@ -59,6 +66,8 @@ export interface SimulationResult {
   /** final points added up over all simulations (divide by nSims for the average) */
   driverPointSums: Record<string, number>;
   teamPointSums: Record<string, number>;
+  /** the round whose real grid (`SeasonState.upcomingGrid`) the simulation used, or null when it used none */
+  gridKnownRound: number | null;
 }
 
 const STRENGTH_SIGMA_K = 6;
@@ -76,6 +85,9 @@ function checkParams(p: OddsParams): void {
   }
   if (!(Number.isFinite(p.gridWeight) && p.gridWeight >= 0)) {
     throw new RangeError(`gridWeight must be a finite number of 0 or more, got ${p.gridWeight}`);
+  }
+  if (!(Number.isFinite(p.qualifyingNoise) && p.qualifyingNoise >= 0)) {
+    throw new RangeError(`qualifyingNoise must be a finite number of 0 or more, got ${p.qualifyingNoise}`);
   }
 }
 
@@ -111,6 +123,9 @@ export function deriveSeed(state: SeasonState, scenario: Scenario | undefined, p
   // gridWeight 0 (ignore the grid) must hash exactly as before the parameter existed, so v2 seeds and snapshots hold
   if (modelParams.gridWeight === 0) {
     delete (modelParams as Partial<OddsParams>).gridWeight;
+  }
+  if (modelParams.qualifyingNoise === 0) {
+    delete (modelParams as Partial<OddsParams>).qualifyingNoise;
   }
   return hashSeed(String(state.season), String(state.asOfRound), canonicalJson(scenario?.locks ?? {}), canonicalJson(modelParams));
 }
@@ -178,6 +193,12 @@ interface CompiledSession {
   retire: Float64Array;
   /** slot in the race-position matrix, or -1 for a sprint */
   raceSlot: number;
+  /** grid term per active driver from the real grid of this race, or null when there is none (or the grid is ignored) */
+  knownGrid: Float64Array | null;
+  /** simulate the qualifying order for this race (a race with no real grid, `gridWeight` and `qualifyingNoise` above 0) */
+  simulateGrid: boolean;
+  /** grid term by place (index 0 = pole) among the racers, for a simulated grid */
+  placeTerm: Float64Array;
 }
 
 /**
@@ -230,6 +251,8 @@ export function simulateSeason(
   const { form, sigma, raceRetire, sprintRetire } = modelInputs(fitStrengths(state, params), active, params);
 
   // ---- the sessions left to run
+  const upcoming = state.upcomingGrid;
+  let gridKnownRound: number | null = null;
   const sessions: CompiledSession[] = [];
   let raceSlots = 0;
   let maxPosition = 0;
@@ -261,7 +284,21 @@ export function simulateSeason(
     const table = new Int32Array(top + 1);
     for (let p = 1; p <= top; p++) table[p] = kind === "race" ? gpPoints(p, tier) : sprintPoints(p);
 
+    // the grid term of this race (Step 8): the real grid when we have it, else a simulated qualifying
+    const isRace = kind === "race";
+    let knownGrid: Float64Array | null = null;
+    if (isRace && params.gridWeight > 0 && upcoming !== undefined && upcoming.round === parseSessionKey(key).round) {
+      const fieldSize = Math.max(A, ...Object.values(upcoming.grid));
+      knownGrid = Float64Array.from(active, (c) => gridTerm(upcoming.grid[c], fieldSize));
+      gridKnownRound = upcoming.round;
+    }
+    const simulateGrid = isRace && knownGrid === null && params.gridWeight > 0 && params.qualifyingNoise > 0;
+    const placeTerm = Float64Array.from({ length: racers.length }, (_, k) => gridTerm(k + 1, racers.length));
+
     sessions.push({
+      knownGrid,
+      simulateGrid,
+      placeTerm,
       isRace: kind === "race",
       table,
       racers: Int32Array.from(racers),
@@ -281,6 +318,9 @@ export function simulateSeason(
   const simPoints = new Int32Array(A);
   const sortKey = new Float64Array(A);
   const order = new Int32Array(A);
+  const raceStrength = new Float64Array(A); // strength plus the grid term, for a race that has a grid
+  const qualiKey = new Float64Array(A);
+  const qualiOrder = new Int32Array(A);
   const racePosition = new Int32Array(Math.max(1, raceSlots * A));
   const teamTotal = new Float64Array(T);
   const tied: number[] = [];
@@ -324,7 +364,37 @@ export function simulateSeason(
     for (const s of sessions) {
       // the unspecified drivers: retire or draw a finishing key, then order them
       const u = s.racers.length;
-      rankRacers(rng, s.racers, strength, s.retire, sortKey, order);
+      let pace = strength;
+      if (s.knownGrid !== null) {
+        for (let k = 0; k < u; k++) {
+          const d = s.racers[k]!;
+          raceStrength[d] = strength[d]! + params.gridWeight * s.knownGrid[d]!;
+        }
+        pace = raceStrength;
+      } else if (s.simulateGrid) {
+        // qualifying: the same strengths with their own noise; the order is the grid
+        for (let k = 0; k < u; k++) {
+          const d = s.racers[k]!;
+          qualiKey[d] = strength[d]! + params.qualifyingNoise * rng.gumbel();
+          qualiOrder[k] = d;
+        }
+        for (let a = 1; a < u; a++) {
+          const d = qualiOrder[a]!;
+          const key = qualiKey[d]!;
+          let b = a - 1;
+          while (b >= 0 && qualiKey[qualiOrder[b]!]! < key) {
+            qualiOrder[b + 1] = qualiOrder[b]!;
+            b--;
+          }
+          qualiOrder[b + 1] = d;
+        }
+        for (let k = 0; k < u; k++) {
+          const d = qualiOrder[k]!;
+          raceStrength[d] = strength[d]! + params.gridWeight * s.placeTerm[k]!;
+        }
+        pace = raceStrength;
+      }
+      rankRacers(rng, s.racers, pace, s.retire, sortKey, order);
       for (let k = 0; k < u; k++) {
         const d = order[k]!;
         const position = s.free[k]!;
@@ -411,6 +481,7 @@ export function simulateSeason(
     teamWins: teamWinsOut,
     driverPointSums: driverSumsOut,
     teamPointSums: teamSumsOut,
+    gridKnownRound,
   };
 }
 
