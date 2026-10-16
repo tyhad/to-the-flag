@@ -272,8 +272,10 @@ export function compareCandidate(candidate: SettingEval, baseline: SettingEval):
   };
 }
 
+/** No grid at all: Step 6 judges pace settings without the grid term, whatever the current defaults are. */
+export const NO_GRID: Partial<OddsParams> = { gridWeight: 0, qualifyingNoise: 0 };
 /** The v1 behavior, spelled out: Step 6 compares candidate settings against this, whatever the current defaults are. */
-export const V1_PARAMS: Partial<OddsParams> = { recencyHalfLife: Number.POSITIVE_INFINITY, priorStrength: 3, paceStages: 0 };
+export const V1_PARAMS: Partial<OddsParams> = { recencyHalfLife: Number.POSITIVE_INFINITY, priorStrength: 3, paceStages: 0, ...NO_GRID };
 
 // ---------- Step 7: the grid signal ----------
 
@@ -523,6 +525,7 @@ export function runCalibrationCli(args: string[] = []): void {
         paceStages: item.paceStages,
         recencyHalfLife: item.recencyHalfLife,
         priorStrength: item.priorStrength,
+        ...NO_GRID,
       },
       item.label,
       nSims,

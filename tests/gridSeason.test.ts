@@ -9,6 +9,7 @@ import { computeOdds } from "../engine/odds";
 import { defaultOddsParams, deriveSeed, simulateSeason, type OddsParams, type SimulationResult } from "../engine/simulate";
 import { driverStatus } from "../engine/status";
 import type { SeasonState, SessionKey, UpcomingGrid } from "../engine/types";
+import { V1_PARAMS } from "../scripts/calibrate";
 import { makeState } from "./helpers";
 
 const teams4 = { red: ["AAA", "BBB"], blue: ["CCC", "DDD"] };
@@ -17,6 +18,7 @@ const races = (rounds: number[], order: string[] = order4) =>
   Object.fromEntries(rounds.map((r) => [`${r}:race`, order])) as Record<SessionKey, string[]>;
 const sum = (xs: Iterable<number>) => [...xs].reduce((a, b) => a + b, 0);
 const avg = (res: SimulationResult, d: string) => res.driverPointSums[d]! / res.nSims;
+const NO_GRID: Partial<OddsParams> = { gridWeight: 0, qualifyingNoise: 0 };
 const quick = (extra: Partial<OddsParams> = {}): Partial<OddsParams> => ({ nSims: 4000, seed: 3, includeDnf: false, ...extra });
 
 const withGrid = (state: SeasonState, upcomingGrid: UpcomingGrid): SeasonState => ({ ...state, upcomingGrid });
@@ -34,7 +36,7 @@ const fourLeft = makeState({ rounds: 8, completed: 4, teams: teams4, results: ra
 
 describe("grid in the season simulation: v2 is reproduced", () => {
   test("no upcomingGrid and gridWeight 0 give exactly the v2 numbers, whatever qualifyingNoise is", () => {
-    const v2 = simulateSeason(fourLeft, undefined, quick());
+    const v2 = simulateSeason(fourLeft, undefined, quick(NO_GRID));
     expect(simulateSeason(fourLeft, undefined, quick({ gridWeight: 0, qualifyingNoise: 1 }))).toEqual({
       ...v2,
       params: { ...v2.params, qualifyingNoise: 1 },
@@ -43,7 +45,7 @@ describe("grid in the season simulation: v2 is reproduced", () => {
   });
 
   test("with a weight but no known grid and qualifyingNoise 0, later races are simulated without a grid (v2)", () => {
-    const v2 = simulateSeason(fourLeft, undefined, quick());
+    const v2 = simulateSeason(fourLeft, undefined, quick(NO_GRID));
     const weighted = simulateSeason(fourLeft, undefined, quick({ gridWeight: 1, qualifyingNoise: 0 }));
     expect(weighted.driverWins).toEqual(v2.driverWins);
     expect(weighted.driverPointSums).toEqual(v2.driverPointSums);
@@ -51,11 +53,10 @@ describe("grid in the season simulation: v2 is reproduced", () => {
   });
 
   test("qualifyingNoise 0 and gridWeight 0 do not change the derived seed; other values do", () => {
-    const { gridWeight: _g, qualifyingNoise: _q, ...old } = defaultOddsParams;
-    expect(deriveSeed(fourLeft, undefined, defaultOddsParams)).toBe(deriveSeed(fourLeft, undefined, old as OddsParams));
-    expect(deriveSeed(fourLeft, undefined, { ...defaultOddsParams, qualifyingNoise: 1 })).not.toBe(
-      deriveSeed(fourLeft, undefined, defaultOddsParams),
-    );
+    const off: OddsParams = { ...defaultOddsParams, gridWeight: 0, qualifyingNoise: 0 };
+    const { gridWeight: _g, qualifyingNoise: _q, ...old } = off;
+    expect(deriveSeed(fourLeft, undefined, off)).toBe(deriveSeed(fourLeft, undefined, old as OddsParams));
+    expect(deriveSeed(fourLeft, undefined, { ...off, qualifyingNoise: 1 })).not.toBe(deriveSeed(fourLeft, undefined, off));
   });
 
   test("a negative, NaN or infinite qualifyingNoise is refused", () => {
@@ -112,7 +113,7 @@ describe("grid in the season simulation: a known grid", () => {
 
 describe("grid in the season simulation: a simulated qualifying", () => {
   test("with a weight and some noise the best driver gains from the simulated grids", () => {
-    const v2 = simulateSeason(fourLeft, undefined, quick({ gridWeight: 0 }));
+    const v2 = simulateSeason(fourLeft, undefined, quick(NO_GRID));
     const gridded = simulateSeason(fourLeft, undefined, quick({ gridWeight: 1, qualifyingNoise: 0.5 }));
     expect(avg(gridded, "AAA")).toBeGreaterThan(avg(v2, "AAA"));
     expect(avg(gridded, "DDD")).toBeLessThan(avg(v2, "DDD"));
@@ -167,7 +168,18 @@ describe("the odds say when the real grid was used", () => {
   test("gridKnownRound is on the odds result", () => {
     const withReal = computeOdds(withGrid(fourLeft, next), undefined, { nSims: 50, seed: 1, gridWeight: 1 });
     expect(withReal.gridKnownRound).toBe(5);
-    expect(computeOdds(withGrid(fourLeft, next), undefined, { nSims: 50, seed: 1 }).gridKnownRound).toBeNull(); // weight 0
-    expect(computeOdds(fourLeft, undefined, { nSims: 50, seed: 1, gridWeight: 1 }).gridKnownRound).toBeNull();
+    expect(computeOdds(withGrid(fourLeft, next), undefined, { nSims: 50, seed: 1, gridWeight: 0 }).gridKnownRound).toBeNull();
+    expect(computeOdds(fourLeft, undefined, { nSims: 50, seed: 1, gridWeight: 1 }).gridKnownRound).toBeNull(); // no real grid
+    expect(computeOdds(withGrid(fourLeft, next), undefined, { nSims: 50, seed: 1 }).gridKnownRound).toBe(5); // the defaults use it
+  });
+});
+
+describe("v1 stays reproducible", () => {
+  test("the v1 recipe has no grid at all: a real grid changes nothing", () => {
+    expect(V1_PARAMS).toEqual({ recencyHalfLife: Number.POSITIVE_INFINITY, priorStrength: 3, paceStages: 0, gridWeight: 0, qualifyingNoise: 0 });
+    const plain = simulateSeason(fourLeft, undefined, quick(V1_PARAMS));
+    const gridded = simulateSeason(withGrid(fourLeft, next), undefined, quick(V1_PARAMS));
+    expect(gridded.driverPointSums).toEqual(plain.driverPointSums);
+    expect(gridded.gridKnownRound).toBeNull();
   });
 });

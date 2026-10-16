@@ -216,25 +216,39 @@ describe("computeOdds", () => {
     expect(() => computeOdds(state, { locks: { "1:race": { fixed: { AAA: 1 } } } }, quick)).toThrow(InvalidScenarioError);
   });
 
-  test("golden win counts on a tiny hand-made state (a regression snapshot: change it only when the model changes on purpose)", () => {
-    const tiny = makeState({
+  const tinyState = () =>
+    makeState({
       rounds: 4, completed: 2, teams: { red: ["AAA", "BBB"], blue: ["CCC"] },
       results: { "1:race": ["AAA", "BBB", "CCC"], "2:race": ["BBB", "AAA", "CCC"] },
     });
-    const odds = computeOdds(tiny, undefined, { nSims: 1000, seed: 42 });
-    expect({
-      wdc: Object.fromEntries(odds.wdc.map((r) => [r.id, r.wins])),
-      wcc: Object.fromEntries(odds.wcc.map((r) => [r.id, r.wins])),
-      points: Object.fromEntries(odds.wdc.map((r) => [r.id, Math.round(r.avgPoints * 100) / 100])),
-    }).toEqual(GOLDEN_TINY);
+  const snapshot = (odds: ReturnType<typeof computeOdds>) => ({
+    wdc: Object.fromEntries(odds.wdc.map((r) => [r.id, r.wins])),
+    wcc: Object.fromEntries(odds.wcc.map((r) => [r.id, r.wins])),
+    points: Object.fromEntries(odds.wdc.map((r) => [r.id, Math.round(r.avgPoints * 100) / 100])),
+  });
+
+  test("golden win counts on a tiny hand-made state, current defaults (a regression snapshot: change it only when the model changes on purpose)", () => {
+    expect(snapshot(computeOdds(tinyState(), undefined, { nSims: 1000, seed: 42 }))).toEqual(GOLDEN_TINY_DEFAULTS);
+  });
+
+  test("v2 without the grid (gridWeight 0, qualifyingNoise 0) is still reproduced exactly", () => {
+    expect(snapshot(computeOdds(tinyState(), undefined, { nSims: 1000, seed: 42, gridWeight: 0, qualifyingNoise: 0 }))).toEqual(GOLDEN_TINY_V2);
   });
 });
 
-// v2 defaults (paceStages=5, priorStrength=1, recencyHalfLife=8). With top-5 stages the fit concentrates
+// Current defaults: v2 pace fit plus the grid (Phase 4: gridWeight 1, qualifyingNoise 2). No real grid in this state, so
+// the later races get a simulated qualifying; that spreads the results a little (AAA 620 -> 662 wins of 1000).
+const GOLDEN_TINY_DEFAULTS = {
+  wdc: { AAA: 662, BBB: 332, CCC: 6 },
+  wcc: { red: 1000 },
+  points: { AAA: 84.81, BBB: 84.55, CCC: 62.56 },
+};
+
+// v2 without the grid (paceStages=5, priorStrength=1, recencyHalfLife=8). With top-5 stages the fit concentrates
 // probability on front runners, so CCC (who always finishes 3rd) drops from 33 to 10 wins. BBB won the
 // most recent race so hl=8 makes them slightly faster in the fit; AAA still ties on points and wins more
 // by id in countback. Prior=1 (vs 3) lets the two-race fit separate the drivers more.
-const GOLDEN_TINY = {
+const GOLDEN_TINY_V2 = {
   wdc: { AAA: 620, BBB: 370, CCC: 10 },
   wcc: { red: 1000 },
   points: { AAA: 84.22, BBB: 84.73, CCC: 63.03 },

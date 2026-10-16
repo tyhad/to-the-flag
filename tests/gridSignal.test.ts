@@ -45,26 +45,26 @@ describe("gridTerm", () => {
 });
 
 describe("gridWeight in forecastRace", () => {
-  test("the default is 0", () => {
-    expect(defaultOddsParams.gridWeight).toBe(0);
+  test("the default is 1, the weight adopted at Step 7", () => {
+    expect(defaultOddsParams.gridWeight).toBe(1);
   });
 
   test("gridWeight 0 reproduces v2 exactly, with or without a grid", () => {
-    const v2 = forecastRace(state, quick);
-    expect(forecastRace(state, { ...quick, gridWeight: 0 })).toEqual(v2);
+    const v2 = forecastRace(state, { ...quick, gridWeight: 0 });
     expect(forecastRace(state, { ...quick, gridWeight: 0 }, undefined, front)).toEqual(v2);
-    // a grid without a weight, and a weight without a grid, both leave the forecast alone
-    expect(forecastRace(state, quick, undefined, front)).toEqual(v2);
+    // a weight without a grid leaves the forecast alone (there is nothing to weigh)
+    expect(forecastRace(state, quick)).toEqual(v2);
     expect(forecastRace(state, { ...quick, gridWeight: 1 })).toEqual(v2);
+    // and with the default weight a grid does change it
+    expect(forecastRace(state, quick, undefined, front)).not.toEqual(v2);
   });
 
   test("gridWeight 0 does not change the derived seed (so the v2 golden snapshots stay valid)", () => {
     const scenario = { locks: { "5:race": { fixed: { AAA: 1 } } } };
-    const { gridWeight: _ignored, ...without } = defaultOddsParams;
-    expect(deriveSeed(state, scenario, defaultOddsParams)).toBe(deriveSeed(state, scenario, without as OddsParams));
-    expect(deriveSeed(state, scenario, { ...defaultOddsParams, gridWeight: 0.5 })).not.toBe(
-      deriveSeed(state, scenario, defaultOddsParams),
-    );
+    const off: OddsParams = { ...defaultOddsParams, gridWeight: 0 };
+    const { gridWeight: _ignored, ...without } = off;
+    expect(deriveSeed(state, scenario, off)).toBe(deriveSeed(state, scenario, without as OddsParams));
+    expect(deriveSeed(state, scenario, { ...off, gridWeight: 0.5 })).not.toBe(deriveSeed(state, scenario, off));
   });
 
   test("the season simulation is unchanged by gridWeight (the grid is not used there yet)", () => {
@@ -96,7 +96,7 @@ describe("gridWeight in forecastRace", () => {
   test("the grid helps the front row even when pace is known (a pole sitter beats a slower rival)", () => {
     // AAA is the fastest driver in `state`; give AAA the back of the grid and BBB pole
     const swapped = { AAA: 4, BBB: 1, CCC: 3, DDD: 2 };
-    const ignore = forecastRace(state, { ...quick, includeDnf: false }, undefined, swapped);
+    const ignore = forecastRace(state, { ...quick, includeDnf: false, gridWeight: 0 }, undefined, swapped);
     const use = forecastRace(state, { ...quick, includeDnf: false, gridWeight: 1 }, undefined, swapped);
     expect(use.win.BBB!).toBeGreaterThan(ignore.win.BBB!);
     expect(use.win.AAA!).toBeLessThan(ignore.win.AAA!);
@@ -159,8 +159,10 @@ describe("walkForward with the grid", () => {
   const season = gridSeason(2024, 5, 1);
 
   test("gridWeight 0 gives the same forecasts as before the grid existed", () => {
-    const a = walkForward(season, { nSims: 500 }, 6);
-    const b = walkForward(season, { nSims: 500, gridWeight: 0 }, 6);
+    // with weight 0 the grid is not looked at: scrambling every grid changes nothing
+    const scrambled: SeasonState = { ...season, results: season.results.map((r) => ({ ...r, grid: DRIVERS.length + 1 - r.grid })) };
+    const a = walkForward(season, { nSims: 500, gridWeight: 0 }, 6);
+    const b = walkForward(scrambled, { nSims: 500, gridWeight: 0 }, 6);
     expect(b.map((r) => r.forecasts.model)).toEqual(a.map((r) => r.forecasts.model));
   });
 
@@ -190,7 +192,7 @@ describe("walkForward with the grid", () => {
     const pooled = [1, 2, 3, 4].flatMap((i) => {
       const s = gridSeason(2022 + i, 40 + i, 1.2, 12);
       return [
-        { off: walkForward(s, { nSims: 1500 }, 6), on: walkForward(s, { nSims: 1500, gridWeight: 1 }, 6) },
+        { off: walkForward(s, { nSims: 1500, gridWeight: 0 }, 6), on: walkForward(s, { nSims: 1500, gridWeight: 1 }, 6) },
       ];
     });
     const loss = (rs: ReturnType<typeof walkForward>) => {

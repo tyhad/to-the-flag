@@ -47,8 +47,8 @@ A Monte Carlo simulation of the rest of the season, built only from this season'
 | `sprintDnfFactor` | 0.5 | sprint retirement chance = race chance times this |
 | `includeDnf` | true | retirements on or off |
 | `paceStages` | 5 | finishing stages used in the pace fit; 0 means all places (v1 behavior) |
-| `gridWeight` | 0 (adopted value: 1, see below) | weight of the starting grid in a race: the finishing key gets `gridWeight * (-ln(grid place))` added; 0 ignores the grid (v2). Used by `forecastRace` when it is given a grid, and by the season simulation for races that have a grid (a real one, or a simulated one) |
-| `qualifyingNoise` | 0 (to be set, see below) | Gumbel scale of the simulated qualifying for a race with no real grid: qualifying key = strength + `qualifyingNoise` * Gumbel, and the order of the keys is the grid. 0 simulates no grid, so later races ignore the grid. Only used when `gridWeight` is above 0 |
+| `gridWeight` | 1 | weight of the starting grid in a race: the finishing key gets `gridWeight * (-ln(grid place))` added; 0 ignores the grid (v2). Used by `forecastRace` when it is given a grid, and by the season simulation for races that have a grid (a real one, or a simulated one) |
+| `qualifyingNoise` | 2 | Gumbel scale of the simulated qualifying for a race with no real grid: qualifying key = strength + `qualifyingNoise` * Gumbel, and the order of the keys is the grid. 0 simulates no grid, so later races ignore the grid. Only used when `gridWeight` is above 0 |
 
 v1 is reproducible by passing `{ recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0 }`. `MODEL_VERSION` is `"v2"`.
 
@@ -70,19 +70,26 @@ forecast was by the actual winner; for uniform it is the log of the field size.
 
 | Forecast | win log loss | win Brier | winner -ln p | podium log loss | podium Brier |
 |---|---|---|---|---|---|
-| **Model (v2 defaults)** | 0.129 | 0.0374 | 1.944 | 0.256 | 0.0842 |
+| **Model (defaults: v2 + grid)** | 0.095 | 0.0280 | 1.335 | 0.207 | 0.0673 |
+| Model (v2 without the grid, `--grid-weight 0`) | 0.129 | 0.0374 | 1.944 | 0.256 | 0.0842 |
 | Uniform | 0.185 | 0.0434 | 3.091 | 0.398 | 0.1178 |
 | Points so far | 0.134 | 0.0380 | 2.023 | 0.253 | 0.0824 |
 
-- The model **beats the uniform baseline** on every score.
-- Against "points so far" the model is level: win log loss is better (0.129 against 0.134), podium log loss slightly
-  worse (0.256 against 0.253). Race by race (win and podium log loss added up) the difference is -0.001 per race,
-  standard error 0.007: not clearly different. (With the v1 defaults the model was clearly worse, by 0.055 per race.)
+- The model **beats the uniform baseline** on every score, with or without the grid.
+- The "defaults" row gives each race its **actual** starting grid. The two baselines do not know the grid, so the fair
+  comparison of the grid is the one in Step 7 (against v2 without the grid), not this table.
+  Against "points so far" the defaults are clearly better: -0.084 per race (win and podium log loss added up),
+  standard error 0.021.
+- Without the grid the model is level with "points so far": win log loss better (0.129 against 0.134), podium log
+  loss slightly worse (0.256 against 0.253); -0.001 per race, standard error 0.007, not clearly different. (With the
+  v1 defaults the model was clearly worse, by 0.055 per race.)
+- This test uses real grids. The title odds use a real grid only for the next race; later races get a simulated grid
+  (Step 8), which this backtest does not test.
 
 These numbers are the 2026 season only and are the **confirmation** season of the Phase 4 protocol (see below); they
 were not used to choose the v2 defaults.
 
-### Settings tried on 2026 alone (Phase 3, Step 10, rerun with v2 code)
+### Settings tried on 2026 alone (Phase 3, Step 10, rerun with v2 code, without the grid: `bun run backtest -- --grid-weight 0`)
 
 Total = win log loss + podium log loss, over the same 11 races and the same random numbers, with `paceStages` 5.
 `*` is the default.
@@ -169,8 +176,34 @@ The simulation uses a grid for every race (not sprints) when `gridWeight` is abo
 `qualifyingNoise` is estimated by `bun run calibrate -- --qualifying-noise`: the noise that makes the real grids of
 2022 to 2024 most likely given the strengths fitted before each race (a Plackett-Luce likelihood), 7 values from 0.25 to 3.
 
-TODO (owner): paste the printed table and the chosen value here. The defaults (`gridWeight` 1 and the chosen
-`qualifyingNoise`) are set together, so that v2 seeds and golden snapshots change only once.
+Result of `bun run calibrate -- --qualifying-noise` (mean log likelihood of one real grid, higher is better; rounds 3
+onward; the number in brackets is the standard error across grids):
+
+| noise | Train (22-24) | Valid (2025) | Confirm (2026) |
+|---|---|---|---|
+| 0.25 | -101.105 (±6.910) | -75.883 (±6.481) | -76.063 (±13.188) |
+| 0.5 | -58.399 (±3.075) | -46.672 (±2.842) | -50.864 (±5.563) |
+| 0.75 | -46.507 (±1.782) | -39.944 (±1.621) | -44.780 (±3.028) |
+| 1 | -42.052 (±1.169) | -38.049 (±1.063) | -43.034 (±1.856) |
+| 1.5 | -39.508 (±0.637) | -37.669 (±0.599) | -42.853 (±0.908) |
+| 2 | **-39.195 (±0.422)** | -38.148 (±0.419) | -43.515 (±0.566) |
+| 3 | -39.585 (±0.248) | -39.085 (±0.279) | -44.704 (±0.316) |
+
+**Chosen on training: `qualifyingNoise` 2.** It is inside the range tried. The curve is flat from 1.5 to 2: 1.5 is a
+little better on 2025 and 2026, but by less than one standard error, and the rule is to choose on training only. A noise
+of 2 is large next to the race's own noise of 1: the fitted strengths explain a grid only loosely (they come from
+top-5 finishes), so this value also absorbs what the strengths miss.
+
+Defaults are now `gridWeight` 1 and `qualifyingNoise` 2, set together so v2 seeds and the golden snapshot changed once.
+v2 without the grid is still reproducible with `gridWeight: 0` (the old golden numbers are pinned in `tests/odds.test.ts`),
+and v1 with `{ recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0, gridWeight: 0, qualifyingNoise: 0 }`.
+
+The real grid comes from `starting_grid` (`DATA_CONTRACT.md`): the rows of the next scheduled round, whatever their
+`round_relation`. A grid with fewer than two drivers or a repeated driver is ignored. `bun run check` prints
+`Upcoming grid: Round N (source: ..., N drivers)` or `none`, so you can see what the data holds.
+
+Not tested: the simulated grid for later races. The grid weight was measured on real grids, and the noise was fitted
+to real grids, but the title odds that come out of the two together are only sanity-checked (Step 9).
 
 ### Calibration
 
@@ -204,7 +237,7 @@ removes most of that: the back of the field is now at 0.9% for a win, and the mi
   own record, who is injured or about to leave. It sees only where drivers finished and whether they retired.
 - **Strength uncertainty is a heuristic**, not a full Bayesian posterior: one noise size, shrinking with the number of
   races, the same for every driver with the same amount of data.
-- **Future qualifying is not simulated.** The last countback step uses past qualifying only.
+- **Future qualifying is simulated only as a grid.** Later races get a simulated qualifying order from the strengths and `qualifyingNoise`; it feeds the grid term and nothing else. The last countback step still uses past qualifying only.
 - **Drivers are modelled one by one.** Teammates share no car effect beyond their own results.
 - **Retired drivers.** A driver who has left never wins. The teams' table lists only teams that won at least one
   simulated season; the model has no "still alive" status for teams.
@@ -218,6 +251,8 @@ removes most of that: the back of the field is now at 0.9% for a win, and the mi
 | `paceStages` | 0 (all places) | 5 | Top-5 pace fit, largest gain, improved 4 of 4 history seasons (Phase 4, Steps 5 and 6) |
 | `priorStrength` | 3 | 1 | With top-5 stages a weak prior no longer over-disperses the early rounds (D30 early-season check passes) |
 | `recencyHalfLife` | none | 8 rounds | Best on 2022 to 2024 with top-5 stages; passes validation, history, 2026 and early season |
+| `gridWeight` | 0 (no grid) | 1 | Beat v2 without the grid on 4 of 4 history seasons, validation (-0.073 per race, 3.2 SE) and 2026 (-0.084, 3.8 SE) (Phase 4, Step 7). The top of the grid tried |
+| `qualifyingNoise` | 0 (no grid) | 2 | Maximizes the likelihood of the real grids of 2022 to 2024 (Phase 4, Step 8); used only for races with no real grid |
 
 Rerun `bun run backtest` after any change to the model; `bun run backtest -- path/to/f1gstats.sqlite` uses the live
 data instead of the snapshot (the numbers then differ from the tables here).

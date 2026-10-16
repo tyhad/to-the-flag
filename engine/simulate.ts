@@ -50,8 +50,12 @@ export const defaultOddsParams: OddsParams = {
   strengthSigma: 0.25,
   sprintDnfFactor: 0.5,
   includeDnf: true,
-  gridWeight: 0,
-  qualifyingNoise: 0,
+  // Step 7 (D30 protocol): grid weight 1. Beat v2 without the grid on every history season (4/4), on validation (2025)
+  // by 0.073 per race (3.2 SE) and on 2026 by 0.084 per race (3.8 SE). 1 is the top of the coarse grid tried.
+  gridWeight: 1,
+  // Step 8: qualifying noise 2, the value that makes the real grids of 2022-2024 most likely (Plackett-Luce likelihood
+  // on strengths fitted before each race). Used only for races with no real grid.
+  qualifyingNoise: 2,
 };
 
 export interface SimulationResult {

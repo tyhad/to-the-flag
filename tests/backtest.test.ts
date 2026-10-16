@@ -383,9 +383,10 @@ describe("docs/MODEL.md", () => {
     expect(defaultOddsParams.nSims).toBe(10_000);
   });
 
-  test("records the results and the limits that matter: beats uniform, loses to points so far, one season", () => {
+  test("records the results and the limits that matter: beats uniform, level with points so far without the grid, one season", () => {
     expect(card).toContain("beats the uniform baseline");
-    expect(card).toContain("Against \"points so far\" the model is level");
+    expect(card).toContain("Against \"points so far\" the defaults are clearly better");
+    expect(card).toContain("Without the grid the model is level with \"points so far\"");
     expect(card).toContain("One season of data");
     expect(card).toContain("Title odds cannot be calibrated");
   });

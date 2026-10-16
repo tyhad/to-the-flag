@@ -29,6 +29,8 @@ export interface CheckReport {
   wdc: WdcRow[];
   /** one per contender (not eliminated), or just the requested driver */
   paths: PathResult[];
+  /** the real grid of the next race when the data has one (Phase 4, Step 8); null otherwise */
+  upcomingGrid: { round: number; source: string; drivers: number } | null;
 }
 
 export function buildCheckReport(state: SeasonState, driver?: string): CheckReport {
@@ -66,6 +68,9 @@ export function buildCheckReport(state: SeasonState, driver?: string): CheckRepo
     drivers: { active: state.drivers.length - inactiveCodes.length, inactive: inactiveCodes.length, inactiveCodes },
     wdc,
     paths: targets.map((d) => solveWdc(state, d)),
+    upcomingGrid: state.upcomingGrid
+      ? { round: state.upcomingGrid.round, source: state.upcomingGrid.source, drivers: Object.keys(state.upcomingGrid.grid).length }
+      : null,
   };
 }
 
@@ -92,7 +97,9 @@ export function formatCheckReport(report: CheckReport, dbPath: string): string {
   );
   if (remaining.sessions.length > 0) lines.push(`  ${remaining.sessions.join(", ")}`);
   const inactive = drivers.inactive > 0 ? ` (${drivers.inactiveCodes.join(", ")})` : "";
-  lines.push(`Drivers: ${drivers.active} active, ${drivers.inactive} inactive${inactive}`, "");
+  lines.push(`Drivers: ${drivers.active} active, ${drivers.inactive} inactive${inactive}`);
+  const grid = report.upcomingGrid;
+  lines.push(grid ? `Upcoming grid: Round ${grid.round} (source: ${grid.source}, ${plural(grid.drivers, "driver")})` : "Upcoming grid: none", "");
 
   const widths = [3, 6, 24, 11, 7, 6, 5, 8];
   const fmt = (cells: string[]) => cells.map((c, i) => c.padEnd(widths[i] ?? 0)).join(" ").trimEnd();

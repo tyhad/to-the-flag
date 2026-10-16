@@ -237,3 +237,97 @@ describe("loadSeason: refuses bad input", () => {
     expect(new DataInconsistentError("x").name).toBe("DataInconsistentError");
   });
 });
+
+// ---------- the grid of the next race (Phase 4, Step 8) ----------
+
+describe("loadSeason: upcomingGrid", () => {
+  const grid = (round: number, order: string[], source: string | null = "qualifying") =>
+    order.map((abbr, i) => ({ round, abbr, position: i + 1, source }));
+
+  test("no starting_grid table: no upcomingGrid", () => {
+    expect(loadSeason(buildDb()).upcomingGrid).toBeUndefined();
+  });
+
+  test("the grid of the next scheduled round is read with its source", () => {
+    const state = loadSeason(buildDb((seed) => (seed.startingGrid = grid(3, ["CCC", "AAA", "BBB"]))));
+    expect(state.upcomingGrid).toEqual({ round: 3, grid: { CCC: 1, AAA: 2, BBB: 3 }, source: "qualifying" });
+  });
+
+  test("rows of other rounds are ignored, whatever their round_relation says", () => {
+    const state = loadSeason(
+      buildDb((seed) => {
+        seed.startingGrid = [
+          ...grid(2, ["AAA", "BBB", "CCC"]).map((g) => ({ ...g, relation: "previous" })),
+          ...grid(3, ["BBB", "CCC", "AAA"]).map((g) => ({ ...g, relation: "now" })),
+          ...grid(4, ["AAA", "CCC", "BBB"]),
+        ];
+      }),
+    );
+    expect(state.upcomingGrid?.round).toBe(3);
+    expect(state.upcomingGrid?.grid).toEqual({ BBB: 1, CCC: 2, AAA: 3 });
+  });
+
+  test("only rows for rounds that are not the next one: no upcomingGrid", () => {
+    const state = loadSeason(buildDb((seed) => (seed.startingGrid = [...grid(2, ["AAA", "BBB"]), ...grid(4, ["AAA", "BBB"])])));
+    expect(state.upcomingGrid).toBeUndefined();
+  });
+
+  test("a finished season (nothing scheduled): no upcomingGrid", () => {
+    const state = loadSeason(
+      buildDb((seed) => {
+        seed.schedule = seed.schedule.map((r) => ({ ...r, status: "completed" }));
+        seed.results.push(...sessionRows(3, "Race", [["AAA", "alpha"], ["BBB", "alpha"], ["CCC", "beta"]]));
+        seed.results.push(...sessionRows(4, "Sprint", [["AAA", "alpha"], ["BBB", "alpha"], ["CCC", "beta"]]));
+        seed.results.push(...sessionRows(4, "Race", [["AAA", "alpha"], ["BBB", "alpha"], ["CCC", "beta"]]));
+        seed.startingGrid = grid(4, ["AAA", "BBB", "CCC"]);
+      }),
+    );
+    expect(state.upcomingGrid).toBeUndefined();
+  });
+
+  test("a pit-lane start (position 0) maps to the field size; rows with no position are dropped", () => {
+    const state = loadSeason(
+      buildDb((seed) => {
+        seed.startingGrid = [
+          { round: 3, abbr: "AAA", position: 1, source: "qualifying" },
+          { round: 3, abbr: "BBB", position: 0, source: "qualifying" },
+          { round: 3, abbr: "CCC", position: 2, source: "qualifying" },
+          { round: 3, abbr: "DDD", position: null, source: "qualifying" },
+        ];
+      }),
+    );
+    expect(state.upcomingGrid?.grid).toEqual({ AAA: 1, BBB: 3, CCC: 2 });
+  });
+
+  test("a missing source is 'unknown'; several sources are listed once each, sorted", () => {
+    const missing = loadSeason(buildDb((seed) => (seed.startingGrid = grid(3, ["AAA", "BBB"], null))));
+    expect(missing.upcomingGrid?.source).toBe("unknown");
+    const mixed = loadSeason(
+      buildDb((seed) => {
+        seed.startingGrid = [
+          { round: 3, abbr: "AAA", position: 1, source: "qualifying" },
+          { round: 3, abbr: "BBB", position: 2, source: "projected" },
+          { round: 3, abbr: "CCC", position: 3, source: "qualifying" },
+        ];
+      }),
+    );
+    expect(mixed.upcomingGrid?.source).toBe("projected, qualifying");
+  });
+
+  test("a grid that cannot be trusted is left out instead of breaking the season: one driver, or the same driver twice", () => {
+    expect(loadSeason(buildDb((seed) => (seed.startingGrid = grid(3, ["AAA"])))).upcomingGrid).toBeUndefined();
+    const twice = loadSeason(
+      buildDb((seed) => {
+        seed.startingGrid = [...grid(3, ["AAA", "BBB"]), { round: 3, abbr: "AAA", position: 3, source: "qualifying" }];
+      }),
+    );
+    expect(twice.upcomingGrid).toBeUndefined();
+  });
+
+  test("the rest of the season is the same with or without the grid", () => {
+    const withGrid = loadSeason(buildDb((seed) => (seed.startingGrid = grid(3, ["AAA", "BBB", "CCC"]))));
+    const { upcomingGrid: _ignored, ...rest } = withGrid;
+    const { upcomingGrid: _none, ...plain } = loadSeason(buildDb());
+    expect(rest).toEqual(plain);
+  });
+});

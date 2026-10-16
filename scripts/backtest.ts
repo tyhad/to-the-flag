@@ -1,5 +1,5 @@
 /**
- * Usage: bun scripts/backtest.ts [season.json | f1gstats.sqlite] [--sims N]
+ * Usage: bun scripts/backtest.ts [season.json | f1gstats.sqlite] [--sims N] [--grid-weight W]
  *
  * Walk-forward backtest of the odds model (Phase 3, Step 10). For each completed race from round 6 on, the model is
  * fitted on the earlier rounds only and asked who wins and who takes the podium. Those forecasts are scored against
@@ -457,7 +457,9 @@ if (import.meta.main) {
   const args = process.argv.slice(2);
   const simsAt = args.indexOf("--sims");
   const nSims = simsAt >= 0 ? Number(args[simsAt + 1]) : BACKTEST_SIMS;
-  const path = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--sims") ?? join(import.meta.dir, "..", "tests", "fixtures", "season-2026-r16.json");
+  const gridAt = args.indexOf("--grid-weight");
+  const gridWeight = gridAt >= 0 ? Number(args[gridAt + 1]) : undefined;
+  const path = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--sims" && args[i - 1] !== "--grid-weight") ?? join(import.meta.dir, "..", "tests", "fixtures", "season-2026-r16.json");
   if (!existsSync(path)) {
     console.error(`File not found: ${path}`);
     process.exit(1);
@@ -466,9 +468,14 @@ if (import.meta.main) {
     console.error("--sims needs a whole number of 1 or more");
     process.exit(1);
   }
+  if (gridWeight !== undefined && !(Number.isFinite(gridWeight) && gridWeight >= 0)) {
+    console.error("--grid-weight needs a number of 0 or more");
+    process.exit(1);
+  }
   const state = readSeason(path);
-  const base = { nSims };
-  console.log(`Data: ${path}\n`);
+  const base = gridWeight === undefined ? { nSims } : { nSims, gridWeight };
+  console.log(`Data: ${path}`);
+  console.log(`Grid weight: ${gridWeight ?? defaultOddsParams.gridWeight}${gridWeight === undefined ? " (default)" : ""}; each race uses its actual grid when the weight is above 0\n`);
   const cells = runGrid(state, DEFAULT_GRID, base);
   const records = walkForward(state, base);
   const sigmaCells = runSigmas(state, SIGMAS, base);

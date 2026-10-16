@@ -66,8 +66,8 @@ describe("simulateSeason: basics", () => {
       sprintDnfFactor: 0.5,
       includeDnf: true,
       paceStages: 5, // v2: top-5 pace stages, the largest structural gain (Step 6)
-      gridWeight: 0, // Step 7: 0 ignores the grid (v2 behavior)
-      qualifyingNoise: 0, // Step 8: 0 simulates no grid for later races
+      gridWeight: 1, // Step 7: adopted by the D30 protocol (0 ignores the grid, the v2 behavior)
+      qualifyingNoise: 2, // Step 8: estimated on 2022-2024 (0 simulates no grid for later races)
     });
   });
 

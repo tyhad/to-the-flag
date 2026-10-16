@@ -34,6 +34,8 @@ export interface Seed {
   results: SeedResult[];
   /** null = the qualifying_results table does not exist */
   qualifying: { round: number; abbr: string; position: number | null }[] | null;
+  /** undefined or null = the starting_grid table does not exist */
+  startingGrid?: { round: number; relation?: string; abbr: string; position: number | null; source?: string | null }[] | null;
   /** null = computed from results */
   standings: { abbr: string; name: string; points: number }[] | null;
   health: { status: string; checkedAt: string }[];
@@ -176,6 +178,17 @@ export function buildDb(mutate?: (seed: Seed) => void, targetPath?: string): str
     db.run(`CREATE TABLE qualifying_results (
       season INTEGER NOT NULL, round INTEGER NOT NULL, driver_abbr TEXT NOT NULL, position INTEGER,
       PRIMARY KEY (season, round, driver_abbr))`);
+  }
+
+  if (seed.startingGrid) {
+    db.run(`CREATE TABLE starting_grid (
+      id INTEGER PRIMARY KEY, round INTEGER, round_relation TEXT, position INTEGER, driver_name TEXT,
+      driver_abbr TEXT, team_name TEXT, grid_source TEXT)`);
+    for (const g of seed.startingGrid) {
+      db.query(
+        "INSERT INTO starting_grid (round, round_relation, position, driver_name, driver_abbr, team_name, grid_source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).run(g.round, g.relation ?? "next", g.position, `Driver ${g.abbr}`, g.abbr, "Alpha", g.source === undefined ? "qualifying" : g.source);
+    }
   }
 
   for (const s of seed.schedule) {
