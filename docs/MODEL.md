@@ -205,6 +205,31 @@ The real grid comes from `starting_grid` (`DATA_CONTRACT.md`): the rows of the n
 Not tested: the simulated grid for later races. The grid weight was measured on real grids, and the noise was fitted
 to real grids, but the title odds that come out of the two together are only sanity-checked (Step 9).
 
+### Phase 4, Step 9: title-level checks
+
+Title odds cannot be calibrated: a season has one champion, and there are four history seasons. So nothing here adopts
+or rejects anything. `bun run title-check` prints two descriptions.
+
+**What-if sensitivity** (2026 snapshot, 20,000 simulations; sampling error at most 0.4 points). RUS's chance of the title
+if ANT is out of the next four races and RUS wins all four (with nothing locked RUS is under 1% in every row):
+
+| Model | RUS title chance in the what-if |
+|---|---|
+| v1 (all places, no decay, prior 3) | 51% |
+| v1 with half-life 8 | 42% |
+| v2 without the grid | 51% |
+| v2 (defaults, with the simulated grid) | 50% |
+
+v2 does not move this number much (v1 51%, v2 50% to 51%). It moves with how old results are weighed (half-life 8 gives
+42% under v1), as the limit below says. The grid shifts it by about a point.
+
+**History:** at every round from 8 to the round before the last, in each of 2022 to 2025, the chance the model gave the
+driver who then won the title, for v1, v2 without the grid and v2 (defaults). This is the only place the simulated
+grid is exercised at title level (the race backtest uses real grids).
+
+TODO (owner): run `bun run title-check` with the history files and paste the per-season and pooled tables here, with one
+sentence on what they show. The rounds of one season are not independent, so a small gap between models means nothing.
+
 ### Calibration
 
 When the model says a given chance, how often did it happen (v2 defaults, 2026, all driver-race pairs)?
@@ -232,7 +257,7 @@ removes most of that: the back of the field is now at 0.9% for a win, and the mi
 - **Title odds cannot be calibrated.** A single season has exactly one champion. The backtest checks race forecasts, a
   proxy; the title odds themselves are only sanity-checked (clinched always 100% of simulations, eliminated never, a
   locked session moves the numbers the way the points do).
-- **What-if odds depend on the pace gap, and the pace gap depends on how old results are weighed.** In v1 the scenario "ANT out of the next four races, RUS wins all four" gave RUS 42% with a half-life of 8 rounds and 50% with no decay. The v2 figure is measured in Step 9. Treat the number as one reading of a close contest, not a measurement.
+- **What-if odds depend on the pace gap, and the pace gap depends on how old results are weighed.** In v1 the scenario "ANT out of the next four races, RUS wins all four" gave RUS 42% with a half-life of 8 rounds and 50% with no decay. Under v2 it is 51% without the grid and 50% with it (Step 9). Treat the number as one reading of a close contest, not a measurement.
 - **What the model does not know:** upgrades, tracks, weather, penalties, grid positions beyond the next race (those are only simulated), reliability beyond a driver's
   own record, who is injured or about to leave. It sees only where drivers finished and whether they retired.
 - **Strength uncertainty is a heuristic**, not a full Bayesian posterior: one noise size, shrinking with the number of
@@ -253,6 +278,8 @@ removes most of that: the back of the field is now at 0.9% for a win, and the mi
 | `recencyHalfLife` | none | 8 rounds | Best on 2022 to 2024 with top-5 stages; passes validation, history, 2026 and early season |
 | `gridWeight` | 0 (no grid) | 1 | Beat v2 without the grid on 4 of 4 history seasons, validation (-0.073 per race, 3.2 SE) and 2026 (-0.084, 3.8 SE) (Phase 4, Step 7). The top of the grid tried |
 | `qualifyingNoise` | 0 (no grid) | 2 | Maximizes the likelihood of the real grids of 2022 to 2024 (Phase 4, Step 8); used only for races with no real grid |
+
+`MODEL_VERSION` is `"v2"` and is shown in the odds result, in the feed (`model_version`) and in the panel's "How this works" note.
 
 Rerun `bun run backtest` after any change to the model; `bun run backtest -- path/to/f1gstats.sqlite` uses the live
 data instead of the snapshot (the numbers then differ from the tables here).

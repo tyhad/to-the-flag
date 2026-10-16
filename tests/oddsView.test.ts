@@ -256,6 +256,17 @@ describe("buildOddsView: header and honesty", () => {
     expect(big.howItWorks).toContain("10,000 simulated seasons");
   });
 
+  test("names the model version", () => {
+    expect(view.howItWorks.startsWith("Model v2. ")).toBe(true);
+  });
+
+  test("says the grid is used, but only when the grid weight is above 0", () => {
+    expect(view.howItWorks).toContain("starting grid");
+    const noGrid = buildOddsView({ result: computeOdds(state, undefined, { nSims: 400, seed: 1, gridWeight: 0 }), base: null, state, table: "wdc", formPercent: 100, hasLocks: false });
+    expect(noGrid.howItWorks).not.toContain("starting grid");
+    expect(noGrid.howItWorks.startsWith("Model v2. ")).toBe(true);
+  });
+
   test("no what-if note at full form weight, one otherwise", () => {
     expect(view.whatIf).toBeNull();
     expect(buildOddsView({ result: odds, base: null, state, table: "wdc", formPercent: 60, hasLocks: false }).whatIf).toBe("What-if: form weight 60%.");

@@ -220,7 +220,11 @@ export function buildOddsView({ result, base, state, table, formPercent, hasLock
       : null,
     whatIf: whatIfNote(formPercent),
     howItWorks:
+      `Model ${result.modelVersion}. ` +
       "The model uses this season's results: where drivers finish and how often they retire. " +
+      ((result.params.gridWeight ?? 0) > 0
+        ? "It also uses the starting grid: the real one for the next race once qualifying has run, a simulated one for later races. "
+        : "") +
       "It does not know about upgrades, tracks or weather. " +
       `The number comes from ${result.nSims.toLocaleString("en-US")} simulated seasons. ` +
       "Drivers you did not set in a locked session still race.",

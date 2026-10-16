@@ -9,6 +9,7 @@
     "check": "bun scripts/check.ts",
     "backtest": "bun scripts/backtest.ts",
     "calibrate": "bun scripts/calibrate.ts",
+    "title-check": "bun scripts/titleCheck.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
