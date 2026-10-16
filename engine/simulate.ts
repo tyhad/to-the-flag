@@ -29,6 +29,12 @@ export interface OddsParams extends StrengthParams {
   /** a sprint retirement chance is the race chance times this */
   sprintDnfFactor: number;
   includeDnf: boolean;
+  /**
+   * Phase 4, Step 7: weight of the starting grid in a race forecast. A driver's finishing key gets
+   * `gridWeight * (-ln(grid position))` added. 0 ignores the grid (the v2 behavior). Used by `forecastRace` when
+   * it is given a grid; the season simulation does not use it yet (Step 8).
+   */
+  gridWeight: number;
 }
 
 export const defaultOddsParams: OddsParams = {
@@ -38,6 +44,7 @@ export const defaultOddsParams: OddsParams = {
   strengthSigma: 0.25,
   sprintDnfFactor: 0.5,
   includeDnf: true,
+  gridWeight: 0,
 };
 
 export interface SimulationResult {
@@ -67,6 +74,20 @@ function checkParams(p: OddsParams): void {
   if (!Number.isInteger(p.paceStages) || p.paceStages < 0) {
     throw new RangeError(`paceStages must be an integer of 0 or more, got ${p.paceStages}`);
   }
+  if (!(Number.isFinite(p.gridWeight) && p.gridWeight >= 0)) {
+    throw new RangeError(`gridWeight must be a finite number of 0 or more, got ${p.gridWeight}`);
+  }
+}
+
+/**
+ * The grid term of a finishing key: -ln(grid position), so pole adds 0 and every place further back subtracts more.
+ * A pit-lane start (stored as the field size, or a raw 0), a driver with no grid place, or a nonsense place counts as
+ * last on the grid; a place beyond the field is clamped to last.
+ */
+export function gridTerm(position: number | undefined, fieldSize: number): number {
+  const last = Math.max(1, fieldSize);
+  const place = position === undefined || !(position >= 1) ? last : Math.min(position, last);
+  return -Math.log(place);
 }
 
 /** JSON with object keys sorted at every level, so equal data always gives equal text. */
@@ -86,6 +107,10 @@ export function deriveSeed(state: SeasonState, scenario: Scenario | undefined, p
   const { seed: _ignored, ...modelParams } = params;
   if (modelParams.paceStages === 0) {
     delete (modelParams as Partial<OddsParams>).paceStages;
+  }
+  // gridWeight 0 (ignore the grid) must hash exactly as before the parameter existed, so v2 seeds and snapshots hold
+  if (modelParams.gridWeight === 0) {
+    delete (modelParams as Partial<OddsParams>).gridWeight;
   }
   return hashSeed(String(state.season), String(state.asOfRound), canonicalJson(scenario?.locks ?? {}), canonicalJson(modelParams));
 }
@@ -403,11 +428,16 @@ export interface RaceForecast {
  * podium (a retirement is neither). It fits on `state` as it stands and draws the race exactly as `simulateSeason`
  * draws an open session. `field` defaults to the drivers still racing; pass the entry list to forecast a past race
  * (the backtest does). Throws RangeError for nonsense parameters.
+ *
+ * `grid` (driver code -> starting place) is optional. With `params.gridWeight` above 0, each driver's strength for the
+ * race gets `gridWeight * (-ln(place))` added (see `gridTerm`; a driver missing from `grid` starts last). Without a
+ * grid, or with `gridWeight` 0, the grid is ignored and the numbers are exactly those of the model without it.
  */
 export function forecastRace(
   state: SeasonState,
   partial: Partial<OddsParams> = {},
   field: readonly string[] = state.drivers.filter((d) => d.active).map((d) => d.code),
+  grid?: Readonly<Record<string, number>>,
 ): RaceForecast {
   const params: OddsParams = { ...defaultOddsParams, ...partial };
   checkParams(params);
@@ -418,6 +448,14 @@ export function forecastRace(
   const n = codes.length;
   const { form, sigma, raceRetire } = modelInputs(fitStrengths(state, params), codes, params);
 
+  // the grid term, fixed for the whole race: all zeros when the grid is ignored, so the draws are unchanged
+  const gridOffset = new Float64Array(n);
+  if (grid !== undefined && params.gridWeight > 0) {
+    codes.forEach((c, i) => {
+      gridOffset[i] = params.gridWeight * gridTerm(grid[c], n);
+    });
+  }
+
   const rng = createRng(seed);
   const racers = Int32Array.from(codes, (_, i) => i);
   const strength = new Float64Array(n);
@@ -427,7 +465,7 @@ export function forecastRace(
   const podiums = new Float64Array(n);
 
   for (let sim = 0; sim < nSims; sim++) {
-    for (let i = 0; i < n; i++) strength[i] = form[i]! + sigma[i]! * rng.normal();
+    for (let i = 0; i < n; i++) strength[i] = form[i]! + sigma[i]! * rng.normal() + gridOffset[i]!;
     rankRacers(rng, racers, strength, raceRetire, sortKey, order);
     for (let place = 0; place < Math.min(3, n); place++) {
       const d = order[place]!;

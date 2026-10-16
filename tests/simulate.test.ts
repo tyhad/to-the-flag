@@ -66,6 +66,7 @@ describe("simulateSeason: basics", () => {
       sprintDnfFactor: 0.5,
       includeDnf: true,
       paceStages: 5, // v2: top-5 pace stages, the largest structural gain (Step 6)
+      gridWeight: 0, // Step 7: 0 ignores the grid (v2 behavior)
     });
   });
 

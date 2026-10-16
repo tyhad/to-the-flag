@@ -176,6 +176,15 @@ export interface RaceRecord {
   forecasts: Record<Method, Forecast>;
 }
 
+/** Where each driver started the race of `round` (the actual grid; known before the lights go out, so not a leak). */
+export function gridOf(state: SeasonState, round: number): Record<string, number> {
+  const grid: Record<string, number> = {};
+  for (const r of state.results) {
+    if (r.round === round && r.kind === "race" && Number.isFinite(r.grid)) grid[r.driver] = r.grid;
+  }
+  return grid;
+}
+
 /** Predicts every race from `firstRound` to the last completed one, each from the rounds before it only. */
 export function walkForward(state: SeasonState, params: Partial<OddsParams> = {}, firstRound = FIRST_TEST_ROUND): RaceRecord[] {
   const records: RaceRecord[] = [];
@@ -184,7 +193,7 @@ export function walkForward(state: SeasonState, params: Partial<OddsParams> = {}
     if (!outcome) continue;
     const before = stateBefore(state, round);
     const seed = hashSeed("backtest", String(state.season), String(round));
-    const model = forecastRace(before, { nSims: BACKTEST_SIMS, ...params, seed }, outcome.field);
+    const model = forecastRace(before, { nSims: BACKTEST_SIMS, ...params, seed }, outcome.field, gridOf(state, round));
     records.push({
       round,
       seed,

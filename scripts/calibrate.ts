@@ -1,5 +1,7 @@
 /**
- * Usage: bun scripts/calibrate.ts [--sims N] [--history <dir>] [--live <path>]
+ * Usage: bun scripts/calibrate.ts [--sims N] [--history <dir>] [--live <path>] [--grid-signal]
+ *
+ * `--grid-signal` runs only the Step 7 section (the grid term); without it, Step 6 (the settings grid) runs first.
  *
  * Evaluation harness for Model calibration across multiple seasons (Phase 4, Step 4).
  * Evaluates candidate settings against current defaults under protocol D30:
@@ -267,6 +269,64 @@ export function compareCandidate(candidate: SettingEval, baseline: SettingEval):
   };
 }
 
+/** The v1 behavior, spelled out: Step 6 compares candidate settings against this, whatever the current defaults are. */
+export const V1_PARAMS: Partial<OddsParams> = { recencyHalfLife: Number.POSITIVE_INFINITY, priorStrength: 3, paceStages: 0 };
+
+// ---------- Step 7: the grid signal ----------
+
+/** Weights of the grid term tried; 0 means "ignore the grid" and is the baseline (the v2 model). */
+export const GRID_WEIGHTS = [0, 0.25, 0.5, 0.75, 1] as const;
+
+/**
+ * Picks the grid weight from the TRAINING seasons only: the one with the lowest pooled loss relative to ignoring
+ * the grid. `trainingDiffs` maps each weight above 0 to (candidate loss - baseline loss) per race, so negative is
+ * better. If no weight beats the baseline, the answer is 0 (ignore the grid). A tie goes to the smaller weight.
+ */
+export function selectGridWeight(trainingDiffs: ReadonlyMap<number, number>): number {
+  let best = 0;
+  let bestDiff = 0;
+  for (const weight of [...trainingDiffs.keys()].sort((a, b) => a - b)) {
+    const diff = trainingDiffs.get(weight)!;
+    if (diff < bestDiff) {
+      best = weight;
+      bestDiff = diff;
+    }
+  }
+  return best;
+}
+
+export interface GridSignalResult {
+  /** the v2 model: the current defaults with `gridWeight` 0 */
+  baseline: SettingEval;
+  /** every weight above 0, compared with the baseline */
+  candidates: { weight: number; comparison: CandidateComparison }[];
+  /** the weight chosen on the training seasons; 0 means no weight beat ignoring the grid */
+  selected: number;
+  /** the D30 verdict for the selected weight; null when `selected` is 0 */
+  verdict: AdoptionVerdict | null;
+}
+
+/**
+ * Step 7 of the protocol. Every weight is scored on all seasons with the actual grid of each past race, but the
+ * choice is made from the training seasons alone; validation, history and 2026 only judge that one choice.
+ */
+export function evaluateGridSignal(
+  seasons: CalibrationSeasons,
+  nSims = CALIBRATE_SIMS,
+  weights: readonly number[] = GRID_WEIGHTS,
+): GridSignalResult {
+  const baseline = evaluateSetting(seasons, { gridWeight: 0 }, "gridWeight=0 (v2)", nSims);
+  const candidates = weights
+    .filter((w) => w > 0)
+    .map((weight) => ({
+      weight,
+      comparison: compareCandidate(evaluateSetting(seasons, { gridWeight: weight }, `gridWeight=${weight}`, nSims), baseline),
+    }));
+  const selected = selectGridWeight(new Map(candidates.map((c) => [c.weight, c.comparison.trainingComp.meanDiff])));
+  const chosen = candidates.find((c) => c.weight === selected);
+  return { baseline, candidates, selected, verdict: chosen ? chosen.comparison.verdict : null };
+}
+
 // ---------- Formatting & CLI ----------
 
 const fmt = (x: number, digits = 3) => x.toFixed(digits);
@@ -293,11 +353,16 @@ export function runCalibrationCli(args: string[] = []): void {
 
   console.log(`Running evaluation with ${nSims} simulations per forecast...\n`);
 
-  // Default baseline
-  const defaultEval = evaluateSetting(seasons, {}, "Default (v1)", nSims);
+  if (args.includes("--grid-signal")) {
+    printGridSignal(seasons, nSims);
+    return;
+  }
+
+  // Step 6 compares against v1, spelled out: the current defaults are v2, so `{}` would compare v2 with itself
+  const defaultEval = evaluateSetting(seasons, V1_PARAMS, "v1 defaults", nSims);
 
   // Print Baselines Report
-  console.log("=== Season Loss Summary (Model Defaults, win + podium log loss) ===");
+  console.log("=== Season Loss Summary (v1 defaults, win + podium log loss) ===");
   const seasonRows: string[][] = [
     ["Season", "Role", "Races", "Win Loss", "Podium Loss", "Total Loss"],
   ];
@@ -394,6 +459,51 @@ export function runCalibrationCli(args: string[] = []): void {
   }
   console.log("");
   console.log("Note: 2026 confirmation is printed last and only checked for non-regression (<= 1 SE).");
+  console.log("");
+  printGridSignal(seasons, nSims);
+}
+
+/** Step 7: the grid term. Training and validation first, the 2026 confirmation last. */
+export function printGridSignal(seasons: CalibrationSeasons, nSims: number): void {
+  console.log("=== Grid Signal (Step 7, protocol D30) ===");
+  console.log("Baseline: current defaults (v2) with gridWeight 0. Actual grid of every past race. Differences are per race,");
+  console.log("candidate minus baseline (negative = better). The weight is chosen on 2022-2024 only.\n");
+  const result = evaluateGridSignal(seasons, nSims);
+
+  const rows: string[][] = [["gridWeight", "2022", "2023", "2024", "Train (22-24)", "Valid (2025)", "Hist Imp"]];
+  for (const { weight, comparison: c } of result.candidates) {
+    rows.push([
+      String(weight),
+      formatDiff(c.perSeasonComp.get(2022)!),
+      formatDiff(c.perSeasonComp.get(2023)!),
+      formatDiff(c.perSeasonComp.get(2024)!),
+      formatDiff(c.trainingComp),
+      formatDiff(c.validationComp),
+      `${c.verdict.historySeasonsImproved}/4`,
+    ]);
+  }
+  console.log(table(rows).join("\n"));
+  console.log("");
+
+  if (result.selected === 0 || result.verdict === null) {
+    console.log("Chosen on training: gridWeight 0 (no weight beats ignoring the grid).");
+    console.log("Verdict: grid signal NOT adopted. Skip Step 8.");
+    return;
+  }
+  console.log(`Chosen on training: gridWeight ${result.selected}.\n`);
+
+  const chosen = result.candidates.find((c) => c.weight === result.selected)!.comparison;
+  console.log("=== Confirmation (2026, printed last) ===");
+  console.log(table([["Season", "Race diff", "Early (rounds 3-5) diff"],
+    ...[2022, 2023, 2024, 2025, 2026].map((y) => [String(y), formatDiff(chosen.perSeasonComp.get(y)!), formatDiff(chosen.earlyComp.get(y)!)]),
+  ]).join("\n"));
+  console.log("");
+  if (result.verdict.adopt) {
+    console.log(`Verdict: gridWeight ${result.selected} ADOPTED (passes D30). Go to Step 8.`);
+  } else {
+    console.log(`Verdict: gridWeight ${result.selected} NOT adopted. Skip Step 8. Reasons:`);
+    for (const reason of result.verdict.reasons) console.log(`  - ${reason}`);
+  }
 }
 
 if (import.meta.main) {
