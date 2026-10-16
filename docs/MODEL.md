@@ -47,6 +47,7 @@ A Monte Carlo simulation of the rest of the season, built only from this season'
 | `sprintDnfFactor` | 0.5 | sprint retirement chance = race chance times this |
 | `includeDnf` | true | retirements on or off |
 | `paceStages` | 5 | finishing stages used in the pace fit; 0 means all places (v1 behavior) |
+| `gridWeight` | 0 | weight of the starting grid in a **race forecast** (`forecastRace` with a grid): the finishing key gets `gridWeight * (-ln(grid place))` added; 0 ignores the grid (v2). Not used by the season simulation yet (Phase 4, Step 8). Step 7 evaluates it; the verdict is below |
 
 v1 is reproducible by passing `{ recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0 }`. `MODEL_VERSION` is `"v2"`.
 
@@ -117,6 +118,20 @@ training setting that passes validation, history, 2026 and early season.
 
 TODO (owner): paste the four tables printed by `bun run calibrate` here (training, validation, 2026, early season),
 and list the rejected settings with their numbers. They are not in this card yet.
+
+### Phase 4, Step 7: grid signal
+
+`forecastRace` can take the starting grid: with `gridWeight` above 0, each driver's strength for that race gets
+`gridWeight * (-ln(grid place))` added (pole adds 0, each place further back subtracts more; a pit-lane start counts as
+last). The backtest and `bun run calibrate` pass the **actual** grid of every past race. `gridWeight` 0 reproduces v2
+exactly (same numbers, same seed). The weights tried are 0, 0.25, 0.5, 0.75 and 1 against v2 with `gridWeight` 0; the
+weight is chosen on 2022 to 2024 only, then judged with the D30 rule on 2025 and 2026.
+
+Run `bun run calibrate -- --grid-signal` (needs the history files; not in git).
+
+TODO (owner): paste the printed tables here (per-season and training differences, validation, then 2026), and state
+the verdict: adopted with weight N, or not adopted with the numbers. If it is not adopted, Step 8 is skipped and
+`gridWeight` stays 0.
 
 ### Calibration
 
