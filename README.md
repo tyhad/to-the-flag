@@ -36,6 +36,8 @@ Set results for the remaining sessions and watch the table, the title status and
 | `bun scripts/exportFixture.ts <db> <out.json>` | Snapshot the loaded season as a JSON test fixture |
 | `bun scripts/addClassified.ts <db> <fixture.json>` | Add each result's `classified` flag (DNF or not) to an older fixture |
 | `bun run backtest` | Walk-forward test of the odds model against past races, with the settings grid and baselines (about 3 s). See `docs/MODEL.md` |
+| `bun run calibrate` | The multi-season protocol (D30), the grid signal and the qualifying noise; needs the history files in `../F1GStats/history`. `-- --grid-signal` or `-- --qualifying-noise` runs one part. See `docs/MODEL.md` |
+| `bun run title-check` | What-if sensitivity table and, with the history files, the title odds against the real champions. See `docs/MODEL.md` |
 
 Tests run from the fixtures in `tests/fixtures/` and databases they build themselves; none needs the real F1GStats file. One optional smoke test uses it when `../F1GStats/f1gstats.sqlite` exists and is skipped otherwise.
 

@@ -8,7 +8,7 @@ Personal, local-first tool: no accounts, no hosting.
 
 ## Current status
 Phases 0 (data, in the separate `F1GStats` repo), 1 (engine), 2 (API, web UI, overlay feed) and 3 (Monte Carlo odds: the "Likely?" tab, `/api/feed/odds`, the backtest and the model card) are done.
-Phase 4 (model v2: history data, calibration, grid signal) is done (`docs/PHASE_4.md`, results in `docs/MODEL.md`); `docs/MODEL.md` still has TODOs for printed tables that need the history files. v2 defaults include the grid (`gridWeight` 1, `qualifyingNoise` 2); v1 and v2 without the grid stay reproducible with parameters.
+Phase 4 (model v2: history data, calibration, grid signal) is done (`docs/PHASE_4.md`, results in `docs/MODEL.md`). v2 defaults include the grid (`gridWeight` 1, `qualifyingNoise` 2); v1 and v2 without the grid stay reproducible with parameters.
 Phases 5 (WCC Path Solver), 6 (LAN mode, write token, small ops tools) and 7 (multi-season prior) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order

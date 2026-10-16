@@ -124,8 +124,69 @@ early-season check passes; `priorStrength` 0.5 also passed but differs from 1 by
 (within 1 SE), so the more conservative value was kept; half-life 8 beat no decay on 2022 to 2024 and is the top
 training setting that passes validation, history, 2026 and early season.
 
-TODO (owner): paste the four tables printed by `bun run calibrate` here (training, validation, 2026, early season),
-and list the rejected settings with their numbers. They are not in this card yet.
+Result of `bun run calibrate` (2000 simulations per forecast; per race, setting minus v1, negative is better; v1 is
+`paceStages` 0, no decay, prior 3, no grid, so it is not a row). The early-season check (rounds 3 to 5) is part of the
+verdict but has no column:
+
+| Setting | Train (22-24) | Valid (2025) | Seasons improved | Confirm (2026) | Verdict |
+|---|---|---|---|---|---|
+| all, half-life 8, prior=0.5 | -0.018 (±0.005) | -0.007 (±0.010) | 3/4 | +0.005 (±0.006) | reject |
+| all, half-life 8, prior=1 | -0.016 (±0.004) | -0.004 (±0.008) | 4/4 | +0.005 (±0.005) | reject |
+| all, half-life 8, prior=2 | -0.010 (±0.003) | +0.003 (±0.005) | 3/4 | +0.010 (±0.004) | reject |
+| all, half-life 8, prior=3 | -0.001 (±0.003) | +0.010 (±0.004) | 1/4 | +0.015 (±0.004) | reject |
+| all, half-life 16, prior=0.5 | -0.013 (±0.004) | -0.010 (±0.008) | 3/4 | -0.002 (±0.004) | reject |
+| all, half-life 16, prior=1 | -0.012 (±0.003) | -0.007 (±0.006) | 3/4 | -0.001 (±0.003) | reject |
+| all, half-life 16, prior=2 | -0.008 (±0.002) | -0.001 (±0.003) | 4/4 | +0.003 (±0.002) | reject |
+| all, half-life 16, prior=3 | -0.002 (±0.002) | +0.006 (±0.002) | 1/4 | +0.009 (±0.002) | reject |
+| all, no decay, prior=0.5 | -0.006 (±0.004) | -0.014 (±0.006) | 3/4 | -0.009 (±0.004) | **adopt** |
+| all, no decay, prior=1 | -0.006 (±0.003) | -0.012 (±0.005) | 3/4 | -0.008 (±0.002) | **adopt** |
+| all, no decay, prior=2 | -0.004 (±0.001) | -0.006 (±0.002) | 3/4 | -0.005 (±0.001) | **adopt** |
+| top3, half-life 8, prior=0.5 | -0.035 (±0.013) | -0.070 (±0.020) | 3/4 | -0.067 (±0.019) | **adopt** |
+| top3, half-life 8, prior=1 | -0.028 (±0.011) | -0.061 (±0.018) | 3/4 | -0.054 (±0.019) | **adopt** |
+| top3, half-life 8, prior=2 | -0.013 (±0.009) | -0.043 (±0.015) | 3/4 | -0.034 (±0.017) | reject |
+| top3, half-life 8, prior=3 | +0.001 (±0.008) | -0.027 (±0.013) | 2/4 | -0.016 (±0.016) | reject |
+| top3, half-life 16, prior=0.5 | -0.035 (±0.013) | -0.069 (±0.020) | 3/4 | -0.069 (±0.019) | **adopt** |
+| top3, half-life 16, prior=1 | -0.029 (±0.011) | -0.063 (±0.018) | 3/4 | -0.057 (±0.019) | **adopt** |
+| top3, half-life 16, prior=2 | -0.018 (±0.010) | -0.048 (±0.015) | 3/4 | -0.039 (±0.018) | reject |
+| top3, half-life 16, prior=3 | -0.007 (±0.008) | -0.035 (±0.014) | 2/4 | -0.023 (±0.017) | reject |
+| top3, no decay, prior=0.5 | -0.032 (±0.013) | -0.068 (±0.020) | 3/4 | -0.070 (±0.019) | **adopt** |
+| top3, no decay, prior=1 | -0.029 (±0.012) | -0.063 (±0.018) | 3/4 | -0.060 (±0.019) | **adopt** |
+| top3, no decay, prior=2 | -0.020 (±0.010) | -0.052 (±0.016) | 3/4 | -0.044 (±0.018) | reject |
+| top3, no decay, prior=3 | -0.012 (±0.009) | -0.041 (±0.015) | 2/4 | -0.030 (±0.018) | reject |
+| top5, half-life 8, prior=0.5 | -0.052 (±0.011) | -0.065 (±0.019) | 4/4 | -0.064 (±0.015) | **adopt** |
+| top5, half-life 8, prior=1 | -0.047 (±0.009) | -0.061 (±0.016) | 4/4 | -0.054 (±0.014) | **adopt** |
+| top5, half-life 8, prior=2 | -0.034 (±0.008) | -0.050 (±0.012) | 4/4 | -0.040 (±0.013) | **adopt** |
+| top5, half-life 8, prior=3 | -0.021 (±0.007) | -0.037 (±0.010) | 4/4 | -0.025 (±0.012) | reject |
+| top5, half-life 16, prior=0.5 | -0.051 (±0.010) | -0.063 (±0.019) | 4/4 | -0.067 (±0.015) | **adopt** |
+| top5, half-life 16, prior=1 | -0.047 (±0.009) | -0.060 (±0.016) | 4/4 | -0.059 (±0.015) | **adopt** |
+| top5, half-life 16, prior=2 | -0.038 (±0.008) | -0.051 (±0.013) | 4/4 | -0.046 (±0.014) | **adopt** |
+| top5, half-life 16, prior=3 | -0.027 (±0.007) | -0.042 (±0.011) | 4/4 | -0.034 (±0.013) | reject |
+| top5, no decay, prior=0.5 | -0.047 (±0.011) | -0.060 (±0.019) | 4/4 | -0.069 (±0.016) | **adopt** |
+| top5, no decay, prior=1 | -0.045 (±0.009) | -0.058 (±0.017) | 4/4 | -0.062 (±0.015) | **adopt** |
+| top5, no decay, prior=2 | -0.038 (±0.008) | -0.052 (±0.014) | 4/4 | -0.052 (±0.014) | **adopt** |
+| top5, no decay, prior=3 | -0.031 (±0.007) | -0.045 (±0.013) | 4/4 | -0.042 (±0.014) | reject |
+| top8, half-life 8, prior=0.5 | -0.042 (±0.010) | -0.046 (±0.012) | 4/4 | -0.051 (±0.011) | **adopt** |
+| top8, half-life 8, prior=1 | -0.040 (±0.008) | -0.041 (±0.010) | 4/4 | -0.046 (±0.010) | **adopt** |
+| top8, half-life 8, prior=2 | -0.032 (±0.006) | -0.031 (±0.009) | 4/4 | -0.036 (±0.009) | **adopt** |
+| top8, half-life 8, prior=3 | -0.021 (±0.006) | -0.020 (±0.008) | 4/4 | -0.026 (±0.009) | reject |
+| top8, half-life 16, prior=0.5 | -0.039 (±0.010) | -0.046 (±0.012) | 4/4 | -0.054 (±0.011) | **adopt** |
+| top8, half-life 16, prior=1 | -0.038 (±0.008) | -0.043 (±0.011) | 4/4 | -0.050 (±0.010) | **adopt** |
+| top8, half-life 16, prior=2 | -0.032 (±0.006) | -0.034 (±0.009) | 4/4 | -0.041 (±0.009) | **adopt** |
+| top8, half-life 16, prior=3 | -0.025 (±0.005) | -0.025 (±0.009) | 4/4 | -0.033 (±0.009) | reject |
+| top8, no decay, prior=0.5 | -0.034 (±0.010) | -0.047 (±0.012) | 4/4 | -0.057 (±0.011) | **adopt** |
+| top8, no decay, prior=1 | -0.034 (±0.008) | -0.044 (±0.012) | 4/4 | -0.054 (±0.010) | **adopt** |
+| top8, no decay, prior=2 | -0.031 (±0.006) | -0.037 (±0.011) | 4/4 | -0.047 (±0.010) | **adopt** |
+| top8, no decay, prior=3 | -0.026 (±0.005) | -0.030 (±0.010) | 4/4 | -0.039 (±0.009) | reject |
+
+27 of 47 settings pass D30, and the adopted v2 setting (top5, half-life 8, prior 1) is one of them. It is not the single
+best number on training (top5 with prior 0.5 is better by 0.005, inside 1 SE); the reasons are above. The 20 rejections
+fall into three groups:
+- 8 settings use all places with a half-life: validation is not better than v1 by 2 SE and 0.005 per race, and 2026 is
+  worse or level in most of them.
+- 3 settings (`top3`, prior 3) improve only 2 of the 4 history seasons.
+- 9 settings (`top3` with prior 2, and `top5` and `top8` with prior 3) pass every visible column, so they fail the one
+  criterion with no column: rounds 3 to 5 of some season are worse than v1 by more than 1 SE. The CLI prints only the
+  passed list, not the reason per setting.
 
 ### Phase 4, Step 7: grid signal
 
@@ -227,8 +288,40 @@ v2 does not move this number much (v1 51%, v2 50% to 51%). It moves with how old
 driver who then won the title, for v1, v2 without the grid and v2 (defaults). This is the only place the simulated
 grid is exercised at title level (the race backtest uses real grids).
 
-TODO (owner): run `bun run title-check` with the history files and paste the per-season and pooled tables here, with one
-sentence on what they show. The rounds of one season are not independent, so a small gap between models means nothing.
+Result of `bun run title-check` (5000 simulations per forecast). The chance each model gave the eventual champion:
+
+| Season | Champion | Model | R8 | R12 | R16 | R20 | Mean P | Mean -ln p |
+|---|---|---|---|---|---|---|---|---|
+| 2022 | VER | v1 | 23.5% | 88.4% | 100.0% | 100.0% | 82.3% | 0.275 |
+| 2022 | VER | v2 without grid | 84.9% | 99.5% | 100.0% | 100.0% | 96.5% | 0.039 |
+| 2022 | VER | v2 (defaults) | 85.6% | 99.4% | 100.0% | 100.0% | 96.5% | 0.038 |
+| 2023 | VER | v1 | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 0.000 |
+| 2023 | VER | v2 without grid | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 0.000 |
+| 2023 | VER | v2 (defaults) | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 0.000 |
+| 2024 | VER | v1 | 85.5% | 100.0% | 99.9% | 99.8% | 98.9% | 0.012 |
+| 2024 | VER | v2 without grid | 76.5% | 99.9% | 97.4% | 97.3% | 97.5% | 0.027 |
+| 2024 | VER | v2 (defaults) | 76.2% | 100.0% | 97.5% | 97.0% | 97.4% | 0.028 |
+| 2025 | NOR | v1 | 66.8% | 4.2% | 0.1% | 11.3% | 21.9% | 3.371 |
+| 2025 | NOR | v2 without grid | 52.3% | 36.6% | 4.8% | 55.0% | 37.1% | 1.393 |
+| 2025 | NOR | v2 (defaults) | 53.4% | 36.1% | 4.2% | 55.7% | 37.0% | 1.412 |
+
+Pooled over the 60 forecasts of each model:
+
+| Model | Mean P(champion) | Mean -ln p | Champion was the favourite |
+|---|---|---|---|
+| v1 | 74.8% | 0.966 | 80.0% |
+| v2 without grid | 81.7% | 0.388 | 81.7% |
+| v2 (defaults) | 81.7% | 0.393 | 81.7% |
+
+What it shows, with four champions and rounds that are not independent:
+- v2 gave the eventual champion more probability than v1 (81.7% against 74.8%, -ln p 0.39 against 0.97). The gap comes
+  from two seasons: 2022 (v1 gave VER 23.5% after round 8, v2 85%) and 2025 (NOR averaged 22% under v1, 37% under v2).
+  In 2023 and 2024 the models agree.
+- The simulated grid made no visible difference at title level: v2 with and without it are level (81.7% both, -ln p 0.393
+  against 0.388). So the grid helps single races (Step 7) and neither helps nor hurts these title odds. This is the
+  check that the grid simulated for later races does no harm.
+- 2025 is hard for every model: after round 16 NOR had 4% under v2 (0.1% under v1) and then won. The model knows
+  results and grids, not momentum, so a late swing in a close title race is a miss, not a bug.
 
 ### Calibration
 
