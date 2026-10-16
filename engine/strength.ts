@@ -21,17 +21,26 @@ export interface StrengthParams {
   priorStrength: number;
   /** how many virtual races the field's retirement rate counts for */
   dnfPriorSessions: number;
+  /** number of finishing stages used in the pace fit (0 = all places, v1 behavior) */
+  paceStages: number;
 }
 
 export const defaultStrengthParams: StrengthParams = {
-  // No decay. The Step 10 backtest (docs/MODEL.md) found any decay clearly worse on the 2026 season, whose pace order
-  // barely moved. A season with big mid-season shifts may want a finite half-life (8 to 16 rounds): revisit with more seasons.
-  recencyHalfLife: Number.POSITIVE_INFINITY,
+  // v2 (Step 6, D30 protocol): half-life 8 rounds. With 4 seasons of data, hl=8 beats no-decay on the training
+  // seasons (2022-2024) for top-5 pace stages; it is also the top-training setting that passes validation (2025),
+  // 4/4 history seasons, and the 2026 confirmation check. A season with no mid-season shifts may prefer no-decay;
+  // revisit with the next season.
+  recencyHalfLife: 8,
   sprintWeight: 0.5,
-  // 1 (the weight first sketched in docs/PHASE_3.md) leaves one race of a 20-car field over-dispersed: its strengths
-  // spread wider than a full season's. 3 shrinks small samples and still lets 16 rounds speak. Revisit in the Step 10 backtest.
-  priorStrength: 3,
+  // v2 (Step 6, D30 protocol): prior 1. With paceStages=5 a weaker prior (1 vs 3) no longer over-disperses early
+  // rounds: the early-season D30 check (rounds 3-5) passes. prior=0.5 also passes but differs by only 0.005 per
+  // race from prior=1 on training (within 1 SE), so the more conservative value is kept.
+  priorStrength: 1,
   dnfPriorSessions: 4,
+  // v2 (Step 6): top-5 pace stages. The Plackett-Luce fit uses only the first 5 finishing stages per race.
+  // This is the largest structural change: it removes the ~2% floor win-probability that the full-order fit
+  // gave to midfield drivers who almost never win. Improves all 4 history seasons (4/4).
+  paceStages: 5,
 };
 
 export interface StrengthFit {
@@ -57,6 +66,9 @@ function checkParams(p: StrengthParams): void {
   if (!(p.recencyHalfLife > 0)) throw new RangeError(`recencyHalfLife must be positive, got ${p.recencyHalfLife}`);
   if (!(p.sprintWeight >= 0)) throw new RangeError(`sprintWeight must be 0 or more, got ${p.sprintWeight}`);
   if (!(p.dnfPriorSessions >= 0)) throw new RangeError(`dnfPriorSessions must be 0 or more, got ${p.dnfPriorSessions}`);
+  if (!Number.isInteger(p.paceStages) || p.paceStages < 0) {
+    throw new RangeError(`paceStages must be an integer of 0 or more, got ${p.paceStages}`);
+  }
 }
 
 interface Ranking {
@@ -106,9 +118,15 @@ export function fitStrengths(state: SeasonState, partial: Partial<StrengthParams
 
   if (rankings.length > 0) {
     // MM algorithm for Plackett-Luce (Hunter 2004). gamma = exp(theta); the dummy driver has gamma 1 and is not updated.
-    // wins[i]: weight of the stages i wins (every place but the last), plus one prior win against the dummy.
+    // When paceStages > 0, only the first K stages of each finishing order are used.
+    const stagesFor = (m: number) => (params.paceStages > 0 ? Math.min(params.paceStages, m - 1) : m - 1);
+
+    // wins[i]: weight of the stages i wins, plus one prior win against the dummy.
     const wins = new Float64Array(n);
-    for (const rk of rankings) for (let j = 0; j < rk.order.length - 1; j++) wins[rk.order[j]!]! += rk.weight;
+    for (const rk of rankings) {
+      const S = stagesFor(rk.order.length);
+      for (let j = 0; j < S; j++) wins[rk.order[j]!]! += rk.weight;
+    }
     for (let i = 0; i < n; i++) if (inFit[i]) wins[i]! += params.priorStrength;
 
     const gamma = new Float64Array(n).fill(1);
@@ -118,12 +136,13 @@ export function fitStrengths(state: SeasonState, partial: Partial<StrengthParams
       for (const rk of rankings) {
         const { order, weight } = rk;
         const m = order.length;
+        const S = stagesFor(m);
         const suffix = new Float64Array(m + 1);
         for (let j = m - 1; j >= 0; j--) suffix[j] = suffix[j + 1]! + gamma[order[j]!]!;
-        // the driver at place j is in the choice set of stages 0..min(j, m - 2)
+        // the driver at place j is in the choice set of stages 0..min(j, S - 1)
         let running = 0;
         for (let j = 0; j < m; j++) {
-          if (j <= m - 2) running += weight / suffix[j]!;
+          if (j <= S - 1) running += weight / suffix[j]!;
           denom[order[j]!]! += running;
         }
       }

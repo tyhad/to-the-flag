@@ -19,7 +19,8 @@ describe("engine public API (engine/index.ts)", () => {
 
   test("exports the odds defaults", () => {
     expect(engine.defaultOddsParams.nSims).toBe(10_000);
-    expect(engine.defaultStrengthParams.recencyHalfLife).toBe(Infinity);
+    expect(engine.defaultStrengthParams.recencyHalfLife).toBe(8);
+    expect(engine.defaultStrengthParams.paceStages).toBe(5);
     expect(engine.LOW_CONFIDENCE_ROUNDS).toBe(5);
   });
 
@@ -37,8 +38,8 @@ describe("engine public API (engine/index.ts)", () => {
         { round: 2, name: "Two", hasSprint: false, status: "scheduled" },
       ],
       results: [
-        { round: 1, kind: "race", driver: "AAA", team: "t", position: 1, points: 25, classified: true },
-        { round: 1, kind: "race", driver: "BBB", team: "t", position: 2, points: 18, classified: true },
+        { round: 1, kind: "race", driver: "AAA", team: "t", position: 1, grid: 1, points: 25, classified: true },
+        { round: 1, kind: "race", driver: "BBB", team: "t", position: 2, grid: 2, points: 18, classified: true },
       ],
       qualifying: [],
       drivers: [{ code: "AAA", name: "A", active: true }, { code: "BBB", name: "B", active: true }],

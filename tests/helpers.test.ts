@@ -99,4 +99,22 @@ describe("makeState", () => {
     expect(() => makeState({ rounds: 2, teams, results: { "1:race": ["ZZZ"] } })).toThrow(/not in any team/);
     expect(() => makeState({ rounds: 2, teams, results: { "1:race": ["AAA", "AAA"] } })).toThrow(/duplicate/);
   });
+
+  test("grid defaults to order position and can be customized", () => {
+    const s = makeState({
+      rounds: 2,
+      completed: 1,
+      teams,
+      results: {
+        "1:race": { order: ["AAA", "BBB", "CCC"], grid: [3, 1, 2] },
+      },
+    });
+    const byDriver = Object.fromEntries(s.results.map((r) => [r.driver, r.grid]));
+    expect(byDriver.AAA).toBe(3);
+    expect(byDriver.BBB).toBe(1);
+    expect(byDriver.CCC).toBe(2);
+
+    const sDefault = makeState({ rounds: 2, completed: 1, teams, results: { "1:race": ["AAA", "BBB"] } });
+    expect(sDefault.results.map((r) => r.grid)).toEqual([1, 2]);
+  });
 });

@@ -108,6 +108,9 @@ export function OddsPanel({ state, panel, hasLocks, table, onTable, formPercent,
           {view?.lowConfidence ? (
             <span className="type-label chamfer inline-flex h-6 items-center bg-yellow px-2 text-s0">{view.lowConfidence.tag}</span>
           ) : null}
+          {view?.gridKnown ? (
+            <span className="type-label rounded-control inline-flex h-6 items-center border border-line px-2 text-text-2">{view.gridKnown.tag}</span>
+          ) : null}
         </div>
         {view ? <p className="type-note text-text-2">{view.asOf}</p> : null}
         {view?.lowConfidence ? <p className="type-note text-text-2">{view.lowConfidence.note}</p> : null}

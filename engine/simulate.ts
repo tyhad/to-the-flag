@@ -29,6 +29,18 @@ export interface OddsParams extends StrengthParams {
   /** a sprint retirement chance is the race chance times this */
   sprintDnfFactor: number;
   includeDnf: boolean;
+  /**
+   * Phase 4, Step 7: weight of the starting grid in a race forecast. A driver's finishing key gets
+   * `gridWeight * (-ln(grid position))` added. 0 ignores the grid (the v2 behavior). Used by `forecastRace` when
+   * it is given a grid; the season simulation does not use it yet (Step 8).
+   */
+  gridWeight: number;
+  /**
+   * Phase 4, Step 8: how noisy the simulated qualifying is. For a race with no known grid, each driver's qualifying
+   * key is the simulated strength plus `qualifyingNoise` times Gumbel noise, and the order of those keys is the grid
+   * the grid term sees. 0 simulates no grid (later races then ignore the grid). Only used when `gridWeight` is above 0.
+   */
+  qualifyingNoise: number;
 }
 
 export const defaultOddsParams: OddsParams = {
@@ -38,6 +50,12 @@ export const defaultOddsParams: OddsParams = {
   strengthSigma: 0.25,
   sprintDnfFactor: 0.5,
   includeDnf: true,
+  // Step 7 (D30 protocol): grid weight 1. Beat v2 without the grid on every history season (4/4), on validation (2025)
+  // by 0.073 per race (3.2 SE) and on 2026 by 0.084 per race (3.8 SE). 1 is the top of the coarse grid tried.
+  gridWeight: 1,
+  // Step 8: qualifying noise 2, the value that makes the real grids of 2022-2024 most likely (Plackett-Luce likelihood
+  // on strengths fitted before each race). Used only for races with no real grid.
+  qualifyingNoise: 2,
 };
 
 export interface SimulationResult {
@@ -52,6 +70,8 @@ export interface SimulationResult {
   /** final points added up over all simulations (divide by nSims for the average) */
   driverPointSums: Record<string, number>;
   teamPointSums: Record<string, number>;
+  /** the round whose real grid (`SeasonState.upcomingGrid`) the simulation used, or null when it used none */
+  gridKnownRound: number | null;
 }
 
 const STRENGTH_SIGMA_K = 6;
@@ -64,6 +84,26 @@ function checkParams(p: OddsParams): void {
   if (!(p.formWeight >= 0 && p.formWeight <= 1)) throw new RangeError(`formWeight must be between 0 and 1, got ${p.formWeight}`);
   if (!(p.strengthSigma >= 0)) throw new RangeError(`strengthSigma must be 0 or more, got ${p.strengthSigma}`);
   if (!(p.sprintDnfFactor >= 0)) throw new RangeError(`sprintDnfFactor must be 0 or more, got ${p.sprintDnfFactor}`);
+  if (!Number.isInteger(p.paceStages) || p.paceStages < 0) {
+    throw new RangeError(`paceStages must be an integer of 0 or more, got ${p.paceStages}`);
+  }
+  if (!(Number.isFinite(p.gridWeight) && p.gridWeight >= 0)) {
+    throw new RangeError(`gridWeight must be a finite number of 0 or more, got ${p.gridWeight}`);
+  }
+  if (!(Number.isFinite(p.qualifyingNoise) && p.qualifyingNoise >= 0)) {
+    throw new RangeError(`qualifyingNoise must be a finite number of 0 or more, got ${p.qualifyingNoise}`);
+  }
+}
+
+/**
+ * The grid term of a finishing key: -ln(grid position), so pole adds 0 and every place further back subtracts more.
+ * A pit-lane start (stored as the field size, or a raw 0), a driver with no grid place, or a nonsense place counts as
+ * last on the grid; a place beyond the field is clamped to last.
+ */
+export function gridTerm(position: number | undefined, fieldSize: number): number {
+  const last = Math.max(1, fieldSize);
+  const place = position === undefined || !(position >= 1) ? last : Math.min(position, last);
+  return -Math.log(place);
 }
 
 /** JSON with object keys sorted at every level, so equal data always gives equal text. */
@@ -81,6 +121,16 @@ function canonicalJson(value: unknown): string {
 /** The default seed: a stable hash of the season, the round, the scenario's locks and the model parameters (not the seed). */
 export function deriveSeed(state: SeasonState, scenario: Scenario | undefined, params: OddsParams): number {
   const { seed: _ignored, ...modelParams } = params;
+  if (modelParams.paceStages === 0) {
+    delete (modelParams as Partial<OddsParams>).paceStages;
+  }
+  // gridWeight 0 (ignore the grid) must hash exactly as before the parameter existed, so v2 seeds and snapshots hold
+  if (modelParams.gridWeight === 0) {
+    delete (modelParams as Partial<OddsParams>).gridWeight;
+  }
+  if (modelParams.qualifyingNoise === 0) {
+    delete (modelParams as Partial<OddsParams>).qualifyingNoise;
+  }
   return hashSeed(String(state.season), String(state.asOfRound), canonicalJson(scenario?.locks ?? {}), canonicalJson(modelParams));
 }
 
@@ -147,6 +197,12 @@ interface CompiledSession {
   retire: Float64Array;
   /** slot in the race-position matrix, or -1 for a sprint */
   raceSlot: number;
+  /** grid term per active driver from the real grid of this race, or null when there is none (or the grid is ignored) */
+  knownGrid: Float64Array | null;
+  /** simulate the qualifying order for this race (a race with no real grid, `gridWeight` and `qualifyingNoise` above 0) */
+  simulateGrid: boolean;
+  /** grid term by place (index 0 = pole) among the racers, for a simulated grid */
+  placeTerm: Float64Array;
 }
 
 /**
@@ -199,6 +255,8 @@ export function simulateSeason(
   const { form, sigma, raceRetire, sprintRetire } = modelInputs(fitStrengths(state, params), active, params);
 
   // ---- the sessions left to run
+  const upcoming = state.upcomingGrid;
+  let gridKnownRound: number | null = null;
   const sessions: CompiledSession[] = [];
   let raceSlots = 0;
   let maxPosition = 0;
@@ -230,7 +288,21 @@ export function simulateSeason(
     const table = new Int32Array(top + 1);
     for (let p = 1; p <= top; p++) table[p] = kind === "race" ? gpPoints(p, tier) : sprintPoints(p);
 
+    // the grid term of this race (Step 8): the real grid when we have it, else a simulated qualifying
+    const isRace = kind === "race";
+    let knownGrid: Float64Array | null = null;
+    if (isRace && params.gridWeight > 0 && upcoming !== undefined && upcoming.round === parseSessionKey(key).round) {
+      const fieldSize = Math.max(A, ...Object.values(upcoming.grid));
+      knownGrid = Float64Array.from(active, (c) => gridTerm(upcoming.grid[c], fieldSize));
+      gridKnownRound = upcoming.round;
+    }
+    const simulateGrid = isRace && knownGrid === null && params.gridWeight > 0 && params.qualifyingNoise > 0;
+    const placeTerm = Float64Array.from({ length: racers.length }, (_, k) => gridTerm(k + 1, racers.length));
+
     sessions.push({
+      knownGrid,
+      simulateGrid,
+      placeTerm,
       isRace: kind === "race",
       table,
       racers: Int32Array.from(racers),
@@ -250,6 +322,9 @@ export function simulateSeason(
   const simPoints = new Int32Array(A);
   const sortKey = new Float64Array(A);
   const order = new Int32Array(A);
+  const raceStrength = new Float64Array(A); // strength plus the grid term, for a race that has a grid
+  const qualiKey = new Float64Array(A);
+  const qualiOrder = new Int32Array(A);
   const racePosition = new Int32Array(Math.max(1, raceSlots * A));
   const teamTotal = new Float64Array(T);
   const tied: number[] = [];
@@ -293,7 +368,37 @@ export function simulateSeason(
     for (const s of sessions) {
       // the unspecified drivers: retire or draw a finishing key, then order them
       const u = s.racers.length;
-      rankRacers(rng, s.racers, strength, s.retire, sortKey, order);
+      let pace = strength;
+      if (s.knownGrid !== null) {
+        for (let k = 0; k < u; k++) {
+          const d = s.racers[k]!;
+          raceStrength[d] = strength[d]! + params.gridWeight * s.knownGrid[d]!;
+        }
+        pace = raceStrength;
+      } else if (s.simulateGrid) {
+        // qualifying: the same strengths with their own noise; the order is the grid
+        for (let k = 0; k < u; k++) {
+          const d = s.racers[k]!;
+          qualiKey[d] = strength[d]! + params.qualifyingNoise * rng.gumbel();
+          qualiOrder[k] = d;
+        }
+        for (let a = 1; a < u; a++) {
+          const d = qualiOrder[a]!;
+          const key = qualiKey[d]!;
+          let b = a - 1;
+          while (b >= 0 && qualiKey[qualiOrder[b]!]! < key) {
+            qualiOrder[b + 1] = qualiOrder[b]!;
+            b--;
+          }
+          qualiOrder[b + 1] = d;
+        }
+        for (let k = 0; k < u; k++) {
+          const d = qualiOrder[k]!;
+          raceStrength[d] = strength[d]! + params.gridWeight * s.placeTerm[k]!;
+        }
+        pace = raceStrength;
+      }
+      rankRacers(rng, s.racers, pace, s.retire, sortKey, order);
       for (let k = 0; k < u; k++) {
         const d = order[k]!;
         const position = s.free[k]!;
@@ -380,6 +485,7 @@ export function simulateSeason(
     teamWins: teamWinsOut,
     driverPointSums: driverSumsOut,
     teamPointSums: teamSumsOut,
+    gridKnownRound,
   };
 }
 
@@ -397,11 +503,16 @@ export interface RaceForecast {
  * podium (a retirement is neither). It fits on `state` as it stands and draws the race exactly as `simulateSeason`
  * draws an open session. `field` defaults to the drivers still racing; pass the entry list to forecast a past race
  * (the backtest does). Throws RangeError for nonsense parameters.
+ *
+ * `grid` (driver code -> starting place) is optional. With `params.gridWeight` above 0, each driver's strength for the
+ * race gets `gridWeight * (-ln(place))` added (see `gridTerm`; a driver missing from `grid` starts last). Without a
+ * grid, or with `gridWeight` 0, the grid is ignored and the numbers are exactly those of the model without it.
  */
 export function forecastRace(
   state: SeasonState,
   partial: Partial<OddsParams> = {},
   field: readonly string[] = state.drivers.filter((d) => d.active).map((d) => d.code),
+  grid?: Readonly<Record<string, number>>,
 ): RaceForecast {
   const params: OddsParams = { ...defaultOddsParams, ...partial };
   checkParams(params);
@@ -412,6 +523,14 @@ export function forecastRace(
   const n = codes.length;
   const { form, sigma, raceRetire } = modelInputs(fitStrengths(state, params), codes, params);
 
+  // the grid term, fixed for the whole race: all zeros when the grid is ignored, so the draws are unchanged
+  const gridOffset = new Float64Array(n);
+  if (grid !== undefined && params.gridWeight > 0) {
+    codes.forEach((c, i) => {
+      gridOffset[i] = params.gridWeight * gridTerm(grid[c], n);
+    });
+  }
+
   const rng = createRng(seed);
   const racers = Int32Array.from(codes, (_, i) => i);
   const strength = new Float64Array(n);
@@ -421,7 +540,7 @@ export function forecastRace(
   const podiums = new Float64Array(n);
 
   for (let sim = 0; sim < nSims; sim++) {
-    for (let i = 0; i < n; i++) strength[i] = form[i]! + sigma[i]! * rng.normal();
+    for (let i = 0; i < n; i++) strength[i] = form[i]! + sigma[i]! * rng.normal() + gridOffset[i]!;
     rankRacers(rng, racers, strength, raceRetire, sortKey, order);
     for (let place = 0; place < Math.min(3, n); place++) {
       const d = order[place]!;

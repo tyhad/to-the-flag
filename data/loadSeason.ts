@@ -5,7 +5,7 @@
  */
 import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
-import type { QualiRow, ResultRow, RoundInfo, SeasonState } from "../engine/types";
+import type { QualiRow, ResultRow, RoundInfo, SeasonState, UpcomingGrid } from "../engine/types";
 
 export const MIN_SCHEMA_VERSION = 2;
 const POINTS_EPSILON = 1e-6;
@@ -31,10 +31,11 @@ interface ScheduleDb { round: number; race_name: string | null; has_sprint: numb
 interface ResultDb {
   round: number; session: string; driver_abbr: string; driver_name: string | null;
   team_name: string | null; constructor_id: string | null; position: number | null; points: number;
-  is_classified: number;
+  is_classified: number; grid: number | null;
 }
 interface StandingDb { driver_abbr: string; driver_name: string | null; points: number }
 interface QualiDb { round: number; driver_abbr: string; position: number | null }
+interface GridDb { round: number; driver_abbr: string | null; position: number | null; grid_source: string | null }
 interface HealthDb { status: string; checked_at: string }
 
 function tableExists(db: Database, name: string): boolean {
@@ -50,6 +51,30 @@ function readSchemaVersion(db: Database): number {
 
 function readMeta(db: Database, key: string): string | null {
   return db.query<{ value: string | null }, [string]>("SELECT value FROM meta WHERE key = ?").get(key)?.value ?? null;
+}
+
+/**
+ * The real starting grid of the next race (Phase 4, Step 8), from `starting_grid` (kept for the previous, current and
+ * next round). Only rows of the next scheduled round count, whatever their `round_relation`. A grid that cannot be
+ * trusted (fewer than two drivers, or a driver twice) is left out: it is an optional signal and must not break the season.
+ * A position of 0 (pit lane) becomes the field size, as in `race_results`.
+ */
+function readUpcomingGrid(db: Database, rounds: RoundInfo[]): UpcomingGrid | undefined {
+  if (!tableExists(db, "starting_grid")) return undefined;
+  const next = rounds.filter((r) => r.status === "scheduled").reduce<number | null>((m, r) => (m === null || r.round < m ? r.round : m), null);
+  if (next === null) return undefined;
+  const rows = db
+    .query<GridDb, [number]>("SELECT round, driver_abbr, position, grid_source FROM starting_grid WHERE round = ? ORDER BY position")
+    .all(next)
+    .filter((r) => r.driver_abbr && r.position != null && Number.isInteger(r.position) && r.position >= 0);
+  if (rows.length < 2) return undefined;
+  const grid: Record<string, number> = {};
+  for (const r of rows) {
+    if (grid[r.driver_abbr!] !== undefined) return undefined;
+    grid[r.driver_abbr!] = r.position === 0 ? rows.length : r.position!;
+  }
+  const sources = [...new Set(rows.map((r) => r.grid_source?.trim()).filter((x): x is string => !!x))].sort();
+  return { round: next, grid, source: sources.length > 0 ? sources.join(", ") : "unknown" };
 }
 
 export function loadSeason(dbPath: string): SeasonState {
@@ -95,10 +120,15 @@ function readSeason(db: Database): SeasonState {
   // Results (decision d: team = constructor_id)
   const resultRows = db
     .query<ResultDb, [number]>(
-      `SELECT round, session, driver_abbr, driver_name, team_name, constructor_id, position, points, is_classified
+      `SELECT round, session, driver_abbr, driver_name, team_name, constructor_id, position, points, is_classified, grid
        FROM race_results WHERE season = ? ORDER BY round, session, position`,
     )
     .all(season);
+  const sessionSizes = new Map<string, number>();
+  for (const r of resultRows) {
+    const key = `${r.round}:${r.session}`;
+    sessionSizes.set(key, (sessionSizes.get(key) ?? 0) + 1);
+  }
   const results: ResultRow[] = [];
   const driverNames = new Map<string, string>();
   const teamNames = new Map<string, string>();
@@ -112,12 +142,15 @@ function readSeason(db: Database): SeasonState {
     }
     if (r.position == null) throw new DataInconsistentError(`${where}: position is null`);
     if (!r.constructor_id) throw new DataInconsistentError(`${where}: constructor_id is empty`);
+    if (r.grid == null) throw new DataInconsistentError(`${where}: grid is null`);
+    const fieldSize = sessionSizes.get(`${r.round}:${r.session}`) ?? 0;
     results.push({
       round: r.round,
       kind: r.session === "Race" ? "race" : "sprint",
       driver: r.driver_abbr,
       team: r.constructor_id,
       position: r.position,
+      grid: r.grid === 0 ? fieldSize : r.grid,
       points: r.points,
       classified: r.is_classified !== 0,
     });
@@ -190,6 +223,7 @@ function readSeason(db: Database): SeasonState {
     throw new DataInconsistentError(`data_health: unknown status "${healthRow.status}"`);
   }
 
+  const upcomingGrid = readUpcomingGrid(db, rounds);
   return {
     season,
     asOfRound,
@@ -200,5 +234,6 @@ function readSeason(db: Database): SeasonState {
     teams,
     health: { status: healthRow.status, checkedAt: healthRow.checked_at },
     schemaVersion: version,
+    ...(upcomingGrid ? { upcomingGrid } : {}),
   };
 }

@@ -8,7 +8,7 @@ Personal, local-first tool: no accounts, no hosting.
 
 ## Current status
 Phases 0 (data, in the separate `F1GStats` repo), 1 (engine), 2 (API, web UI, overlay feed) and 3 (Monte Carlo odds: the "Likely?" tab, `/api/feed/odds`, the backtest and the model card) are done.
-Phase 4 (model v2: history data, calibration, grid signal) has a task list: `docs/PHASE_4.md`. Do not start it until the owner says so; then follow it step by step.
+Phase 4 (model v2: history data, calibration, grid signal) is done (`docs/PHASE_4.md`, results in `docs/MODEL.md`). v2 defaults include the grid (`gridWeight` 1, `qualifyingNoise` 2); v1 and v2 without the grid stay reproducible with parameters.
 Phases 5 (WCC Path Solver), 6 (LAN mode, write token, small ops tools) and 7 (multi-season prior) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order
@@ -29,12 +29,14 @@ Phase 1 must provide these scripts with exactly these names:
 - `bun run typecheck`
 - `bun run check`: prints season status and paths from the real data file
 - `bun run build`: bundles the web UI into `dist/` (the page and the odds worker, `dist/oddsWorker.js`)
-- `bun run backtest`: walk-forward test of the odds model (`scripts/backtest.ts`); rerun it after any change to the model and update `docs/MODEL.md`
+- `bun run backtest`: walk-forward test of the odds model (`scripts/backtest.ts`); rerun it after any change to the model and update `docs/MODEL.md`. `-- --grid-weight 0` gives the numbers without the grid
+- `bun run calibrate`: the multi-season protocol (D30); needs the history files in `../F1GStats/history`, not in git. `-- --grid-signal` and `-- --qualifying-noise` run only those parts
+- `bun run title-check`: the what-if sensitivity table and, with the history files, the title odds against the real champions
 
 ## Planned layout
 - `engine/`: pure functions (points, standings, countback, Path Solver, and the Monte Carlo odds: `strength`, `simulate`, `odds`, `rng`)
 - `data/`: read-only loader for `f1gstats.sqlite` (the only place besides `scripts/` that touches the database)
-- `scripts/`: CLI tools (`check.ts`, `exportFixture.ts`, `addClassified.ts`, `backtest.ts`)
+- `scripts/`: CLI tools (`check.ts`, `exportFixture.ts`, `addClassified.ts`, `backtest.ts`, `calibrate.ts`, `titleCheck.ts`)
 - `api/`: Elysia routes, including `/api/feed/*` for the overlay
 - `web/`: what-if UI (`components/`, `viewModel/` for the testable logic, hooks, and `oddsWorker.ts`, which is bundled as its own file)
 - `shared/`: small pure helpers used by both server and browser (scenario share codec)

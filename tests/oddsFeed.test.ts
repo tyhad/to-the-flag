@@ -73,6 +73,8 @@ describe("GET /api/feed/odds", () => {
       data_status: "ok",
       season: 2026,
       low_confidence: false,
+      model_version: "v2",
+      grid_known_round: null,
       n_sims: 10_000,
       scenario: null,
     });
@@ -292,6 +294,15 @@ describe("buildOddsPayload", () => {
       expect(typeof r.base_display).toBe("string");
       if (!inBase.has(r.id)) expect(r.base_display).toBe("<1%");
     }
+  });
+
+  test("model_version says which model made the numbers", () => {
+    expect(buildOddsPayload(fixture, base, null, null).model_version).toBe("v2");
+  });
+
+  test("grid_known_round says which round's real grid the model used, or null", () => {
+    expect(buildOddsPayload(fixture, base, null, null).grid_known_round).toBeNull();
+    expect(buildOddsPayload(fixture, { ...base, gridKnownRound: 17 }, null, null).grid_known_round).toBe(17);
   });
 
   test("win_pct is the probability in percent with two decimals", () => {

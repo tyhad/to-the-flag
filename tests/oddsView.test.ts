@@ -36,7 +36,7 @@ function fakeOdds(wdc: Partial<OddsRow>[], extra: Partial<OddsResult> = {}, wcc:
   };
   return {
     asOfRound: 8, roundsCompleted: 8, lowConfidence: false, nSims: 1000, seed: 1,
-    params: {} as OddsResult["params"], wdc: wdc.map(row), wcc: wcc.map(row), maxStdError: 0.01, ...extra,
+    modelVersion: "v2", gridKnownRound: null, params: {} as OddsResult["params"], wdc: wdc.map(row), wcc: wcc.map(row), maxStdError: 0.01, ...extra,
   };
 }
 
@@ -256,6 +256,17 @@ describe("buildOddsView: header and honesty", () => {
     expect(big.howItWorks).toContain("10,000 simulated seasons");
   });
 
+  test("names the model version", () => {
+    expect(view.howItWorks.startsWith("Model v2. ")).toBe(true);
+  });
+
+  test("says the grid is used, but only when the grid weight is above 0", () => {
+    expect(view.howItWorks).toContain("starting grid");
+    const noGrid = buildOddsView({ result: computeOdds(state, undefined, { nSims: 400, seed: 1, gridWeight: 0 }), base: null, state, table: "wdc", formPercent: 100, hasLocks: false });
+    expect(noGrid.howItWorks).not.toContain("starting grid");
+    expect(noGrid.howItWorks.startsWith("Model v2. ")).toBe(true);
+  });
+
   test("no what-if note at full form weight, one otherwise", () => {
     expect(view.whatIf).toBeNull();
     expect(buildOddsView({ result: odds, base: null, state, table: "wdc", formPercent: 60, hasLocks: false }).whatIf).toBe("What-if: form weight 60%.");
@@ -403,5 +414,20 @@ describe("buildOddsView: teams", () => {
   test("team rows get deltas too when locks are on", () => {
     const view2 = buildOddsView({ result: odds, base: odds, state, table: "wcc", formPercent: 100, hasLocks: true });
     expect(view2.rows.every((r) => r.delta !== null)).toBe(true);
+  });
+});
+
+// ---------- the grid tag (Phase 4, Step 8) ----------
+
+describe("buildOddsView: grid known", () => {
+  const view = (extra: Partial<OddsResult>) =>
+    buildOddsView({ result: fakeOdds([{ id: "AAA", status: "alive" }], extra), base: null, state: fixture, table: "wdc", formPercent: 100, hasLocks: false });
+
+  test("says which round's real grid the model used", () => {
+    expect(view({ gridKnownRound: 17 }).gridKnown).toEqual({ tag: "Grid known: Round 17" });
+  });
+
+  test("has no tag when the model used no real grid", () => {
+    expect(view({ gridKnownRound: null }).gridKnown).toBeNull();
   });
 });

@@ -25,6 +25,9 @@ export interface OddsRow {
   status?: TitleStatus;
 }
 
+/** Model version string. Bumped when default behavior changes (D31). v1 behavior is reproducible via explicit params. */
+export const MODEL_VERSION = "v2" as const;
+
 export interface OddsResult {
   asOfRound: number;
   /** rounds with status "completed" */
@@ -34,6 +37,10 @@ export interface OddsResult {
   nSims: number;
   seed: number;
   params: OddsParams;
+  /** "v1" or "v2" — the model version that produced this result (D31) */
+  modelVersion: typeof MODEL_VERSION;
+  /** the round whose real starting grid the model used, or null when it used none (Phase 4, Step 8) */
+  gridKnownRound: number | null;
   /** drivers with wins > 0, or alive or clinched; best first */
   wdc: OddsRow[];
   /** teams with wins > 0; best first */
@@ -109,6 +116,8 @@ export function computeOdds(state: SeasonState, scenario?: Scenario, params: Par
     nSims,
     seed: sim.seed,
     params: sim.params,
+    modelVersion: MODEL_VERSION,
+    gridKnownRound: sim.gridKnownRound,
     wdc,
     wcc,
     maxStdError,

@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.8. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal) has a task list in `docs/PHASE_4.md` and has not started; Phases 5 to 7 are planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
+**Status:** DRAFT v0.8. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal; see `docs/PHASE_4.md` and `docs/MODEL.md`) is done; Phases 5 to 7 are planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -80,7 +80,7 @@ Rules:
 
 The canonical version, including exact DDL, lives in the F1GStats repo at `docs/DATA_CONTRACT.md` (the producer owns the schema). This section is a summary; if they differ, the F1GStats file wins.
 
-Existing tables stay unchanged: `meta`, `sessions`, `driver_standings`, `constructor_standings`, `starting_grid`.
+Existing tables stay unchanged: `meta`, `sessions`, `driver_standings`, `constructor_standings`, `starting_grid`. To the Flag reads `starting_grid` (Phase 4, Step 8): only the rows of the next scheduled round count, whatever their `round_relation`; the table is optional (no table or no rows for that round means no real grid is used).
 
 New tables, all keyed by `season`:
 - `schedule_full(season, round, race_name, has_sprint, race_start_utc, sprint_start_utc, status)`: `status` is `completed` or `scheduled` (time-based).
@@ -178,7 +178,7 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 | 1. Engine core (done; see `docs/PHASE_1.md`) | F1, F2 (WDC) in TypeScript with fixtures and unit tests (points tables, shortened races, countback, remaining points) | Tests pass on fixtures including a countback tie, each shortened-race column, and the sprint 50% threshold |
 | 2. UI + feed (done; see `docs/PHASE_2.md`) | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
 | 3. Odds (done; see `docs/PHASE_3.md`, `docs/MODEL.md`) | F3, its UI tab, the odds feed, a backtest and a model card | Seeded runs are reproducible; win counts sum to the number of simulations; eliminated drivers never win; the low-confidence tag works; the backtest beats the uniform baseline (it does not beat "points so far"; see the model card) |
-| 4. Model v2 (see `docs/PHASE_4.md`) | History data (2022 to 2025), a multi-season calibration harness, a top-heavy pace fit, the grid signal, model versioning | v2 defaults are adopted only if they pass the protocol in `docs/PHASE_4.md` (D30); the grid signal is adopted or rejected with numbers; v1 stays reproducible |
+| 4. Model v2 (done; see `docs/PHASE_4.md`, `docs/MODEL.md`) | History data (2022 to 2025), a multi-season calibration harness, a top-heavy pace fit, the grid signal, model versioning | v2 defaults are adopted only if they pass the protocol in `docs/PHASE_4.md` (D30); the grid signal is adopted or rejected with numbers; v1 stays reproducible |
 | 5. WCC Path Solver (planned) | "Possible?" for constructors | To be defined when the phase starts |
 | 6. Access and ops (planned) | LAN mode with a write token, a one-command refresh script, PNG export | To be defined when the phase starts |
 | 7. Multi-season prior (planned) | `prior_carryover` using the history data | To be defined when the phase starts |
@@ -230,3 +230,4 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D30 | Evaluation protocol | Tune on 2022 to 2024, validate on 2025, confirm once on 2026. Adopt a change only if it beats the current model by more than 2 standard errors and at least 0.005 per race on the validation season, improves at least 3 of 4 history seasons, and is not worse than 1 standard error on 2026 or on rounds 3 to 5 | Proposed |
 | D31 | Model versioning | `MODEL_VERSION` (`v1`, `v2`) in `OddsResult` and the feed; v1 stays reproducible with parameters | Proposed |
 | D32 | Roadmap after Phase 4 | Phase 5 WCC Path Solver, Phase 6 LAN mode + write token + small ops tools, Phase 7 multi-season prior; the owner may reorder | Proposed |
+| D33 | Grid in the odds model | The starting grid enters a race as `gridWeight * (-ln(grid place))` added to a driver's strength. Adopted at `gridWeight` 1 by the D30 protocol (`docs/MODEL.md`, Step 7). The season simulation uses the real grid of the next race when the data has one (`SeasonState.upcomingGrid`) and a simulated qualifying order (`qualifyingNoise` 2, fitted on 2022 to 2024) for later races. `gridWeight` 0 gives v2 without the grid; v1 stays reproducible with both at 0 | Proposed |

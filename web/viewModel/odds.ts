@@ -152,6 +152,8 @@ export interface OddsView {
   estimateLabel: string;
   asOf: string;
   lowConfidence: { tag: string; note: string } | null;
+  /** Set when the model used the real starting grid of the next race (Phase 4, Step 8). */
+  gridKnown: { tag: string } | null;
   rows: OddsBarRow[];
   /** Drivers who have won the title, in words (drivers' table only). */
   clinched: string[];
@@ -206,6 +208,7 @@ export function buildOddsView({ result, base, state, table, formPercent, hasLock
     lowConfidence: result.lowConfidence
       ? { tag: "Low confidence", note: `Fewer than ${LOW_CONFIDENCE_ROUNDS} rounds are complete, so these numbers can move a lot.` }
       : null,
+    gridKnown: result.gridKnownRound === null ? null : { tag: `Grid known: Round ${result.gridKnownRound}` },
     rows,
     clinched,
     outLine: out > 0 ? `${plural(out, "driver is", "drivers are")} out of the title fight.` : null,
@@ -217,7 +220,11 @@ export function buildOddsView({ result, base, state, table, formPercent, hasLock
       : null,
     whatIf: whatIfNote(formPercent),
     howItWorks:
+      `Model ${result.modelVersion}. ` +
       "The model uses this season's results: where drivers finish and how often they retire. " +
+      ((result.params.gridWeight ?? 0) > 0
+        ? "It also uses the starting grid: the real one for the next race once qualifying has run, a simulated one for later races. "
+        : "") +
       "It does not know about upgrades, tracks or weather. " +
       `The number comes from ${result.nSims.toLocaleString("en-US")} simulated seasons. ` +
       "Drivers you did not set in a locked session still race.",

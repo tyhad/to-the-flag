@@ -221,3 +221,25 @@ describe("runCheck", () => {
     expect(runCheck(["--db", dbPath], "unused").stdout).not.toContain("WARNING");
   });
 });
+
+describe("check: the grid of the next race", () => {
+  test("none when the data has no grid for the next round", () => {
+    expect(buildCheckReport(state).upcomingGrid).toBeNull();
+    expect(formatCheckReport(buildCheckReport(state), dbPath)).toContain("Upcoming grid: none");
+  });
+
+  test("round, source and number of drivers when it has one", () => {
+    const withGrid = loadSeason(
+      buildDb((seed) => {
+        seed.startingGrid = [
+          { round: 3, abbr: "AAA", position: 1, source: "qualifying" },
+          { round: 3, abbr: "BBB", position: 2, source: "qualifying" },
+          { round: 3, abbr: "CCC", position: 3, source: "qualifying" },
+        ];
+      }),
+    );
+    const report = buildCheckReport(withGrid);
+    expect(report.upcomingGrid).toEqual({ round: 3, source: "qualifying", drivers: 3 });
+    expect(formatCheckReport(report, "x.sqlite")).toContain("Upcoming grid: Round 3 (source: qualifying, 3 drivers)");
+  });
+});
