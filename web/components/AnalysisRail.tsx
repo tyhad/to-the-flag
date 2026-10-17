@@ -6,7 +6,7 @@ import { combineOddsStates, formWeightFor, type OddsTable } from "../viewModel/o
 import type { Workspace, WorkspaceMessage } from "../viewModel/workspace";
 import { EmptyState } from "./EmptyState";
 import { OddsPanel, OddsPlaceholder } from "./OddsPanel";
-import { PathPanel } from "./PathPanel";
+import { PossiblePanel, type PathSubject } from "./PossiblePanel";
 import { Tabs, panelId, tabId, type TabItem } from "./Tabs";
 
 type AnalysisTab = "possible" | "likely";
@@ -36,9 +36,10 @@ interface AnalysisRailProps {
 
 export function AnalysisRail({ state, workspace, dispatch }: AnalysisRailProps) {
   const [tab, setTab] = useState<AnalysisTab>("possible");
-  // These live here, not in the panel, so they survive a switch to the other tab.
+  // These live here, not in the panels, so they survive a switch to the other tab.
   const [formPercent, setFormPercent] = useState(FORM_WEIGHT_DEFAULT);
   const [table, setTable] = useState<OddsTable>("wdc");
+  const [subject, setSubject] = useState<PathSubject>("wdc");
 
   const likely = tab === "likely";
   const hasLocks = Object.keys(workspace.scenario.locks).length > 0;
@@ -63,7 +64,17 @@ export function AnalysisRail({ state, workspace, dispatch }: AnalysisRailProps) 
           onFormPercent={setFormPercent}
         />
       ) : (
-        <PathPanel state={state} workspace={workspace} dispatch={dispatch} />
+        <PossiblePanel
+          state={state}
+          workspace={workspace}
+          dispatch={dispatch}
+          subject={subject}
+          onSubject={(next) => {
+            // A message about one table does not belong under the other.
+            dispatch({ type: "dismissNotice" });
+            setSubject(next);
+          }}
+        />
       )}
     </AnalysisFrame>
   );

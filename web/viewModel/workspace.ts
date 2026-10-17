@@ -5,6 +5,7 @@
 import { InvalidScenarioError, validateScenario, type Scenario, type SeasonState, type SessionKey } from "../../engine";
 import { defaultContenders, defaultFocus, defaultRival, sanitizeContenders, toggleContender } from "./contenders";
 import { applyLockAction, describeScenarioError, type LockContext, type LockPreset } from "./locks";
+import { defaultTeam } from "./teamPath";
 
 /** "contenders": only contenders can take a position. "all": any active driver can. */
 export type WorkspaceMode = "contenders" | "all";
@@ -13,6 +14,8 @@ export interface Notice {
   /** Where to show the message: under one session card, at the contender list, or in the Possible? panel. */
   scope: SessionKey | "contenders" | "path" | "strip";
   message: string;
+  /** "info": a remark after something worked (shown calmly). Otherwise the message says why something was refused. */
+  tone?: "info";
 }
 
 export interface Workspace {
@@ -21,6 +24,8 @@ export interface Workspace {
   mode: WorkspaceMode;
   /** The contender the "Contender wins" preset works on. Always one of `contenders`, or null. */
   focus: string | null;
+  /** The team the constructors' "Possible?" panel works on: any team of the season, or null if there is none. */
+  team: string | null;
   notice: Notice | null;
 }
 
@@ -35,12 +40,14 @@ export type WorkspaceMessage =
   /**
    * Replace the scenario with a ready-made one: the easiest path, a saved scenario, a shared link.
    * It must pass validateScenario. Contenders that come with it are applied if any can still win.
-   * `scope` says where a refusal is shown (default: the Possible? panel).
+   * `scope` says where a refusal is shown (default: the Possible? panel). `notice` is shown in the same place after a
+   * successful load, for example to say that not every contender fit.
    */
-  | { type: "loadScenario"; scenario: Scenario; contenders?: readonly string[]; scope?: "path" | "strip" }
+  | { type: "loadScenario"; scenario: Scenario; contenders?: readonly string[]; scope?: "path" | "strip"; notice?: string }
   | { type: "setMode"; mode: WorkspaceMode }
   | { type: "toggleContender"; driver: string }
   | { type: "setFocus"; driver: string }
+  | { type: "setTeam"; team: string }
   | { type: "dismissNotice" };
 
 export function initialWorkspace(state: SeasonState): Workspace {
@@ -50,6 +57,7 @@ export function initialWorkspace(state: SeasonState): Workspace {
     contenders,
     mode: "contenders",
     focus: defaultFocus(state, contenders),
+    team: defaultTeam(state),
     notice: null,
   };
 }
@@ -70,6 +78,9 @@ export function workspaceReducer(state: SeasonState, ws: Workspace, message: Wor
 
     case "setFocus":
       return ws.contenders.includes(message.driver) ? { ...ws, focus: message.driver, notice: null } : ws;
+
+    case "setTeam":
+      return state.teams.some((t) => t.id === message.team) ? { ...ws, team: message.team, notice: null } : ws;
 
     case "dismissNotice":
       return ws.notice ? { ...ws, notice: null } : ws;
@@ -93,7 +104,10 @@ export function workspaceReducer(state: SeasonState, ws: Workspace, message: Wor
       const wanted = message.contenders ? sanitizeContenders(state, message.contenders) : [];
       const contenders = wanted.length > 0 ? wanted : ws.contenders;
       const focus = contenders.includes(ws.focus ?? "") ? ws.focus : defaultFocus(state, contenders);
-      return { ...ws, scenario: message.scenario, contenders, focus, notice: null };
+      const notice: Notice | null = message.notice
+        ? { scope: message.scope ?? "path", message: message.notice, tone: "info" }
+        : null;
+      return { ...ws, scenario: message.scenario, contenders, focus, notice };
     }
 
     case "reset": {

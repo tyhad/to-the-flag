@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.9. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal; see `docs/PHASE_4.md` and `docs/MODEL.md`) is done. Phase 5 (WCC Path Solver) has a task list in `docs/PHASE_5.md` and has not started; Phases 6 and 7 are planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
+**Status:** DRAFT v0.9. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal; see `docs/PHASE_4.md` and `docs/MODEL.md`) is done. Phase 5 (WCC Path Solver; see `docs/PHASE_5.md`) is built; Phases 6 and 7 are planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -147,6 +147,8 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 - Difficulty meter: share of remaining points X must score (no probability wording).
 - Method: closed form from a dominance argument (the target driver winning every remaining session is never worse for the target), verified through the standings engine. Outputs: verdict, points needed, minimum wins, per-rival point budgets and pace limits, and an easiest-path witness scenario. Rival budgets are independent (joint feasibility is not checked). Exact only when at least 9 non-contender drivers exist (`exact` flag). DP is deferred.
 
+**F2b. Path Solver for constructors (Phase 5).** The same questions for the constructors' title: status per team (`clinched | alive | eliminated`), points needed, `minOneTwos` (the fewest one-twos, with P2 and P3 in the rest), per-rival budgets with pair pace limits, and an easiest-path witness scenario. Method: the team's active cars finishing P1 and P2 in every open session is never worse for the team, verified through the standings engine (ties by countback, both cars' finishes summed). Rival budgets are independent. Exact only when at least 8 active drivers on eliminated teams exist (`exact` flag). See D34 to D36.
+
 **F3. Odds (Monte Carlo).** Phase 3, separate from F2.
 - Season-only data in v1; `prior_carryover` parameter reserved for later seasons (default 0).
 - Finishing order via Plackett–Luce with driver strength estimated from this season's results, shrunk toward the mean (and optionally weighted toward recent rounds; the default is no decay, see D25); DNF as Bernoulli from this season's rate; strength uncertainty sampled per simulation.
@@ -179,7 +181,7 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 | 2. UI + feed (done; see `docs/PHASE_2.md`) | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
 | 3. Odds (done; see `docs/PHASE_3.md`, `docs/MODEL.md`) | F3, its UI tab, the odds feed, a backtest and a model card | Seeded runs are reproducible; win counts sum to the number of simulations; eliminated drivers never win; the low-confidence tag works; the backtest beats the uniform baseline (it does not beat "points so far"; see the model card) |
 | 4. Model v2 (done; see `docs/PHASE_4.md`, `docs/MODEL.md`) | History data (2022 to 2025), a multi-season calibration harness, a top-heavy pace fit, the grid signal, model versioning | v2 defaults are adopted only if they pass the protocol in `docs/PHASE_4.md` (D30); the grid signal is adopted or rejected with numbers; v1 stays reproducible |
-| 5. WCC Path Solver (see `docs/PHASE_5.md`) | Team status, team path (`minOneTwos`, rival budgets), CLI report, feed routes, status tags in the WCC table, a Constructors view in "Possible?" | Fresh-clone tests pass; invariants hold (someone can always be champion, clinched means all others out, `easiest` ranks its team first); the CLI, feed and UI agree with a hand calculation for one team |
+| 5. WCC Path Solver (done; see `docs/PHASE_5.md`) | Team status, team path (`minOneTwos`, rival budgets), CLI report, feed routes, status tags in the WCC table, a Constructors view in "Possible?" | Fresh-clone tests pass; invariants hold (someone can always be champion, clinched means all others out, `easiest` ranks its team first); the CLI, feed and UI agree with a hand calculation for one team |
 | 6. Access and ops (planned) | LAN mode with a write token, a one-command refresh script, PNG export | To be defined when the phase starts |
 | 7. Multi-season prior (planned) | `prior_carryover` using the history data | To be defined when the phase starts |
 
