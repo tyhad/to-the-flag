@@ -9,7 +9,7 @@ Personal, local-first tool: no accounts, no hosting.
 ## Current status
 Phases 0 (data, in the separate `F1GStats` repo), 1 (engine), 2 (API, web UI, overlay feed) and 3 (Monte Carlo odds: the "Likely?" tab, `/api/feed/odds`, the backtest and the model card) are done.
 Phase 4 (model v2: history data, calibration, grid signal) is done (`docs/PHASE_4.md`, results in `docs/MODEL.md`). v2 defaults include the grid (`gridWeight` 1, `qualifyingNoise` 2); v1 and v2 without the grid stay reproducible with parameters.
-Phase 5 (WCC Path Solver) is built on branch `phase-5-wcc` (`docs/PHASE_5.md`): team status and path in the engine, `bun run check` for teams, `/api/feed/team-status` and `/api/feed/team-path/:team`, status tags in the WCC table, and a Constructors view in "Possible?".
+Phase 5 (WCC Path Solver) is done and merged (PR #5) `phase-5-wcc` (`docs/PHASE_5.md`): team status and path in the engine, `bun run check` for teams, `/api/feed/team-status` and `/api/feed/team-path/:team`, status tags in the WCC table, and a Constructors view in "Possible?".
 Phases 6 (LAN mode, write token, small ops tools) and 7 (multi-season prior) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order
