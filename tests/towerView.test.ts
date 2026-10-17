@@ -66,7 +66,7 @@ describe("statusTag", () => {
     expect(statusTag({ status: "eliminated", inactive: true })).toEqual({ label: "not racing", tone: "inactive" });
   });
 
-  test("a constructor row has no status tag", () => {
+  test("a row with no status has no tag", () => {
     expect(statusTag(base)).toBeNull();
   });
 });
@@ -234,12 +234,12 @@ describe("buildTowerRows: WCC after a locked scenario", () => {
     expect(byId(rows, "red").pointsAdded).toBe(0);
   });
 
-  test("no status tag and no inactive flag on constructor rows", () => {
+  test("constructor rows are never inactive; each has a title status (details in towerWcc.test.ts)", () => {
+    // blue 124 against red 129 with 5:race (43) left: both can still win
     for (const r of rows) {
-      expect(r.status).toBeNull();
       expect(r.inactive).toBe(false);
       expect(r.eliminated).toBe(false);
-      expect(statusTag(r)).toBeNull();
+      expect(statusTag(r)).toEqual({ label: "Alive", tone: "alive" });
     }
   });
 

@@ -9,14 +9,18 @@ import {
   parseSessionKey,
   remainingSessions,
   sessionMaxPoints,
+  teamCars,
+  teamSessionMaxPoints,
+  teamStatus,
   type Scenario,
   type SeasonState,
+  type SessionKind,
   type TitleStatus,
 } from "../../engine";
 
 export type TowerTab = "wdc" | "wcc";
 
-/** The engine's title status, plus "longShot" for an alive driver who is far behind. */
+/** The engine's title status, plus "longShot" for an alive driver or team who is far behind. */
 export type TowerStatus = TitleStatus | "longShot";
 
 export interface TowerRow {
@@ -40,7 +44,7 @@ export interface TowerRow {
   points: number;
   /** Points the locks added: points - basePoints. */
   pointsAdded: number;
-  /** Title status for a driver who is racing; null for constructors and for inactive drivers. */
+  /** Title status for a driver who is racing or a team with an active car; null for inactive drivers and for teams with no active car. */
   status: TowerStatus | null;
   /** The driver is not in the latest round's results. */
   inactive: boolean;
@@ -49,9 +53,10 @@ export interface TowerRow {
 }
 
 /**
- * An alive driver is a "long shot" when the gap to the leader is at least this share of the points
- * still on offer in unlocked sessions. Two thirds: they would need to take two thirds of everything
- * left just to draw level, before the leader scores again. This is plain arithmetic, not a model.
+ * An alive driver or team is a "long shot" when the gap to the leader is at least this share of the points
+ * still on offer in unlocked sessions (for a team: the most a team can take, P1 + P2). Two thirds: they would
+ * need to take two thirds of everything left just to draw level, before the leader scores again. This is plain
+ * arithmetic, not a model.
  */
 export const LONG_SHOT_GAP_SHARE = 2 / 3;
 
@@ -88,22 +93,35 @@ const STATUS_LABELS: Record<TowerStatus, string> = {
   eliminated: "Eliminated",
 };
 
-/** The tag for a row, or null when the row has none (constructors). */
+/** The tag for a row, or null when the row has none (a team with no active car). */
 export function statusTag(row: Pick<TowerRow, "status" | "inactive">): StatusTagView | null {
   if (row.inactive) return { label: "not racing", tone: "inactive" };
   if (row.status === null) return null;
   return { label: STATUS_LABELS[row.status], tone: row.status };
 }
 
-/** Most points still available: every remaining session the scenario has not locked, at its maximum. */
-function pointsOnOffer(state: SeasonState, scenario: Scenario | undefined): number {
+/**
+ * Most points still available: every remaining session the scenario has not locked, at its maximum.
+ * `maxFor` is the most one driver (default) or one team can take in a session.
+ */
+function pointsOnOffer(
+  state: SeasonState,
+  scenario: Scenario | undefined,
+  maxFor: (kind: SessionKind) => number = sessionMaxPoints,
+): number {
   const locked = scenario?.locks ?? {};
   let total = 0;
   for (const key of remainingSessions(state)) {
     if (key in locked) continue;
-    total += sessionMaxPoints(parseSessionKey(key).kind);
+    total += maxFor(parseSessionKey(key).kind);
   }
   return total;
+}
+
+/** The tower status of a row that is racing: the engine's status, or "longShot" for an alive row far behind. */
+function towerStatus(title: TitleStatus, gapToLeader: number, remaining: number): TowerStatus {
+  const longShot = title === "alive" && remaining > 0 && gapToLeader / remaining >= LONG_SHOT_GAP_SHARE - 1e-9;
+  return longShot ? "longShot" : title;
 }
 
 /** The constructor each driver last scored for (their current team). */
@@ -136,11 +154,7 @@ function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRo
     const inactive = driver ? !driver.active : false;
     const gap = statuses.get(row.id)?.gapToLeader ?? 0;
     let status: TowerStatus | null = null;
-    if (!inactive) {
-      const title = statuses.get(row.id)?.status ?? "eliminated";
-      const longShot = title === "alive" && remaining > 0 && gap / remaining >= LONG_SHOT_GAP_SHARE - 1e-9;
-      status = longShot ? "longShot" : title;
-    }
+    if (!inactive) status = towerStatus(statuses.get(row.id)?.status ?? "eliminated", gap, remaining);
     return {
       id: row.id,
       label: row.id,
@@ -161,8 +175,19 @@ function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRo
 
 function constructorRows(state: SeasonState, scenario: Scenario | undefined): TowerRow[] {
   const names = new Map(state.teams.map((t) => [t.id, t.name]));
-  return computeConstructorStandings(state, scenario).map((row) => {
+  const table = computeConstructorStandings(state, scenario);
+  const statuses = new Map(teamStatus(state, scenario).map((s) => [s.team, s]));
+  const cars = teamCars(state);
+  const remaining = pointsOnOffer(state, scenario, teamSessionMaxPoints);
+
+  return table.map((row) => {
     const name = names.get(row.id) ?? row.id;
+    // A team with no active car gets no tag (the engine always counts it as eliminated).
+    let status: TowerStatus | null = null;
+    if ((cars.get(row.id)?.length ?? 0) > 0) {
+      const found = statuses.get(row.id);
+      status = towerStatus(found?.status ?? "eliminated", found?.gapToLeader ?? 0, remaining);
+    }
     return {
       id: row.id,
       label: name,
@@ -174,9 +199,9 @@ function constructorRows(state: SeasonState, scenario: Scenario | undefined): To
       basePoints: row.basePoints,
       points: row.points,
       pointsAdded: row.delta,
-      status: null,
+      status,
       inactive: false,
-      eliminated: false,
+      eliminated: status === "eliminated",
     };
   });
 }
