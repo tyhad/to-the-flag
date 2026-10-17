@@ -6,6 +6,8 @@ export * from "./sessions";
 export * from "./scenario";
 export * from "./standings";
 export * from "./status";
+export * from "./teams";
+export * from "./teamStatus";
 export * from "./solver";
 export * from "./report";
 export * from "./strength";
