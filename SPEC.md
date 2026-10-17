@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.8. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal; see `docs/PHASE_4.md` and `docs/MODEL.md`) is done; Phases 5 to 7 are planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
+**Status:** DRAFT v0.9. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal; see `docs/PHASE_4.md` and `docs/MODEL.md`) is done. Phase 5 (WCC Path Solver) has a task list in `docs/PHASE_5.md` and has not started; Phases 6 and 7 are planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -179,7 +179,7 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 | 2. UI + feed (done; see `docs/PHASE_2.md`) | F4 and F5, Finish Lane | The owner can lock sessions and see the table, status and path update in under ~100 ms on the client |
 | 3. Odds (done; see `docs/PHASE_3.md`, `docs/MODEL.md`) | F3, its UI tab, the odds feed, a backtest and a model card | Seeded runs are reproducible; win counts sum to the number of simulations; eliminated drivers never win; the low-confidence tag works; the backtest beats the uniform baseline (it does not beat "points so far"; see the model card) |
 | 4. Model v2 (done; see `docs/PHASE_4.md`, `docs/MODEL.md`) | History data (2022 to 2025), a multi-season calibration harness, a top-heavy pace fit, the grid signal, model versioning | v2 defaults are adopted only if they pass the protocol in `docs/PHASE_4.md` (D30); the grid signal is adopted or rejected with numbers; v1 stays reproducible |
-| 5. WCC Path Solver (planned) | "Possible?" for constructors | To be defined when the phase starts |
+| 5. WCC Path Solver (see `docs/PHASE_5.md`) | Team status, team path (`minOneTwos`, rival budgets), CLI report, feed routes, status tags in the WCC table, a Constructors view in "Possible?" | Fresh-clone tests pass; invariants hold (someone can always be champion, clinched means all others out, `easiest` ranks its team first); the CLI, feed and UI agree with a hand calculation for one team |
 | 6. Access and ops (planned) | LAN mode with a write token, a one-command refresh script, PNG export | To be defined when the phase starts |
 | 7. Multi-season prior (planned) | `prior_carryover` using the history data | To be defined when the phase starts |
 
@@ -204,16 +204,16 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D4 | Port and network | Default `PORT=3100`, `HOST=127.0.0.1`; LiveOverlay uses 3000; LAN mode deferred (see section 3) | Decided, LAN deferred |
 | D5 | Sprint partial points | None. Full table at ≥ 50% distance, otherwise 0 (FIA A2.2.2) | Resolved |
 | D6 | Countback | Races only, no sprints; level iv uses qualifying results (FIA A2.1.4.c) | Resolved |
-| D7 | Path Solver method | Closed form + engine-verified witness instead of DP (see section 8, F2) | Proposed |
-| D8 | Active driver rule | A driver is active if present in the latest completed round's Race or Sprint results | Proposed |
+| D7 | Path Solver method | Closed form + engine-verified witness instead of DP (see section 8, F2) | Decided |
+| D8 | Active driver rule | A driver is active if present in the latest completed round's Race or Sprint results | Decided |
 | D9 | Web framework | React 19 + TypeScript bundled by Bun; no extra state library | Approved |
-| D10 | Where the engine runs in the UI | In the browser, from one `SeasonState` snapshot | Proposed |
-| D11 | Scenario persistence | Server-side `to-the-flag.sqlite` (env `TTF_DB`) plus share link | Proposed |
+| D10 | Where the engine runs in the UI | In the browser, from one `SeasonState` snapshot | Decided |
+| D11 | Scenario persistence | Server-side `to-the-flag.sqlite` (env `TTF_DB`) plus share link | Decided |
 | D12 | Team colors | `web/theme/teams.ts` keyed by Ergast `constructorId`: 11 teams, owner `brand` colors plus contrast-safe `display` colors | Verified: all 11 constructor ids in the 2026 data have an entry |
-| D13 | "Long shot" tag | An alive driver whose gap to the leader is at least two thirds of the points still on offer in unlocked sessions (`LONG_SHOT_GAP_SHARE` in `web/viewModel/tower.ts`). Arithmetic, not a model | Proposed |
-| D14 | Difficulty meter | The share of the remaining points a driver needs to take the lead (to clinch, for the leader). Bands: up to 0.40 green, up to 0.75 yellow, above orange (`web/config.ts`). Never shown as a probability | Proposed |
+| D13 | "Long shot" tag | An alive driver whose gap to the leader is at least two thirds of the points still on offer in unlocked sessions (`LONG_SHOT_GAP_SHARE` in `web/viewModel/tower.ts`). Arithmetic, not a model | Decided |
+| D14 | Difficulty meter | The share of the remaining points a driver needs to take the lead (to clinch, for the leader). Bands: up to 0.40 green, up to 0.75 yellow, above orange (`web/config.ts`). Never shown as a probability | Decided |
 | D15 | Finish Lane line | The leader's clinch total: the best rival's ceiling plus one, equal to the leader's points plus `pointsToClinch`. Axis in whole tens with a margin; lanes are the contenders | Decided |
-| D16 | Presets and `out` | *Contender wins* puts the focus contender on P1; *Rival out* marks the best-placed other driver out; `out` scores nothing, the same as not being selected | Proposed |
+| D16 | Presets and `out` | *Contender wins* puts the focus contender on P1; *Rival out* marks the best-placed other driver out; `out` scores nothing, the same as not being selected | Decided |
 | D17 | Share link | `#s=<code>&r=<round>`; `shared/shareCodec` is unchanged; a link from another round imports with a warning | Decided |
 | D18 | Stale scenarios | `PUT /api/scenarios/:id` keeps `as_of_round`, so a stale scenario stays stale after saving. Decided: saving changed locks or contenders refreshes `as_of_round` to the current round (renaming does not). Done in Phase 3, Step 1 | Done |
 | D19 | Type role `note` | 14px for sentences the audience must read. `caption` (13px) is for hints only | Decided |
@@ -226,8 +226,11 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D26 | An active scenario that no longer fits the season | `GET /api/feed/odds` ignores it and returns the base odds with `scenario: null`, so a live overlay keeps working. The UI says in plain words that the locks do not fit | Decided |
 | D27 | What "Likely?" lists | Drivers who are alive get a bar (`<1%` for a long shot); a clinched driver and the count of drivers who are out are stated in words. The teams' table lists teams that won at least one simulated season | Decided |
 | D28 | Change against the odds without locks | Whole percentage points ("▲ 12 pp"). It reads "●" when the shown values are equal, when it rounds to 0, or when it is smaller than two standard errors of the difference (two runs of the model never agree exactly). Bar colors follow the number shown, not the raw estimate | Decided |
-| D29 | History data | Seasons 2022 to 2025 fetched with F1GStats into `../F1GStats/history/f1gstats-<season>.sqlite`, not committed, used only by scripts to evaluate and tune | Proposed |
-| D30 | Evaluation protocol | Tune on 2022 to 2024, validate on 2025, confirm once on 2026. Adopt a change only if it beats the current model by more than 2 standard errors and at least 0.005 per race on the validation season, improves at least 3 of 4 history seasons, and is not worse than 1 standard error on 2026 or on rounds 3 to 5 | Proposed |
-| D31 | Model versioning | `MODEL_VERSION` (`v1`, `v2`) in `OddsResult` and the feed; v1 stays reproducible with parameters | Proposed |
-| D32 | Roadmap after Phase 4 | Phase 5 WCC Path Solver, Phase 6 LAN mode + write token + small ops tools, Phase 7 multi-season prior; the owner may reorder | Proposed |
-| D33 | Grid in the odds model | The starting grid enters a race as `gridWeight * (-ln(grid place))` added to a driver's strength. Adopted at `gridWeight` 1 by the D30 protocol (`docs/MODEL.md`, Step 7). The season simulation uses the real grid of the next race when the data has one (`SeasonState.upcomingGrid`) and a simulated qualifying order (`qualifyingNoise` 2, fitted on 2022 to 2024) for later races. `gridWeight` 0 gives v2 without the grid; v1 stays reproducible with both at 0 | Proposed |
+| D29 | History data | Seasons 2022 to 2025 fetched with F1GStats into `../F1GStats/history/f1gstats-<season>.sqlite`, not committed, used only by scripts to evaluate and tune | Approved |
+| D30 | Evaluation protocol | Tune on 2022 to 2024, validate on 2025, confirm once on 2026. Adopt a change only if it beats the current model by more than 2 standard errors and at least 0.005 per race on the validation season, improves at least 3 of 4 history seasons, and is not worse than 1 standard error on 2026 or on rounds 3 to 5 | Approved |
+| D31 | Model versioning | `MODEL_VERSION` (`v1`, `v2`) in `OddsResult` and the feed; v1 stays reproducible with parameters | Approved |
+| D32 | Roadmap after Phase 4 | Phase 5 WCC Path Solver, Phase 6 LAN mode + write token + small ops tools, Phase 7 multi-season prior; the owner may reorder | Approved |
+| D33 | Grid in the odds model | The starting grid enters a race as `gridWeight * (-ln(grid place))` added to a driver's strength. Adopted at `gridWeight` 1 by the D30 protocol (`docs/MODEL.md`, Step 7). The season simulation uses the real grid of the next race when the data has one (`SeasonState.upcomingGrid`) and a simulated qualifying order (`qualifyingNoise` 2, fitted on 2022 to 2024) for later races. `gridWeight` 0 gives v2 without the grid; v1 stays reproducible with both at 0 | Approved |
+| D34 | What a team "wins" and the baseline | A one-two (both active cars P1 and P2); the baseline when it does not win is P2 and P3. Measure: `minOneTwos`. A rival team's pace limit is the best pair of places it may take in every session (P3-P4, P5-P6, P7-P8, P9-P10, or outside the points) | Approved |
+| D35 | WCC solver in the UI | A "Drivers / Constructors" switch inside "Possible?" (default Drivers); the WCC table gets the same status tags as the WDC table | Approved |
+| D36 | WCC feed | New routes `/api/feed/team-status` and `/api/feed/team-path/:team`; existing routes do not change | Approved |

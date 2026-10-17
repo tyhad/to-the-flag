@@ -9,7 +9,8 @@ Personal, local-first tool: no accounts, no hosting.
 ## Current status
 Phases 0 (data, in the separate `F1GStats` repo), 1 (engine), 2 (API, web UI, overlay feed) and 3 (Monte Carlo odds: the "Likely?" tab, `/api/feed/odds`, the backtest and the model card) are done.
 Phase 4 (model v2: history data, calibration, grid signal) is done (`docs/PHASE_4.md`, results in `docs/MODEL.md`). v2 defaults include the grid (`gridWeight` 1, `qualifyingNoise` 2); v1 and v2 without the grid stay reproducible with parameters.
-Phases 5 (WCC Path Solver), 6 (LAN mode, write token, small ops tools) and 7 (multi-season prior) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
+Phase 5 (WCC Path Solver) has a task list: `docs/PHASE_5.md`. Do not start it until the owner says so; then follow it step by step.
+Phases 6 (LAN mode, write token, small ops tools) and 7 (multi-season prior) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.
@@ -17,6 +18,7 @@ Phases 5 (WCC Path Solver), 6 (LAN mode, write token, small ops tools) and 7 (mu
 3. `docs/PHASE_2.md` and `docs/PHASE_1.md` describe the finished web UI, feed and engine; read them for behavior and limits. `docs/FEED.md` documents the overlay feed.
 4. `docs/PHASE_3.md` (the odds task list, as built) and `docs/MODEL.md` (the model card: parameters, backtest results, limits). Read `docs/MODEL.md` before changing anything in the odds model.
 5. `docs/PHASE_4.md`: the model v2 task list, including the evaluation protocol and the adoption rule.
+6. `docs/PHASE_5.md`: the WCC Path Solver task list.
 
 If code and documents disagree, follow the documents and ask the owner.
 
