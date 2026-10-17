@@ -296,6 +296,128 @@ Returns projected WDC and WCC tables under the current active scenario (or base 
 
 ---
 
+### 6. `GET /api/feed/team-status`
+
+Returns the constructors' title status of every team (`clinched`, `alive` or `eliminated`), exact and model-free, like
+`/api/feed/status` does for drivers. Rows come in projected table order. The route follows the **active scenario**; an
+active scenario that no longer fits the season is ignored (as for `/api/feed/odds`), so the feed keeps working.
+
+**Example Response** (shortened):
+```json
+{
+  "updated_at": "2026-10-07T02:06:22Z",
+  "as_of_round": 16,
+  "data_status": "ok",
+  "season": 2026,
+  "scenario": null,
+  "rows": [
+    {
+      "rank": 1,
+      "team": "mercedes",
+      "name": "Mercedes",
+      "points": 556,
+      "status": "alive",
+      "max_possible": 872,
+      "gap_to_leader": 0,
+      "points_to_clinch": 166
+    },
+    {
+      "rank": 2,
+      "team": "ferrari",
+      "name": "Ferrari",
+      "points": 405,
+      "status": "alive",
+      "max_possible": 721,
+      "gap_to_leader": 151,
+      "points_to_clinch": 468
+    }
+  ],
+  "top1_rank": 1,
+  "top1_team": "mercedes",
+  "top1_name": "Mercedes",
+  "top1_points": 556,
+  "top1_status": "alive",
+  "top1_max_possible": 872,
+  "top1_gap_to_leader": 0,
+  "top1_points_to_clinch": 166,
+  "top2_rank": 2,
+  "top2_team": "ferrari"
+}
+```
+
+**Fields**
+
+- `scenario`: `{ id, name }` of the active scenario, or `null`.
+- Row fields use snake_case: `rank`, `team` (constructor id), `name`, `points` (including the scenario's locked
+  sessions), `status`, `max_possible` (points if the team's two cars finished 1-2 in every open session; a team with one
+  active car can only score for P1), `gap_to_leader`, and `points_to_clinch`.
+- `points_to_clinch` is `0` when clinched and `null` when eliminated. Otherwise it is the points the team must hold to be
+  safe against every rival scoring the maximum from here (conservative).
+- A team with no active driver is always `eliminated`.
+- Flattened fields for places 1 to 10: `top1_*` to `top10_*`, one per row field (for example `top2_team`,
+  `top2_status`, `top2_points_to_clinch`). A place with no team is empty (`""`, `0`, `null` for `points_to_clinch`)
+  rather than missing, and `rank` holds the place number.
+
+**Errors:** HTTP 503 with `error` and `message` when the season data is missing or invalid, like the other routes.
+
+---
+
+### 7. `GET /api/feed/team-path/:team`
+
+Returns the path to the constructors' title (`TeamPathResult`) for one team, by constructor id, case-insensitive
+(for example `/api/feed/team-path/ferrari`). An unknown id returns HTTP 404. A team that is `eliminated` is a normal
+answer (HTTP 200) with the path fields set to `null`. The route follows the active scenario, like `team-status`.
+
+**Example Response** (shortened):
+```json
+{
+  "updated_at": "2026-10-07T02:06:22Z",
+  "as_of_round": 16,
+  "data_status": "ok",
+  "season": 2026,
+  "scenario": null,
+  "team": "red_bull",
+  "verdict": "alive",
+  "exact": true,
+  "points": 298,
+  "maxPossible": 614,
+  "pointsNeeded": 259,
+  "difficulty": 0.819620253164557,
+  "minOneTwos": { "total": 2, "races": 2, "sprints": 0 },
+  "rivalBudgets": [
+    { "team": "mercedes", "budget": 57, "paceLimit": 9 },
+    { "team": "ferrari", "budget": 208, "paceLimit": 3 },
+    { "team": "mclaren", "budget": 297, "paceLimit": 3 }
+  ],
+  "easiest": {
+    "locks": {
+      "17:race": { "fixed": { "VER": 1, "HAD": 2 } },
+      "18:race": { "fixed": { "VER": 1, "HAD": 2 } }
+    }
+  }
+}
+```
+
+**Fields** (the result fields keep the camelCase names of `/api/feed/path/:driver`)
+
+- `verdict`: the same as the team's `status` in `team-status`.
+- `exact`: `true` when at least 8 active drivers on eliminated teams exist to fill the points positions behind a
+  one-two. When `false` the numbers are an estimate and should say so.
+- `pointsNeeded`: highest other team's points minus this team's points plus 1, at least 0. `null` when eliminated.
+- `difficulty`: `pointsNeeded` divided by what the team can still score, from 0 to 1. `null` when eliminated.
+- `minOneTwos`: the fewest one-twos (both cars P1 and P2) in the open sessions, races first and then sprints, with P2
+  and P3 in the rest, if every rival scores nothing. `null` when eliminated.
+- `rivalBudgets`: only while the team is not eliminated. If the team finishes 1-2 in every open session, each rival
+  that is not eliminated may score at most `budget` more points. `paceLimit` is the first place of the best pair the
+  rival may take in every session: `3` (P3-P4), `5`, `7`, `9`, or `11` for outside the points. `null` means the
+  budget is negative: the team cannot be beaten this way. Rival budgets are independent of each other.
+- `easiest`: the `minOneTwos` scenario, merged with the active scenario, ready to load into the sandbox. `null` when
+  eliminated.
+
+**Errors:** HTTP 404 `{ "error": "not_found", ... }` for an unknown team id; HTTP 503 like the other routes.
+
+---
+
 ## LiveOverlay Binding Guide
 
 To bind fields from To the Flag into LiveOverlay Studio:
@@ -308,3 +430,7 @@ To bind fields from To the Flag into LiveOverlay Studio:
    - Leader points: `top1_points` or `top1_wdc_points`
    - Leader team: `top1_wcc_team`
    - Active Scenario name: `scenario.name`
+5. For the constructors' title, bind `/api/feed/team-status`:
+   - Leader team: `top1_team` (id) and `top1_name`
+   - Leader status: `top1_status`
+   - Second place: `top2_team`, `top2_points`, `top2_gap_to_leader`

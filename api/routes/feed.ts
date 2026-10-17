@@ -5,9 +5,12 @@
 import { Elysia } from "elysia";
 import { computeOdds, type OddsResult } from "../../engine/odds";
 import type { OddsParams } from "../../engine/simulate";
+import type { SeasonState } from "../../engine/types";
 import { computeDriverStandings, computeConstructorStandings } from "../../engine/standings";
 import { driverStatus } from "../../engine/status";
 import { solveWdc } from "../../engine/solver";
+import { solveWcc } from "../../engine/teamSolver";
+import { teamStatus } from "../../engine/teamStatus";
 import type { ScenarioDatabase } from "../db";
 import { OddsCache, buildOddsPayload, oddsCacheKey } from "../oddsFeed";
 import type { SeasonLoader } from "../seasonLoader";
@@ -33,6 +36,30 @@ function flattenTopN(prefix: string, items: any[], n = 10): Record<string, any> 
   return result;
 }
 
+/** One row of /api/feed/team-status. Snake_case keys, as the odds feed uses. */
+interface TeamStatusFeedRow {
+  rank: number;
+  team: string;
+  name: string;
+  points: number;
+  status: string;
+  max_possible: number;
+  gap_to_leader: number;
+  points_to_clinch: number | null;
+}
+
+/** top1_* .. top10_* for the team status rows. A place with no team is empty ("", 0, null), never missing. */
+function flattenTeamStatus(rows: TeamStatusFeedRow[], n = 10): Record<string, string | number | null> {
+  const result: Record<string, string | number | null> = {};
+  for (let i = 1; i <= n; i++) {
+    const row: TeamStatusFeedRow = rows[i - 1] ?? {
+      rank: i, team: "", name: "", points: 0, status: "", max_possible: 0, gap_to_leader: 0, points_to_clinch: null,
+    };
+    for (const [key, val] of Object.entries(row)) result[`top${i}_${key}`] = val;
+  }
+  return result;
+}
+
 function computeEtag(content: string): string {
   let hash = 0;
   for (let i = 0; i < content.length; i++) {
@@ -46,6 +73,14 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
   // Simulating takes a few hundred milliseconds, so each result is kept until the season file, the scenario or the
   // parameters change. The scenario's updated_at is its version.
   const oddsCache = new OddsCache<OddsResult>();
+
+  // The team routes follow the active scenario. One that no longer fits the season (for example a locked session
+  // has since been run) is ignored, so a live overlay keeps working (D26).
+  const activeScenario = (state: SeasonState) => {
+    const activeId = db.getActiveScenarioId();
+    const stored = activeId ? db.getScenarioById(activeId, state) : null;
+    return stored && stored.valid ? stored : null;
+  };
 
   return new Elysia({ prefix: "/api/feed" })
     .onBeforeHandle(({ set }) => {
@@ -155,6 +190,76 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
         as_of_round: state.asOfRound,
         data_status: state.health.status,
         season: state.season,
+        ...pathResult,
+      };
+
+      const jsonStr = JSON.stringify(payload);
+      set.headers["etag"] = computeEtag(jsonStr);
+      return payload;
+    })
+
+    .get("/team-status", ({ set }) => {
+      const seasonRes = loader.getSeason();
+      if (!seasonRes.ok) {
+        set.status = seasonRes.statusCode;
+        return { error: seasonRes.error, message: seasonRes.message };
+      }
+      const { state } = seasonRes.data;
+      const scenario = activeScenario(state);
+      const teamNames = new Map(state.teams.map((t) => [t.id, t.name]));
+
+      const rows: TeamStatusFeedRow[] = teamStatus(state, scenario ? { locks: scenario.locks } : undefined).map(
+        (r, i) => ({
+          rank: i + 1,
+          team: r.team,
+          name: teamNames.get(r.team) ?? r.team,
+          points: r.points,
+          status: r.status,
+          max_possible: r.maxPossible,
+          gap_to_leader: r.gapToLeader,
+          points_to_clinch: r.pointsToClinch,
+        }),
+      );
+
+      const payload = {
+        updated_at: state.health.checkedAt,
+        as_of_round: state.asOfRound,
+        data_status: state.health.status,
+        season: state.season,
+        scenario: scenario ? { id: scenario.id, name: scenario.name } : null,
+        rows,
+        ...flattenTeamStatus(rows, 10),
+      };
+
+      const jsonStr = JSON.stringify(payload);
+      set.headers["etag"] = computeEtag(jsonStr);
+      return payload;
+    })
+
+    .get("/team-path/:team", ({ params, set }) => {
+      const seasonRes = loader.getSeason();
+      if (!seasonRes.ok) {
+        set.status = seasonRes.statusCode;
+        return { error: seasonRes.error, message: seasonRes.message };
+      }
+      const { state } = seasonRes.data;
+
+      const id = params.team.toUpperCase();
+      const teamInfo = state.teams.find((t) => t.id.toUpperCase() === id);
+      if (!teamInfo) {
+        set.status = 404;
+        return { error: "not_found", message: `Team "${params.team}" not found` };
+      }
+
+      const scenario = activeScenario(state);
+      const pathResult = solveWcc(state, teamInfo.id, scenario ? { locks: scenario.locks } : undefined);
+
+      const payload = {
+        updated_at: state.health.checkedAt,
+        as_of_round: state.asOfRound,
+        data_status: state.health.status,
+        season: state.season,
+        scenario: scenario ? { id: scenario.id, name: scenario.name } : null,
         ...pathResult,
       };
 
