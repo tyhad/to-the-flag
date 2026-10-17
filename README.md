@@ -14,8 +14,8 @@ Set results for the remaining sessions and watch the table, the title status and
 ## What you can do
 - **Lock sessions.** Open a session card, lock it, and pick finishing positions. Drivers you do not pick score 0 in that session. Presets: *Contender wins*, *Rival out*, *Clear*.
 - **Follow contenders.** Five by default, up to eight. In *Contenders* mode only they can take a position; *All drivers* mode offers everyone still racing.
-- **Read the table.** Projected WDC and WCC with the change in places and points, and a status tag for each driver (clinched, alive, long shot, eliminated).
-- **Ask what it takes.** *Possible?* shows what a contender needs to win the title, with a difficulty meter (a share of the remaining points, never a probability) and the easiest path, which you can load into the sandbox.
+- **Read the table.** Projected WDC and WCC with the change in places and points, and a status tag for each driver and each team (clinched, alive, long shot, eliminated). A team with no active car has no tag.
+- **Ask what it takes.** *Possible?* shows what a contender needs to win the title, with a difficulty meter (a share of the remaining points, never a probability) and the easiest path, which you can load into the sandbox. Switch to *Constructors* for the same question about a team: the points it needs, the fewest one-twos (both cars P1 and P2) it needs if every rival scores nothing, and what each rival may still score if the team finishes 1-2 everywhere.
 - **See the gap.** The finish lane shows each contender's projected points, the most they can reach, and the total at which the leader clinches.
 - **Keep scenarios.** Save, rename, delete and compare scenarios, copy a share link, and show one on the overlay.
 - **Ask what is likely.** *Likely?* shows model odds for the drivers' and the teams' title, from 10,000 simulated seasons. With locked sessions it also shows the change against the odds with nothing locked. The slider sets how much this season's form counts (0% makes all drivers equal). The numbers are always labelled *Model estimate*; clinched and eliminated drivers are stated in words, and a simulation never shows `0%` or `100%`. How the model works, how it was tested and what it cannot do: [`docs/MODEL.md`](docs/MODEL.md).
@@ -30,7 +30,7 @@ Set results for the remaining sessions and watch the table, the title status and
 | `bun run build` | Bundle the web UI into `dist/` (minified) |
 | `bun test` | Run all tests |
 | `bun run typecheck` | Type-check the whole project (`tsc --noEmit`) |
-| `bun run check` | Print season status and paths from the real data file |
+| `bun run check` | Print season status and paths, for drivers and for constructors, from the real data file. `-- --driver CODE` or `-- --team ID` limits the path blocks to one; `-- --json` prints everything as JSON |
 | `bun scripts/verifyStandings.ts [db]` | Check the engine's base table equals F1GStats `driver_standings` (order and points) |
 | `bun scripts/statusReport.ts [db]` | Print the title status table (clinched / alive / eliminated) from the real data |
 | `bun scripts/exportFixture.ts <db> <out.json>` | Snapshot the loaded season as a JSON test fixture |
@@ -52,7 +52,7 @@ Copy `.env.example` to `.env` and adjust. All values are optional.
 | `HOST` | `127.0.0.1` | Server host. Keep it local: there is no login |
 
 ## Overlay feed
-The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio or any streaming tool, for example `http://127.0.0.1:3100/api/feed/active-scenario`. Routes, fields and binding steps are in [`docs/FEED.md`](docs/FEED.md). `/api/feed/odds` serves the model odds for the active scenario (or the base season), cached until the data or the scenario changes.
+The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio or any streaming tool, for example `http://127.0.0.1:3100/api/feed/active-scenario`. Routes, fields and binding steps are in [`docs/FEED.md`](docs/FEED.md). `/api/feed/odds` serves the model odds for the active scenario (or the base season), cached until the data or the scenario changes. `/api/feed/team-status` and `/api/feed/team-path/:team` serve the constructors' title status and path for the active scenario.
 
 ## Share links
 *Copy link* puts the scenario in the address after a `#`, for example `http://127.0.0.1:3100/#s=v1.…&r=16`. Opening it imports the scenario and checks it against the current data. If it was made at an earlier round, you get a warning that results may differ. Nothing is sent to a server.

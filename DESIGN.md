@@ -101,7 +101,7 @@ Fixed-viewport app, designed for a 1920×1080 screen-share and usable at 1280 wi
 
 **Tower row.** `s1` row, 40px, 3px team strip at left, position (data), driver code (title), points `current → projected` (data), delta chip, status tag. Selected row = `s2` + 2px `accent` left border. Eliminated row = `text-3` + line-through.
 
-**Status tag.** Chamfered, filled, `s0` text, sentence case. Clinched = purple (+ glow). Alive = green. Long shot = yellow. Eliminated = no fill, `text-3`.
+**Status tag.** Chamfered, filled, `s0` text, sentence case. Clinched = purple (+ glow). Alive = green. Long shot = yellow. Eliminated = no fill, `text-3`. Driver rows and team rows use the same tags; a team with no active car has none.
 
 **Delta chip.** `▲ 12` in green or `▼ 8` in red, `data` size. Zero shows `●` in `text-3`.
 
@@ -111,7 +111,7 @@ Fixed-viewport app, designed for a 1920×1080 screen-share and usable at 1280 wi
 
 **Position picker.** Slots P1–P10 (Race) or P1–P8 (Sprint) as a vertical list. Contender mode: only contenders are assignable; each slot accepts one driver; a driver can be marked "out" (no points / DNF). Quick presets above the picker: "Contender wins", "Rival out", "Clear".
 
-**Path card ("Possible?").** Title is the verdict in plain words. Body: minimum conditions, easiest path, only-path (extreme). A difficulty meter shows the share of remaining points needed, colored green → yellow → orange. No percentages implying probability.
+**Path card ("Possible?").** Title is the verdict in plain words. Body: minimum conditions, easiest path, only-path (extreme). A difficulty meter shows the share of remaining points needed, colored green → yellow → orange. No percentages implying probability. A Drivers / Constructors switch (tabs) at the top of the tab chooses the title; the constructors' card has the same layout, with one-twos in place of wins.
 
 **Odds panel ("Likely?").** Probability bars per contender, delta vs the base scenario, "as of Round N", and a visible `low confidence` tag early in the season.
 

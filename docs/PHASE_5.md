@@ -1,5 +1,7 @@
 # Phase 5: WCC Path Solver ("Possible?" for constructors)
 
+   **Status: built on `phase-5-wcc` (all eight steps). Next: open the pull request `phase-5-wcc` → `main` and merge.**
+
 Branch: `phase-5-wcc`. One commit per step. Tests first wherever there is logic. Read `docs/PHASE_1.md` (the driver solver this copies), `SPEC.md` (sections 4, 8 F2, 9, 12), `DESIGN.md`, `docs/PHASE_2.md` (UI and feed) and `AGENTS.md`.
 
 **Scope:** the same exact, model-free answers the driver title already has, for the constructors' title: status, a path (what has to happen), a CLI report, feed routes, status tags in the WCC table, and a "Constructors" view in the "Possible?" tab.
@@ -170,3 +172,12 @@ Then open a pull request `phase-5-wcc` → `main` and merge.
 - `exact` needs at least 8 active drivers on eliminated teams (a race has eight places behind a one-two). Early in the season the result is optimistic and says so.
 - Teams with one active car are handled, but a rival's pace ladder always assumes two cars.
 - Drivers' points from a locked session go to their latest team (as in the standings), so a team change after the last completed round is not modeled.
+
+## As built: details that add to the plan
+
+- **Engine.** `engine/teams.ts` (`teamCars`, `teamSessionMax`, `teamWitnessScenario`), `engine/teamStatus.ts` (`teamStatus`) and `engine/teamSolver.ts` (`solveWcc`, `teamPaceLimit`). A team with no active car is always eliminated and its witness adds nothing. `exact` counts the active drivers on the *other* teams that are eliminated. For an eliminated team `rivalBudgets` is empty (the other path fields are `null`).
+- **CLI.** `bun run check` prints the WCC table and a path block per team still in the fight; `-- --team ID` (any team id, case-insensitive) limits the blocks to one team and `--json` carries `wcc` and `teamPaths`. `--driver` and `--team` are independent.
+- **Feed.** Both team routes follow the active scenario and ignore one that no longer fits the season (D26). They also return `scenario` (`{ id, name }` or `null`) so an overlay can tell which scenario the numbers belong to. `/api/feed/status` and `/api/feed/path/:driver` still do not read the active scenario (D36: existing routes do not change).
+- **WCC table tags.** The long shot rule is the driver rule with the team maxima (43 per race, 15 per sprint) as the points on offer. A team with no active car has no tag and is not struck through.
+- **"Possible?".** The Drivers / Constructors choice lives in `AnalysisRail`, so it survives a visit to "Likely?"; the chosen team lives in the workspace. Loading a team's path adds its cars to the contender list as far as they fit. A car that can no longer win the drivers' title is not added (the picker still shows anyone who has a position). When the list is full, the path still loads and a calm note names who was not added (`Notice.tone: "info"`). The panel has no "Easiest path is loaded" state: loading locks every open session, so the team has then clinched in the sandbox and the button gives way to that sentence.
+- **Tests.** `teamCars`, `teamStatus`, `teamSolver`, `checkTeams`, `teamFeed`, `towerWcc`, `teamPathView` and `teamPathPanelMarkup`, plus `teamInvariants` (the four invariants on seeded random scenarios of the Round 16 season).
