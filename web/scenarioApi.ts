@@ -6,19 +6,44 @@ import {
   parseScenarioList,
   type SavedScenario,
 } from "./viewModel/scenarios";
+import type { AccessPayload } from "./viewModel/access";
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; message: string };
 
 const UNEXPECTED = "The server sent something unexpected. Try again.";
 
+let apiToken: string | null = null;
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setApiToken(token: string | null): void {
+  apiToken = token;
+}
+
+export function getApiToken(): string | null {
+  return apiToken;
+}
+
+export function setOnUnauthorized(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 async function call(method: string, url: string, payload?: unknown): Promise<{ status: number | null; ok: boolean; body: unknown }> {
   try {
+    const headers: Record<string, string> = {};
+    if (payload !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
+    if (apiToken) {
+      headers["Authorization"] = `Bearer ${apiToken}`;
+    }
     const res = await fetch(url, {
       method,
-      ...(payload !== undefined
-        ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
-        : {}),
+      headers,
+      ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
     });
+    if (res.status === 401 && unauthorizedHandler) {
+      unauthorizedHandler();
+    }
     const body: unknown = await res.json().catch(() => null);
     return { status: res.status, ok: res.ok, body };
   } catch {
@@ -37,6 +62,24 @@ export interface ScenarioInput {
 }
 
 export const scenarioApi = {
+  async checkAccess(tokenOverride?: string | null): Promise<ApiResult<AccessPayload>> {
+    const presented = tokenOverride !== undefined ? tokenOverride : apiToken;
+    const headers: Record<string, string> = {};
+    if (presented) {
+      headers["Authorization"] = `Bearer ${presented}`;
+    }
+    try {
+      const res = await fetch("/api/access", { headers });
+      if (!res.ok) {
+        return { ok: false, message: "Could not check access" };
+      }
+      const data = (await res.json()) as AccessPayload;
+      return { ok: true, data };
+    } catch {
+      return { ok: false, message: "Could not reach server" };
+    }
+  },
+
   async list(): Promise<ApiResult<SavedScenario[]>> {
     const r = await call("GET", "/api/scenarios");
     if (!r.ok) return fail(r);
