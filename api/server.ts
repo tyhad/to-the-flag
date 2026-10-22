@@ -24,6 +24,10 @@ export interface ServerOptions {
   scenarioDb?: ScenarioDatabase;
   /** Model parameters for GET /api/feed/odds; the defaults of `defaultOddsParams` otherwise. */
   oddsParams?: Partial<OddsParams>;
+  /** Secret write token (TTF_WRITE_TOKEN); empty/undefined means local-only writing. */
+  token?: string | null;
+  /** Injectable client IP resolver for tests; defaults to reading server.requestIP(request). */
+  clientIp?: (request: Request) => string | null;
 }
 
 export function createApp(options?: ServerOptions) {
@@ -31,6 +35,8 @@ export function createApp(options?: ServerOptions) {
   const ttfDbPath = options?.ttfDbPath ?? config.ttfDb;
   const loader = options?.loader ?? new SeasonLoader(dbPath);
   const scenarioDb = options?.scenarioDb ?? new ScenarioDatabase(ttfDbPath);
+  const token = options?.token !== undefined ? options.token : process.env.TTF_WRITE_TOKEN;
+  const clientIp = options?.clientIp;
 
   const app = new Elysia();
 
@@ -75,7 +81,7 @@ export function createApp(options?: ServerOptions) {
     return state;
   });
 
-  app.use(createScenarioRoutes(loader, scenarioDb));
+  app.use(createScenarioRoutes(loader, scenarioDb, { token, clientIp }));
   app.use(createFeedRoutes(loader, scenarioDb, options?.oddsParams));
 
   return app;

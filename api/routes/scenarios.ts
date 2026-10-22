@@ -5,9 +5,15 @@ import { Elysia } from "elysia";
 import { InvalidScenarioError } from "../../engine/scenario";
 import type { ScenarioDatabase } from "../db";
 import type { SeasonLoader } from "../seasonLoader";
+import { writeGuard, type GuardOptions } from "../guard";
 
-export function createScenarioRoutes(loader: SeasonLoader, db: ScenarioDatabase) {
+export function createScenarioRoutes(
+  loader: SeasonLoader,
+  db: ScenarioDatabase,
+  guardOptions?: GuardOptions,
+) {
   return new Elysia()
+    .use(writeGuard(guardOptions))
     .get("/api/scenarios", ({ set }) => {
       const seasonRes = loader.getSeason();
       if (!seasonRes.ok) {
