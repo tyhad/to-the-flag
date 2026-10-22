@@ -10,6 +10,8 @@ export interface Config {
   ttfDb: string;
   port: number;
   host: string;
+  /** Secret token required for write routes when host is not loopback. */
+  writeToken: string;
 }
 
 export const DEFAULTS = {
@@ -17,6 +19,7 @@ export const DEFAULTS = {
   ttfDb: "./to-the-flag.sqlite",
   port: 3100,
   host: "127.0.0.1",
+  writeToken: "",
 } as const;
 
 function parsePort(raw: string | undefined): number {
@@ -38,6 +41,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     ttfDb: nonEmpty(env.TTF_DB, DEFAULTS.ttfDb),
     port: parsePort(env.PORT),
     host: nonEmpty(env.HOST, DEFAULTS.host),
+    writeToken: nonEmpty(env.TTF_WRITE_TOKEN, DEFAULTS.writeToken),
   };
 }
 

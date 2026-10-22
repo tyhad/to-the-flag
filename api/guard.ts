@@ -51,7 +51,7 @@ export function resetWriteRateLimits(): void {
   defaultWriteRateLimiter.reset();
 }
 
-function extractToken(request: Request): string | null {
+export function extractToken(request: Request): string | null {
   const auth = request.headers.get("authorization");
   if (auth) {
     const match = auth.match(/^Bearer\s+(.+)$/i);
@@ -61,7 +61,7 @@ function extractToken(request: Request): string | null {
   return null;
 }
 
-function resolveClientIp(
+export function resolveClientIp(
   request: Request,
   server: any,
   customGetter?: (request: Request) => string | null,

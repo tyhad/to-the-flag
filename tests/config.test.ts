@@ -8,6 +8,7 @@ describe("loadConfig", () => {
       ttfDb: "./to-the-flag.sqlite",
       port: 3100,
       host: "127.0.0.1",
+      writeToken: "",
     });
   });
 
@@ -15,18 +16,32 @@ describe("loadConfig", () => {
     expect(DEFAULTS.port).toBe(3100);
     expect(DEFAULTS.host).toBe("127.0.0.1");
     expect(DEFAULTS.ttfDb).toBe("./to-the-flag.sqlite");
+    expect(DEFAULTS.writeToken).toBe("");
   });
 
   test("env overrides defaults", () => {
-    const cfg = loadConfig({ F1GSTATS_DB: "D:/data/f1.sqlite", TTF_DB: "D:/data/ttf.sqlite", PORT: "4000", HOST: "0.0.0.0" });
-    expect(cfg).toEqual({ f1gstatsDb: "D:/data/f1.sqlite", ttfDb: "D:/data/ttf.sqlite", port: 4000, host: "0.0.0.0" });
+    const cfg = loadConfig({
+      F1GSTATS_DB: "D:/data/f1.sqlite",
+      TTF_DB: "D:/data/ttf.sqlite",
+      PORT: "4000",
+      HOST: "0.0.0.0",
+      TTF_WRITE_TOKEN: "secret1234567890",
+    });
+    expect(cfg).toEqual({
+      f1gstatsDb: "D:/data/f1.sqlite",
+      ttfDb: "D:/data/ttf.sqlite",
+      port: 4000,
+      host: "0.0.0.0",
+      writeToken: "secret1234567890",
+    });
   });
 
   test("blank values fall back to defaults", () => {
-    const cfg = loadConfig({ F1GSTATS_DB: "  ", PORT: "", HOST: "" });
+    const cfg = loadConfig({ F1GSTATS_DB: "  ", PORT: "", HOST: "", TTF_WRITE_TOKEN: "   " });
     expect(cfg.f1gstatsDb).toBe(DEFAULTS.f1gstatsDb);
     expect(cfg.port).toBe(DEFAULTS.port);
     expect(cfg.host).toBe(DEFAULTS.host);
+    expect(cfg.writeToken).toBe(DEFAULTS.writeToken);
   });
 
   test("invalid PORT throws RangeError", () => {

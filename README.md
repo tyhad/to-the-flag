@@ -50,6 +50,18 @@ Copy `.env.example` to `.env` and adjust. All values are optional.
 | `TTF_DB` | `./to-the-flag.sqlite` | Where saved scenarios and the active overlay scenario are kept |
 | `PORT` | `3100` | Server port (LiveOverlay Studio uses 3000) |
 | `HOST` | `127.0.0.1` | Server host. Keep it local: there is no login |
+| `TTF_WRITE_TOKEN` | *(empty)* | Secret write token. Required when `HOST` is not loopback (min 16 characters) |
+
+## LAN mode
+To access the app from a phone or a second computer on your home network:
+1. In `.env`, set `HOST=0.0.0.0` and `TTF_WRITE_TOKEN` to a long random string (at least 16 characters).
+2. Start the server (`bun run dev`). Allow the port in the Windows firewall if prompted.
+3. Open `http://<this PC's address>:3100` on the other device (the startup banner lists your LAN addresses).
+
+Reading the UI, season data, health, and overlay feeds is open without a token. Writing (saving, updating, deleting scenarios, or setting the active overlay scenario) requires entering the token in the web interface.
+
+> [!NOTE]
+> This is designed for a trusted home network, not the public internet. Do not forward the port on your router.
 
 ## Overlay feed
 The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio or any streaming tool, for example `http://127.0.0.1:3100/api/feed/active-scenario`. Routes, fields and binding steps are in [`docs/FEED.md`](docs/FEED.md). `/api/feed/odds` serves the model odds for the active scenario (or the base season), cached until the data or the scenario changes. `/api/feed/team-status` and `/api/feed/team-path/:team` serve the constructors' title status and path for the active scenario.
