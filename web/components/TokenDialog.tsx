@@ -69,7 +69,7 @@ export function TokenDialog({ open, onClose, onSubmit }: TokenDialogProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="token-dialog-title"
-        className="flex w-full max-w-md flex-col gap-4 rounded-panel border border-line bg-s1 p-5 shadow-2xl"
+        className="flex w-full max-w-md flex-col gap-4 rounded-panel border border-line bg-s1 p-5"
       >
         <div className="flex flex-col gap-1">
           <h2 id="token-dialog-title" className="type-title text-text">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
 import type { ScenarioStore } from "../useScenarioStore";
 import type { Strip } from "../useStrip";
@@ -6,6 +7,8 @@ import { useAccess, type AccessInfo } from "../useAccess";
 import { compareOptions } from "../viewModel/compare";
 import { MAX_NAME_LENGTH, buildChips, isDirty } from "../viewModel/scenarios";
 import type { Workspace } from "../viewModel/workspace";
+import { buildCardView } from "../viewModel/cardView";
+import { exportCard, type CardSize } from "../exportCard";
 import { AlertIcon } from "./icons";
 import { ScenarioChip } from "./ScenarioChip";
 import { TokenDialog } from "./TokenDialog";
@@ -24,6 +27,8 @@ interface ScenarioStripProps {
   store: ScenarioStore;
   strip: Strip;
   access?: AccessInfo;
+  /** Latest WDC odds result from the "Likely?" tab. Null when the tab has not been opened or odds are not ready. */
+  oddsResult?: OddsResult | null;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -34,6 +39,7 @@ export function ScenarioStrip({
   store,
   strip,
   access: propAccess,
+  oddsResult = null,
 }: ScenarioStripProps) {
   const defaultAccess = useAccess();
   const access = propAccess ?? defaultAccess;
@@ -42,6 +48,8 @@ export function ScenarioStrip({
   const [mode, setMode] = useState<FormMode>("idle");
   const [draft, setDraft] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [exportSize, setExportSize] = useState<CardSize>("square");
+  const [exporting, setExporting] = useState(false);
   const footerRef = useRef<HTMLElement>(null);
   /** The `data-focus-id` of the control that opened a form, so closing the form can put focus back on it. */
   const openerRef = useRef<string | null>(null);
@@ -115,6 +123,18 @@ export function ScenarioStrip({
     else {
       open("idle");
       settleFocus(openerRef.current);
+    }
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const view = buildCardView(state, workspace, store.scenarios, strip.selectedId, oddsResult);
+      await exportCard(view, exportSize);
+    } catch {
+      // Silently ignore: browser may have blocked or canvas may not be available.
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -211,6 +231,23 @@ export function ScenarioStrip({
             className={BTN_PLAIN}
           >
             {isLive ? "Stop showing on overlay" : "Show on overlay"}
+          </button>
+          <select
+            aria-label="Export picture size"
+            value={exportSize}
+            onChange={(e) => setExportSize(e.target.value as CardSize)}
+            className={`${SELECT} h-8`}
+          >
+            <option value="square">Square (1080×1080)</option>
+            <option value="wide">Wide (1920×1080)</option>
+          </select>
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={() => void handleExport()}
+            className={BTN_PLAIN}
+          >
+            {exporting ? "Exporting…" : "Export picture"}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
 import { useHealth } from "../useHealth";
 import { useScenarioStore } from "../useScenarioStore";
@@ -74,6 +75,9 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
   const strip = useStrip(state, workspace, dispatch, store);
   const { compare } = strip;
 
+  // Latest WDC odds result from the "Likely?" tab — null until the tab is opened and odds arrive.
+  const [oddsResult, setOddsResult] = useState<OddsResult | null>(null);
+
   const isEditing = Object.keys(workspace.scenario.locks).length > 0;
   const freshness = useFreshness({
     baseline: {
@@ -101,8 +105,8 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
           compare={compareView}
           contenders={workspace.contenders}
         />}
-      analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} />}
-      strip={<ScenarioStrip state={state} workspace={workspace} store={store} strip={strip} />}
+      analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} onOddsResult={setOddsResult} />}
+      strip={<ScenarioStrip state={state} workspace={workspace} store={store} strip={strip} oddsResult={oddsResult} />}
       notice={dataNotice(state.health, state.asOfRound)}
       newDataNotice={freshness.status === "new-data" ? <NewDataNotice message={freshness.message!} /> : null}
     />
