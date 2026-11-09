@@ -28,6 +28,8 @@ Set results for the remaining sessions and watch the table, the title status and
 | `bun install` | Install dependencies |
 | `bun run dev` | Build the web UI, serve it with the API, rebuild on changes under `web/` |
 | `bun run build` | Bundle the web UI into `dist/` (minified) |
+| `bun run start` | Serve the built production UI (`dist/`) with the API |
+| `bun run refresh` | Run F1GStats fetch to update local database (`f1gstats.sqlite`) |
 | `bun test` | Run all tests |
 | `bun run typecheck` | Type-check the whole project (`tsc --noEmit`) |
 | `bun run check` | Print season status and paths, for drivers and for constructors, from the real data file. `-- --driver CODE` or `-- --team ID` limits the path blocks to one; `-- --json` prints everything as JSON |
@@ -68,6 +70,13 @@ The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio o
 
 ## Share links
 *Copy link* puts the scenario in the address after a `#`, for example `http://127.0.0.1:3100/#s=v1.…&r=16`. Opening it imports the scenario and checks it against the current data. If it was made at an earlier round, you get a warning that results may differ. Nothing is sent to a server.
+
+## Export picture (PNG)
+The scenario strip provides an *Export picture* button to render and download a standalone standings card as a PNG:
+- **Sizes:** Square (`1080×1080`, ideal for social media posts) and Wide (`1920×1080`, ideal for streaming screens).
+- **Contents:** Title, current season, as-of round, scenario name, top WDC standings (rank, driver code/name, team, current → projected points, delta, status tag).
+- **Odds:** When the *Likely?* tab has model odds, they are shown alongside with the required `"Model estimate"` label.
+- **Privacy:** Tokens, server addresses, and file paths are never drawn in the image. The rendering happens offline in the browser canvas.
 
 ## If something does not load
 | You see | What to do |

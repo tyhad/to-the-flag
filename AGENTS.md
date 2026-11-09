@@ -10,7 +10,7 @@ Personal, local-first tool: no accounts, no hosting.
 Phases 0 (data, in the separate `F1GStats` repo), 1 (engine), 2 (API, web UI, overlay feed) and 3 (Monte Carlo odds: the "Likely?" tab, `/api/feed/odds`, the backtest and the model card) are done.
 Phase 4 (model v2: history data, calibration, grid signal) is done (`docs/PHASE_4.md`, results in `docs/MODEL.md`). v2 defaults include the grid (`gridWeight` 1, `qualifyingNoise` 2); v1 and v2 without the grid stay reproducible with parameters.
 Phase 5 (WCC Path Solver) is done (`docs/PHASE_5.md`): team status and path in the engine, `bun run check` for teams, `/api/feed/team-status` and `/api/feed/team-path/:team`, status tags in the WCC table, and a Constructors view in "Possible?".
-Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export) is in progress on branch `phase-6-access`: follow `docs/PHASE_6.md` step by step (all its decisions are approved). Do not start Phase 7.
+Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export) is done (`docs/PHASE_6.md`). Do not start Phase 7.
 Phase 7 (multi-season prior) is planned in `SPEC.md` and has no task list yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order
@@ -33,6 +33,8 @@ Phase 1 must provide these scripts with exactly these names:
 - `bun run typecheck`
 - `bun run check`: prints season status and paths (drivers and constructors) from the real data file; `-- --driver CODE` and `-- --team ID` pick one
 - `bun run build`: bundles the web UI into `dist/` (the page and the odds worker, `dist/oddsWorker.js`)
+- `bun run start`: serves the built UI and API
+- `bun run refresh`: runs the F1GStats fetch to update local data
 - `bun run backtest`: walk-forward test of the odds model (`scripts/backtest.ts`); rerun it after any change to the model and update `docs/MODEL.md`. `-- --grid-weight 0` gives the numbers without the grid
 - `bun run calibrate`: the multi-season protocol (D30); needs the history files in `../F1GStats/history`, not in git. `-- --grid-signal` and `-- --qualifying-noise` run only those parts
 - `bun run title-check`: the what-if sensitivity table and, with the history files, the title odds against the real champions

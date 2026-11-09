@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.10. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal; see `docs/PHASE_4.md` and `docs/MODEL.md`) is done. Phase 5 (WCC Path Solver; see `docs/PHASE_5.md`) is done. Phase 6 (access and ops; `docs/PHASE_6.md`, all its decisions approved) is in progress; Phase 7 is planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
+**Status:** DRAFT v0.11. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal; see `docs/PHASE_4.md` and `docs/MODEL.md`) is done. Phase 5 (WCC Path Solver; see `docs/PHASE_5.md`) is done. Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export; see `docs/PHASE_6.md`) is done; Phase 7 is planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -236,8 +236,8 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D34 | What a team "wins" and the baseline | A one-two (both active cars P1 and P2); the baseline when it does not win is P2 and P3. Measure: `minOneTwos`. A rival team's pace limit is the best pair of places it may take in every session (P3-P4, P5-P6, P7-P8, P9-P10, or outside the points) | Approved |
 | D35 | WCC solver in the UI | A "Drivers / Constructors" switch inside "Possible?" (default Drivers); the WCC table gets the same status tags as the WDC table | Approved |
 | D36 | WCC feed | New routes `/api/feed/team-status` and `/api/feed/team-path/:team`; existing routes do not change | Approved |
-| D37 | Access policy | Reading is open (UI, season, health, the feed); writing needs `TTF_WRITE_TOKEN` whenever the server can be reached beyond this computer, and is local-only without a token; the server refuses to start on a non-loopback host without a token; no CORS headers | Approved |
-| D38 | Token in the browser | Kept for the browser session by default, with an optional "Remember on this device"; never in a URL, a share link or an exported image | Approved |
-| D39 | Refreshing data | A script the owner runs (`bun run refresh`); the open page shows a "New data" notice and never reloads by itself | Approved |
-| D40 | PNG export | Canvas drawn from a pure layout, square 1080×1080 and wide 1920×1080, with "Model estimate" and "as of Round N" whenever odds are shown | Approved |
-| D41 | F1GStats debug output | Hidden by default, `--verbose` brings it back | Approved |
+| D37 | Access policy | Reading is open (UI, season, health, the feed); writing needs `TTF_WRITE_TOKEN` whenever the server can be reached beyond this computer, and is local-only without a token; the server refuses to start on a non-loopback host without a token; no CORS headers | Done (Phase 6) |
+| D38 | Token in the browser | Kept for the browser session by default, with an optional "Remember on this device"; never in a URL, a share link or an exported image | Done (Phase 6) |
+| D39 | Refreshing data | A script the owner runs (`bun run refresh`); the open page shows a "New data" notice and never reloads by itself | Done (Phase 6) |
+| D40 | PNG export | Canvas drawn from a pure layout, square 1080×1080 and wide 1920×1080, with "Model estimate" and "as of Round N" whenever odds are shown | Done (Phase 6) |
+| D41 | F1GStats debug output | Hidden by default, `--verbose` brings it back | Done (Phase 6) |
