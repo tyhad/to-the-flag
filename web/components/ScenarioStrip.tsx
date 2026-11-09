@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
 import type { ScenarioStore } from "../useScenarioStore";
 import type { Strip } from "../useStrip";
+import { useAccess, type AccessInfo } from "../useAccess";
 import { compareOptions } from "../viewModel/compare";
 import { MAX_NAME_LENGTH, buildChips, isDirty } from "../viewModel/scenarios";
 import type { Workspace } from "../viewModel/workspace";
+import { buildCardView } from "../viewModel/cardView";
+import { exportCard, type CardSize } from "../exportCard";
 import { AlertIcon } from "./icons";
 import { ScenarioChip } from "./ScenarioChip";
+import { TokenDialog } from "./TokenDialog";
 
 const BTN = "type-label h-8 rounded-control border px-3 disabled:cursor-not-allowed";
 const BTN_PLAIN = `${BTN} border-line text-text-2 hover:border-accent-hover disabled:text-text-3 disabled:hover:border-line aria-disabled:cursor-not-allowed aria-disabled:text-text-3 aria-disabled:hover:border-line`;
@@ -21,14 +26,30 @@ interface ScenarioStripProps {
   workspace: Workspace;
   store: ScenarioStore;
   strip: Strip;
+  access?: AccessInfo;
+  /** Latest WDC odds result from the "Likely?" tab. Null when the tab has not been opened or odds are not ready. */
+  oddsResult?: OddsResult | null;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripProps) {
+export function ScenarioStrip({
+  state,
+  workspace,
+  store,
+  strip,
+  access: propAccess,
+  oddsResult = null,
+}: ScenarioStripProps) {
+  const defaultAccess = useAccess();
+  const access = propAccess ?? defaultAccess;
+  const canWrite = access.canWrite;
+
   const [mode, setMode] = useState<FormMode>("idle");
   const [draft, setDraft] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [exportSize, setExportSize] = useState<CardSize>("square");
+  const [exporting, setExporting] = useState(false);
   const footerRef = useRef<HTMLElement>(null);
   /** The `data-focus-id` of the control that opened a form, so closing the form can put focus back on it. */
   const openerRef = useRef<string | null>(null);
@@ -47,15 +68,26 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
   const dirty = selected?.valid ? isDirty(workspace.scenario, workspace.contenders, selected) : false;
   const stripNotice = workspace.notice?.scope === "strip" ? workspace.notice.message : null;
 
-  const canOverlay = selected !== undefined && selected.valid && !dirty;
-  const isLive = selected !== undefined && store.activeId === selected.id;
-  const overlayHint = !selected
-    ? "Save the scenario and select it to show it on the overlay."
-    : !selected.valid
-      ? "This scenario no longer fits the data."
-      : dirty
-        ? "Save your changes first, so the overlay shows what you see."
+  const readOnlyNotice =
+    access.verdict === "needs-token"
+      ? "Enter the write token to save or edit scenarios."
+      : access.verdict === "local-only"
+        ? "Writing is only allowed from this computer."
         : undefined;
+
+  const canOverlay = selected !== undefined && selected.valid && !dirty && canWrite;
+  const isLive = selected !== undefined && store.activeId === selected.id;
+  const overlayHint = !canWrite
+    ? access.verdict === "needs-token"
+      ? "Enter the write token to show on overlay."
+      : "Writing is only allowed from this computer."
+    : !selected
+      ? "Save the scenario and select it to show it on the overlay."
+      : !selected.valid
+        ? "This scenario no longer fits the data."
+        : dirty
+          ? "Save your changes first, so the overlay shows what you see."
+          : undefined;
 
   /** Focus the selected scenario chip (or Base). The fallback when the control that had focus is gone. */
   function focusSelectedChip() {
@@ -94,6 +126,18 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
     }
   }
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const view = buildCardView(state, workspace, store.scenarios, strip.selectedId, oddsResult);
+      await exportCard(view, exportSize);
+    } catch {
+      // Silently ignore: browser may have blocked or canvas may not be available.
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const nameForm = (label: string, action: (name: string) => Promise<string | null>, submitLabel: string) => (
     <form onSubmit={(e) => void submit(e, action)} className="flex flex-wrap items-center gap-2">
       <label htmlFor="scenario-name" className="type-label text-text-2">
@@ -111,7 +155,7 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
         aria-describedby={formError ? "scenario-name-error" : undefined}
         className={`${SELECT} w-64`}
       />
-      <button type="submit" disabled={store.busy} className={BTN_PRIMARY}>
+      <button type="submit" disabled={store.busy || !canWrite} className={BTN_PRIMARY}>
         {submitLabel}
       </button>
       <button
@@ -147,9 +191,15 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
             <button
               type="button"
               data-focus-id="new"
-              disabled={lockCount === 0 || store.status !== "ready"}
+              disabled={lockCount === 0 || store.status !== "ready" || !canWrite}
               onClick={() => open("naming")}
-              title={lockCount === 0 ? "Lock a result first, then save it as a new scenario." : undefined}
+              title={
+                !canWrite
+                  ? readOnlyNotice
+                  : lockCount === 0
+                    ? "Lock a result first, then save it as a new scenario."
+                    : undefined
+              }
               className="type-label h-9 rounded-control border border-dashed border-line px-3 text-text-2 hover:border-accent-hover disabled:cursor-not-allowed disabled:text-text-3 disabled:hover:border-line"
             >
               + New
@@ -182,8 +232,44 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
           >
             {isLive ? "Stop showing on overlay" : "Show on overlay"}
           </button>
+          <select
+            aria-label="Export picture size"
+            value={exportSize}
+            onChange={(e) => setExportSize(e.target.value as CardSize)}
+            className={`${SELECT} h-8`}
+          >
+            <option value="square">Square (1080×1080)</option>
+            <option value="wide">Wide (1920×1080)</option>
+          </select>
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={() => void handleExport()}
+            className={BTN_PLAIN}
+          >
+            {exporting ? "Exporting…" : "Export picture"}
+          </button>
         </div>
       </div>
+
+      {!canWrite && access.verdict === "needs-token" ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p role="status" className="type-note text-text-2">
+            Read-only. Enter the write token to save or share scenarios.
+          </p>
+          <button
+            type="button"
+            onClick={access.openDialog}
+            className={`${BTN_PLAIN} h-7 py-0 text-xs`}
+          >
+            Enter token
+          </button>
+        </div>
+      ) : !canWrite && access.verdict === "local-only" ? (
+        <p role="status" className="type-note text-text-2">
+          Read-only. Writing is allowed only from this computer.
+        </p>
+      ) : null}
 
       {strip.compare.open ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -228,7 +314,7 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
           <p className="type-body text-text">Delete "{selected.name}"? This cannot be undone.</p>
           <button
             type="button"
-            disabled={store.busy}
+            disabled={store.busy || !canWrite}
             onClick={() => {
               open("idle");
               void strip.removeSelected().then(() => settleFocus(null));
@@ -268,19 +354,34 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
               {selected.valid && dirty ? (
                 <button
                   type="button"
-                  aria-disabled={store.busy}
+                  aria-disabled={store.busy || !canWrite}
+                  title={!canWrite ? readOnlyNotice : undefined}
                   onClick={() => {
-                    if (!store.busy) void strip.saveChanges().then(() => settleFocus(null));
+                    if (!store.busy && canWrite) void strip.saveChanges().then(() => settleFocus(null));
                   }}
                   className={`${BTN_PRIMARY} aria-disabled:cursor-not-allowed`}
                 >
                   Save changes
                 </button>
               ) : null}
-              <button type="button" data-focus-id="rename" onClick={() => open("renaming", selected.name)} className={BTN_PLAIN}>
+              <button
+                type="button"
+                data-focus-id="rename"
+                disabled={!canWrite}
+                title={!canWrite ? readOnlyNotice : undefined}
+                onClick={() => open("renaming", selected.name)}
+                className={BTN_PLAIN}
+              >
                 Rename
               </button>
-              <button type="button" data-focus-id="delete" onClick={() => open("deleting")} className={BTN_PLAIN}>
+              <button
+                type="button"
+                data-focus-id="delete"
+                disabled={!canWrite}
+                title={!canWrite ? readOnlyNotice : undefined}
+                onClick={() => open("deleting")}
+                className={BTN_PLAIN}
+              >
                 Delete
               </button>
             </>
@@ -290,7 +391,8 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
               <button
                 type="button"
                 data-focus-id="save-new"
-                disabled={store.status !== "ready"}
+                disabled={store.status !== "ready" || !canWrite}
+                title={!canWrite ? readOnlyNotice : undefined}
                 onClick={() => open("naming")}
                 className={BTN_PRIMARY}
               >
@@ -350,6 +452,12 @@ export function ScenarioStrip({ state, workspace, store, strip }: ScenarioStripP
           />
         </div>
       ) : null}
+
+      <TokenDialog
+        open={access.dialogOpen}
+        onClose={access.closeDialog}
+        onSubmit={access.submitToken}
+      />
     </footer>
   );
 }

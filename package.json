@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "bun api/server.ts",
     "dev": "bun --watch scripts/dev.ts",
+    "refresh": "bun scripts/refresh.ts",
     "build": "bun scripts/build.ts",
     "check": "bun scripts/check.ts",
     "backtest": "bun scripts/backtest.ts",

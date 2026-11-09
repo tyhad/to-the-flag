@@ -1,14 +1,17 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
 import { useHealth } from "../useHealth";
 import { useScenarioStore } from "../useScenarioStore";
 import { useSeason } from "../useSeason";
 import { useStrip } from "../useStrip";
 import { useWorkspace } from "../useWorkspace";
+import { useFreshness } from "../useFreshness";
 import { loadMessage, type SeasonLoad } from "../viewModel/season";
 import type { HealthState } from "../viewModel/health";
 import { dataNotice, type DataNotice } from "../viewModel/dataNotice";
 import { DataNoticeBanner } from "./DataNoticeBanner";
+import { NewDataNotice } from "./NewDataNotice";
 import { AnalysisPlaceholder, AnalysisRail } from "./AnalysisRail";
 import { Header } from "./Header";
 import { resolveSide } from "../viewModel/compare";
@@ -24,6 +27,7 @@ function Frame({
   analysis,
   strip,
   notice,
+  newDataNotice,
 }: {
   health: HealthState;
   sessions: ReactNode;
@@ -31,7 +35,10 @@ function Frame({
   analysis: ReactNode;
   strip: ReactNode;
   notice: DataNotice | null;
+  newDataNotice?: ReactNode;
 }) {
+  const hasNotice = Boolean(notice || newDataNotice);
+
   return (
     <>
       <a
@@ -42,11 +49,16 @@ function Frame({
       </a>
       <div
         className={`grid h-full grid-cols-[320px_minmax(0,1fr)_360px] gap-3 p-3 ${
-          notice ? "grid-rows-[auto_auto_minmax(0,1fr)_auto]" : "grid-rows-[auto_minmax(0,1fr)_auto]"
+          hasNotice ? "grid-rows-[auto_auto_minmax(0,1fr)_auto]" : "grid-rows-[auto_minmax(0,1fr)_auto]"
         }`}
       >
         <Header health={health} />
-        {notice ? <DataNoticeBanner notice={notice} /> : null}
+        {hasNotice ? (
+          <div className="col-span-3 flex flex-col gap-2">
+            {notice ? <DataNoticeBanner notice={notice} /> : null}
+            {newDataNotice}
+          </div>
+        ) : null}
         {sessions}
         {standings}
         {analysis}
@@ -62,6 +74,19 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
   const store = useScenarioStore();
   const strip = useStrip(state, workspace, dispatch, store);
   const { compare } = strip;
+
+  // Latest WDC odds result from the "Likely?" tab — null until the tab is opened and odds arrive.
+  const [oddsResult, setOddsResult] = useState<OddsResult | null>(null);
+
+  const isEditing = Object.keys(workspace.scenario.locks).length > 0;
+  const freshness = useFreshness({
+    baseline: {
+      asOfRound: state.asOfRound,
+      checkedAt: state.health.checkedAt,
+    },
+    isEditing,
+  });
+
   const compareView = useMemo<CompareView | null>(() => {
     if (!compare.open) return null;
     const left = resolveSide(compare.left, workspace.scenario, store.scenarios);
@@ -69,6 +94,7 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
     if (!left || !right) return { ok: false, message: "Choose two scenarios that still fit the current data." };
     return { ok: true, left, right };
   }, [compare, workspace.scenario, store.scenarios]);
+
   return (
     <Frame
       health={health}
@@ -79,9 +105,10 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
           compare={compareView}
           contenders={workspace.contenders}
         />}
-      analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} />}
-      strip={<ScenarioStrip state={state} workspace={workspace} store={store} strip={strip} />}
+      analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} onOddsResult={setOddsResult} />}
+      strip={<ScenarioStrip state={state} workspace={workspace} store={store} strip={strip} oddsResult={oddsResult} />}
       notice={dataNotice(state.health, state.asOfRound)}
+      newDataNotice={freshness.status === "new-data" ? <NewDataNotice message={freshness.message!} /> : null}
     />
   );
 }

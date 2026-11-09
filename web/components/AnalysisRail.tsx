@@ -1,4 +1,5 @@
-import { useMemo, useState, type Dispatch, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode } from "react";
+import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
 import { FORM_WEIGHT_DEFAULT } from "../config";
 import { useOdds } from "../useOdds";
@@ -28,13 +29,15 @@ function AnalysisFrame({ tab, onTab, children }: { tab: AnalysisTab; onTab: (tab
   );
 }
 
-interface AnalysisRailProps {
+export interface AnalysisRailProps {
   state: SeasonState;
   workspace: Workspace;
   dispatch: Dispatch<WorkspaceMessage>;
+  /** Called whenever the projected WDC odds result changes. Used by the export button in ScenarioStrip. */
+  onOddsResult?: (result: OddsResult | null) => void;
 }
 
-export function AnalysisRail({ state, workspace, dispatch }: AnalysisRailProps) {
+export function AnalysisRail({ state, workspace, dispatch, onOddsResult }: AnalysisRailProps) {
   const [tab, setTab] = useState<AnalysisTab>("possible");
   // These live here, not in the panels, so they survive a switch to the other tab.
   const [formPercent, setFormPercent] = useState(FORM_WEIGHT_DEFAULT);
@@ -50,6 +53,12 @@ export function AnalysisRail({ state, workspace, dispatch }: AnalysisRailProps) 
   const base = useOdds({ state, params, enabled: likely });
   const projected = useOdds({ state, scenario: workspace.scenario, params, enabled: likely && hasLocks });
   const panel = useMemo(() => (hasLocks ? combineOddsStates(projected, base) : combineOddsStates(base, null)), [hasLocks, projected, base]);
+
+  // Expose the current projected result (or base when no locks) to the export button.
+  const currentResult = panel.result;
+  useEffect(() => {
+    onOddsResult?.(currentResult);
+  }, [currentResult, onOddsResult]);
 
   return (
     <AnalysisFrame tab={tab} onTab={setTab}>

@@ -12,6 +12,9 @@ import { SeasonLoader } from "./seasonLoader";
 import { ScenarioDatabase } from "./db";
 import { createScenarioRoutes } from "./routes/scenarios";
 import { createFeedRoutes } from "./routes/feed";
+import { checkStartup, decideWrite } from "./access";
+import { buildStartupBanner } from "./banner";
+import { extractToken, resolveClientIp } from "./guard";
 import type { OddsParams } from "../engine/simulate";
 
 /** Output of `bun run build`. Resolved from this file so the server works from any working directory. */
@@ -24,6 +27,18 @@ export interface ServerOptions {
   scenarioDb?: ScenarioDatabase;
   /** Model parameters for GET /api/feed/odds; the defaults of `defaultOddsParams` otherwise. */
   oddsParams?: Partial<OddsParams>;
+  /** Secret write token (TTF_WRITE_TOKEN); empty/undefined means local-only writing. */
+  token?: string | null;
+  /** Injectable client IP resolver for tests; defaults to reading server.requestIP(request). */
+  clientIp?: (request: Request) => string | null;
+}
+
+/**
+ * Validates whether the server can safely start with the given host and token.
+ * Returns null on success or an error message if startup checks fail.
+ */
+export function validateServerStartup(options: { host: string; token?: string | null }): string | null {
+  return checkStartup(options);
 }
 
 export function createApp(options?: ServerOptions) {
@@ -31,6 +46,8 @@ export function createApp(options?: ServerOptions) {
   const ttfDbPath = options?.ttfDbPath ?? config.ttfDb;
   const loader = options?.loader ?? new SeasonLoader(dbPath);
   const scenarioDb = options?.scenarioDb ?? new ScenarioDatabase(ttfDbPath);
+  const token = options?.token !== undefined ? options.token : config.writeToken;
+  const clientIp = options?.clientIp;
 
   const app = new Elysia();
 
@@ -56,6 +73,17 @@ export function createApp(options?: ServerOptions) {
     };
   });
 
+  app.get("/api/access", ({ request, server }) => {
+    const ip = resolveClientIp(request, server, clientIp);
+    const presented = extractToken(request);
+    const writeRequiresToken = Boolean(token && token.length > 0);
+    const decision = decideWrite({ token, clientIp: ip, presented });
+    return {
+      writeRequiresToken,
+      canWrite: decision === "allow",
+    };
+  });
+
   app.get("/api/season", ({ request, set }) => {
     const result = loader.getSeason();
     if (!result.ok) {
@@ -75,7 +103,7 @@ export function createApp(options?: ServerOptions) {
     return state;
   });
 
-  app.use(createScenarioRoutes(loader, scenarioDb));
+  app.use(createScenarioRoutes(loader, scenarioDb, { token, clientIp }));
   app.use(createFeedRoutes(loader, scenarioDb, options?.oddsParams));
 
   return app;
@@ -84,7 +112,18 @@ export function createApp(options?: ServerOptions) {
 export const app = createApp();
 
 if (import.meta.main) {
-  app.listen({ port: config.port, hostname: config.host }, (server) => {
-    console.log(`Server listening at http://${server.hostname}:${server.port}`);
+  const startupError = checkStartup({ host: config.host, token: config.writeToken });
+  if (startupError) {
+    console.error(`Startup error: ${startupError}`);
+    process.exit(1);
+  }
+
+  app.listen({ port: config.port, hostname: config.host }, () => {
+    const banner = buildStartupBanner({
+      host: config.host,
+      port: config.port,
+      token: config.writeToken,
+    });
+    console.log(banner);
   });
 }

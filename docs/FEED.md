@@ -14,6 +14,15 @@ To the Flag serves flat JSON feeds for LiveOverlay Studio (port 3000) or streami
 
 ---
 
+## LAN Access & Security
+
+When the server runs in LAN mode (`HOST=0.0.0.0`):
+- **All feed routes under `/api/feed/` remain open and unauthenticated on the home network.** Streaming software (such as LiveOverlay Studio running on a separate streaming PC) can freely poll feeds without authentication headers.
+- **Write actions are guarded:** only clients presenting `TTF_WRITE_TOKEN` can create, modify, or delete scenarios or switch the active overlay scenario.
+- Keep the server on a private home network; do not expose the port to the public internet.
+
+---
+
 ## Routes & Response Examples
 
 ### 1. `GET /api/feed/standings`
