@@ -10,8 +10,10 @@ Personal, local-first tool: no accounts, no hosting.
 Phases 0 (data, in the separate `F1GStats` repo), 1 (engine), 2 (API, web UI, overlay feed) and 3 (Monte Carlo odds: the "Likely?" tab, `/api/feed/odds`, the backtest and the model card) are done.
 Phase 4 (model v2: history data, calibration, grid signal) is done (`docs/PHASE_4.md`, results in `docs/MODEL.md`). v2 defaults include the grid (`gridWeight` 1, `qualifyingNoise` 2); v1 and v2 without the grid stay reproducible with parameters.
 Phase 5 (WCC Path Solver) is done (`docs/PHASE_5.md`): team status and path in the engine, `bun run check` for teams, `/api/feed/team-status` and `/api/feed/team-path/:team`, status tags in the WCC table, and a Constructors view in "Possible?".
-Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export) is done (`docs/PHASE_6.md`). Do not start Phase 7.
-Phase 7 (multi-season prior) is planned in `SPEC.md` and has no task list yet. Known weaknesses of the model are in `docs/MODEL.md`.
+Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export) is done (`docs/PHASE_6.md`).
+Phase 7 (standings and positions: the `✕ No title` marker, the Best column, a plain-standings switch, best places in the CLI and feed, F1GStats V5 and V6 hardening) has a task list: `docs/PHASE_7.md`. Do not start it until the owner says so; then follow it step by step.
+Phase 8 (race weekend: manual starting grid, race forecast, grid export) has a task list: `docs/PHASE_8.md`. Do not start it until Phase 7 is merged and the owner says so.
+Phase 9 (multi-season prior) and Phase 10 (release V1.0) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.
@@ -21,6 +23,8 @@ Phase 7 (multi-season prior) is planned in `SPEC.md` and has no task list yet. K
 5. `docs/PHASE_4.md`: the model v2 task list, including the evaluation protocol and the adoption rule.
 6. `docs/PHASE_5.md`: the WCC Path Solver task list, as built.
 7. `docs/PHASE_6.md`: the access and ops task list.
+8. `docs/PHASE_7.md`: the standings and positions task list.
+9. `docs/PHASE_8.md`: the race weekend task list.
 
 If code and documents disagree, follow the documents and ask the owner.
 
@@ -55,6 +59,9 @@ Phase 1 must provide these scripts with exactly these names:
 - Never hardcode round count, driver count, sprint weekends, or team colors. Derive from data.
 - Use only tokens from `DESIGN.md`. No raw hex in components. Fonts are self-hosted.
 - Team colors come only from `teamColor()` in `web/theme/teams.ts`. Never type a team hex anywhere else.
+- No strike-through anywhere in the UI or the PNG card; "no title" is the `✕ No title` tag.
+- "Best" is a points-ceiling floor. Label it "on points alone" and never present it as a promise.
+- A starting grid that comes from the qualifying order must always be labeled as such ("may differ from the real grid"); never present it as the official grid.
 - "Possible?" (no model) and "Likely?" (Monte Carlo) stay visually separate.
 - Never show 0% or 100% from simulation; show `<1%` / `>99%`. Label simulated numbers "Model estimate".
 - Model changes need evidence: follow the protocol and adoption rule in `docs/PHASE_4.md`, never tune on the 2026 season before the confirmation run, and record every result in `docs/MODEL.md`.
