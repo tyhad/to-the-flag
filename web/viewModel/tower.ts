@@ -3,13 +3,16 @@
  * Turns the engine's tables into plain rows the components draw as they are.
  */
 import {
+  bestPositions,
   computeConstructorStandings,
   computeDriverStandings,
+  driverPositionEntries,
   driverStatus,
   parseSessionKey,
   remainingSessions,
   sessionMaxPoints,
   teamCars,
+  teamPositionEntries,
   teamSessionMaxPoints,
   teamStatus,
   type Scenario,
@@ -48,6 +51,13 @@ export interface TowerRow {
   status: TowerStatus | null;
   /** The driver is not in the latest round's results. */
   inactive: boolean;
+  /**
+   * The highest place still possible on points alone (D43), from the projected table of the scenario.
+   * A floor, not a promise. 1 means the entry can still win the title (ties aside).
+   */
+  best: number;
+  /** `best` as shown: "P2". */
+  bestText: string;
 }
 
 /**
@@ -63,6 +73,16 @@ export interface Delta {
   tone: "up" | "down" | "none";
   /** The same change in words, for screen readers. */
   description: string;
+}
+
+/** The Best column: header, what a screen reader hears, and the one hint line under the table (D43). */
+export const BEST_COLUMN_LABEL = "Best";
+export const BEST_ACCESSIBLE_NAME = "Highest place still possible on points alone";
+export const BEST_HINT = "Best = the highest place still possible on points alone.";
+
+/** 2 -> "P2". */
+export function formatBest(best: number): string {
+  return `P${best}`;
 }
 
 const places = (n: number): string => `${n} ${n === 1 ? "place" : "places"}`;
@@ -167,7 +187,9 @@ export function buildTowerRows(state: SeasonState, scenario: Scenario | undefine
 
 function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRow[] {
   const table = computeDriverStandings(state, scenario);
-  const statuses = new Map(driverStatus(state, scenario).map((s) => [s.driver, s]));
+  const statusRows = driverStatus(state, scenario);
+  const statuses = new Map(statusRows.map((s) => [s.driver, s]));
+  const best = bestPositions(driverPositionEntries(statusRows));
   const drivers = new Map(state.drivers.map((d) => [d.code, d]));
   const teams = currentTeams(state);
   const remaining = pointsOnOffer(state, scenario);
@@ -178,6 +200,7 @@ function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRo
     const gap = statuses.get(row.id)?.gapToLeader ?? 0;
     let status: TowerStatus | null = null;
     if (!inactive) status = towerStatus(statuses.get(row.id)?.status ?? "eliminated", gap, remaining);
+    const bestPlace = best.get(row.id) ?? row.rank;
     return {
       id: row.id,
       label: row.id,
@@ -191,6 +214,8 @@ function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRo
       pointsAdded: row.delta,
       status,
       inactive,
+      best: bestPlace,
+      bestText: formatBest(bestPlace),
     };
   });
 }
@@ -198,7 +223,9 @@ function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRo
 function constructorRows(state: SeasonState, scenario: Scenario | undefined): TowerRow[] {
   const names = new Map(state.teams.map((t) => [t.id, t.name]));
   const table = computeConstructorStandings(state, scenario);
-  const statuses = new Map(teamStatus(state, scenario).map((s) => [s.team, s]));
+  const statusRows = teamStatus(state, scenario);
+  const statuses = new Map(statusRows.map((s) => [s.team, s]));
+  const best = bestPositions(teamPositionEntries(statusRows));
   const cars = teamCars(state);
   const remaining = pointsOnOffer(state, scenario, teamSessionMaxPoints);
 
@@ -210,6 +237,7 @@ function constructorRows(state: SeasonState, scenario: Scenario | undefined): To
       const found = statuses.get(row.id);
       status = towerStatus(found?.status ?? "eliminated", found?.gapToLeader ?? 0, remaining);
     }
+    const bestPlace = best.get(row.id) ?? row.rank;
     return {
       id: row.id,
       label: name,
@@ -223,6 +251,8 @@ function constructorRows(state: SeasonState, scenario: Scenario | undefined): To
       pointsAdded: row.delta,
       status,
       inactive: false,
+      best: bestPlace,
+      bestText: formatBest(bestPlace),
     };
   });
 }

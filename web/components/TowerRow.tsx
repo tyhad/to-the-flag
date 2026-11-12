@@ -1,11 +1,14 @@
 import { useTweenedNumber } from "../motion";
 import { teamColor } from "../theme/teams";
-import { formatPoints, rowTextTone, statusTag, type TowerRow as Row } from "../viewModel/tower";
+import { BEST_ACCESSIBLE_NAME, formatPoints, rowTextTone, statusTag, type TowerRow as Row } from "../viewModel/tower";
 import { DeltaChip } from "./DeltaChip";
 import { StatusTag } from "./StatusTag";
 
-/** Column order: position, name, points, change, status. Numerals sit right-aligned in their columns. */
-export const TOWER_COLUMNS = "grid-cols-[2rem_minmax(0,1fr)_7rem_3.5rem_6rem]";
+/**
+ * Column order: position, name, points, change, best, status. Numerals sit right-aligned in their columns.
+ * The header row in Tower.tsx uses the same template, so the columns line up.
+ */
+export const TOWER_COLUMNS = "grid-cols-[2rem_minmax(0,1fr)_7rem_3.5rem_2.5rem_6rem]";
 
 export function TowerRow({ row }: { row: Row }) {
   const tween = useTweenedNumber(row.points);
@@ -63,6 +66,10 @@ export function TowerRow({ row }: { row: Row }) {
       </span>
       <span className="justify-self-center">
         <DeltaChip rankChange={row.rankChange} />
+      </span>
+      <span className="type-data text-center text-text-2">
+        <span aria-hidden="true">{row.bestText}</span>
+        <span className="sr-only">{`${BEST_ACCESSIBLE_NAME}: ${row.bestText}`}</span>
       </span>
       <span className="justify-self-start">{tag ? <StatusTag view={tag} /> : null}</span>
     </li>
