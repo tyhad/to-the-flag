@@ -11,8 +11,8 @@ Phases 0 (data, in the separate `F1GStats` repo), 1 (engine), 2 (API, web UI, ov
 Phase 4 (model v2: history data, calibration, grid signal) is done (`docs/PHASE_4.md`, results in `docs/MODEL.md`). v2 defaults include the grid (`gridWeight` 1, `qualifyingNoise` 2); v1 and v2 without the grid stay reproducible with parameters.
 Phase 5 (WCC Path Solver) is done (`docs/PHASE_5.md`): team status and path in the engine, `bun run check` for teams, `/api/feed/team-status` and `/api/feed/team-path/:team`, status tags in the WCC table, and a Constructors view in "Possible?".
 Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export) is done (`docs/PHASE_6.md`).
-Phase 7 (standings and positions: the `✕ No title` marker, the Best column, a plain-standings switch, best places in the CLI and feed, F1GStats V5 and V6 hardening) has a task list: `docs/PHASE_7.md`. Do not start it until the owner says so; then follow it step by step.
-Phase 8 (race weekend: manual starting grid, race forecast, grid export) has a task list: `docs/PHASE_8.md`. Do not start it until Phase 7 is merged and the owner says so.
+Phase 7 (standings and positions: the `✕ No title` marker, the Best column, the "Title info" switch (Auto, On, Off), best places in the CLI and feed, F1GStats V5 and V6 hardening) is done (`docs/PHASE_7.md`); its optional Step 8 (position probabilities) was not built.
+Phase 8 (race weekend: manual starting grid, race forecast, grid export) has a task list: `docs/PHASE_8.md`. Do not start it until the owner says so.
 Phase 9 (multi-season prior) and Phase 10 (release V1.0) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order
@@ -23,7 +23,7 @@ Phase 9 (multi-season prior) and Phase 10 (release V1.0) are planned in `SPEC.md
 5. `docs/PHASE_4.md`: the model v2 task list, including the evaluation protocol and the adoption rule.
 6. `docs/PHASE_5.md`: the WCC Path Solver task list, as built.
 7. `docs/PHASE_6.md`: the access and ops task list.
-8. `docs/PHASE_7.md`: the standings and positions task list.
+8. `docs/PHASE_7.md`: the standings and positions task list, as built.
 9. `docs/PHASE_8.md`: the race weekend task list.
 
 If code and documents disagree, follow the documents and ask the owner.
@@ -35,7 +35,7 @@ Phase 1 must provide these scripts with exactly these names:
 - `bun run dev`
 - `bun test`
 - `bun run typecheck`
-- `bun run check`: prints season status and paths (drivers and constructors) from the real data file; `-- --driver CODE` and `-- --team ID` pick one
+- `bun run check`: prints season status (with the best place of each entry) and paths (drivers and constructors) from the real data file; `-- --driver CODE` and `-- --team ID` pick one
 - `bun run build`: bundles the web UI into `dist/` (the page and the odds worker, `dist/oddsWorker.js`)
 - `bun run start`: serves the built UI and API
 - `bun run refresh`: runs the F1GStats fetch to update local data
