@@ -9,6 +9,11 @@ import { NO_TITLE_TEXT } from "./tower";
 export type CardSize = "square" | "wide";
 export type CardRowsChoice = "10" | "12" | "all";
 
+export interface CardPositionRange {
+  from: number;
+  to: number;
+}
+
 export interface CardRow {
   rank: number;
   driverCode: string;
@@ -35,6 +40,9 @@ export interface CardView {
   showTitleInfo?: boolean;
   tab?: TowerTab;
   rowLimit?: CardRowsChoice;
+  positionRange?: CardPositionRange;
+  isSimulation?: boolean;
+  simulationRound?: number;
 }
 
 export type DrawCommand =
@@ -114,9 +122,16 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   const width = isWide ? 1920 : 1080;
   const height = 1080;
 
-  const rowLimit = view.rowLimit ?? "12";
-  const maxRows = rowLimit === "10" ? 10 : rowLimit === "all" ? view.rows.length : 12;
-  const rows = view.rows.slice(0, maxRows);
+  let rows = view.rows;
+  if (view.positionRange) {
+    const from = Math.max(1, view.positionRange.from);
+    const to = Math.max(from, view.positionRange.to);
+    rows = rows.filter((r) => r.rank >= from && r.rank <= to);
+  } else {
+    const rowLimit = view.rowLimit ?? "12";
+    const maxRows = rowLimit === "10" ? 10 : rowLimit === "all" ? rows.length : 12;
+    rows = rows.slice(0, maxRows);
+  }
   const showStatus = view.showTitleInfo !== false;
 
   const commands: DrawCommand[] = [];
@@ -149,45 +164,63 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   const leftX = margin + 32;
   const rightX = margin + cardWidth - 32;
 
-  // Title
+  // Title: Line 1 - Formula 1
   commands.push({
     type: "text",
-    text: "To the Flag",
+    text: "Formula 1",
     x: leftX,
-    y: isWide ? 110 : 88,
-    font: isWide ? "700 48px var(--font-display)" : "700 38px var(--font-display)",
+    y: isWide ? 90 : 72,
+    font: isWide ? "700 44px var(--font-display)" : "700 34px var(--font-display)",
     fill: "var(--color-text)",
     align: "left",
     baseline: "middle",
   });
 
-  // Subtitle
-  const subtitle = isWcc
-    ? `Season ${view.season} · as of Round ${view.asOfRound} · Constructors`
-    : `Season ${view.season} · as of Round ${view.asOfRound}`;
+  // Title: Line 2 - Season ... · Round ...
   commands.push({
     type: "text",
-    text: subtitle,
+    text: `Season ${view.season} · Round ${view.asOfRound}`,
     x: leftX,
-    y: isWide ? 155 : 124,
-    font: isWide ? "500 20px var(--font-ui)" : "500 18px var(--font-ui)",
+    y: isWide ? 128 : 102,
+    font: isWide ? "500 18px var(--font-ui)" : "500 15px var(--font-ui)",
     fill: "var(--color-text-2)",
     align: "left",
     baseline: "middle",
   });
 
-  // Scenario Name
-  const maxScenarioChars = isWide ? 60 : 38;
+  // Title: Line 3 - Championship Standings
+  const standingsTitle = isWcc
+    ? "World Constructors' Championship Standings"
+    : "World Drivers' Championship Standings";
   commands.push({
     type: "text",
-    text: truncate(view.scenarioName, maxScenarioChars),
+    text: standingsTitle,
     x: leftX,
-    y: isWide ? 190 : 156,
-    font: isWide ? "600 22px var(--font-display)" : "600 20px var(--font-display)",
-    fill: "var(--color-text-3)",
+    y: isWide ? 158 : 128,
+    font: isWide ? "700 24px var(--font-display)" : "700 19px var(--font-display)",
+    fill: "var(--color-text)",
     align: "left",
     baseline: "middle",
   });
+
+  // Title: Line 4 - Simulation / Scenario if active
+  const isSim = Boolean(view.isSimulation || view.simulationRound);
+  const hasCustomScenario = Boolean(view.scenarioName && view.scenarioName !== "Base");
+  if (isSim || hasCustomScenario) {
+    const simText = isSim
+      ? `Simulation to Round ${view.simulationRound ?? view.asOfRound}${hasCustomScenario ? ` · ${truncate(view.scenarioName, isWide ? 50 : 35)}` : ""}`
+      : truncate(view.scenarioName, isWide ? 60 : 40);
+    commands.push({
+      type: "text",
+      text: simText,
+      x: leftX,
+      y: isWide ? 186 : 152,
+      font: isWide ? "600 18px var(--font-display)" : "600 15px var(--font-display)",
+      fill: "var(--color-yellow)",
+      align: "left",
+      baseline: "middle",
+    });
+  }
 
   // Model estimate label
   if (view.hasOdds) {
@@ -195,7 +228,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
       type: "text",
       text: "Model estimate",
       x: rightX,
-      y: isWide ? 110 : 88,
+      y: isWide ? 90 : 72,
       font: isWide ? "600 20px var(--font-display)" : "600 16px var(--font-display)",
       fill: "var(--color-accent-text)",
       align: "right",
@@ -204,7 +237,8 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   }
 
   // Divider
-  const dividerY = isWide ? 216 : 180;
+  const hasSub = isSim || hasCustomScenario;
+  const dividerY = isWide ? (hasSub ? 210 : 182) : (hasSub ? 172 : 148);
   commands.push({
     type: "line",
     x1: leftX,
@@ -225,7 +259,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   const colOdds = rightX;
 
   // Table column headers
-  const headerY = isWide ? 250 : 210;
+  const headerY = dividerY + (isWide ? 28 : 24);
   const headerFont = "600 14px var(--font-ui)";
   const headerColor = "var(--color-text-3)";
 
@@ -310,29 +344,41 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
     });
   }
 
-  // 5. Table rows
-  const rowStartY = isWide ? 276 : 234;
-  const availHeight = height - (margin + 20) - rowStartY;
-  const baseRowHeight = 58;
-  const rowHeight = rows.length <= 12 ? baseRowHeight : Math.min(baseRowHeight, Math.floor(availHeight / rows.length));
-  const isScaled = rowHeight < 50;
+  // 5. Credit text at bottom center
+  const creditY = height - margin - 12;
+  commands.push({
+    type: "text",
+    text: "to the flag by Tyhad | F1 Watchalong",
+    x: width / 2,
+    y: creditY,
+    font: "500 14px var(--font-ui)",
+    fill: "var(--color-text-3)",
+    align: "center",
+    baseline: "middle",
+  });
 
-  const rowFont = isScaled
-    ? `600 ${Math.max(13, Math.floor(rowHeight * 0.44))}px var(--font-display)`
-    : "600 20px var(--font-display)";
-  const deltaFont = isScaled
-    ? `600 ${Math.max(12, Math.floor(rowHeight * 0.40))}px var(--font-display)`
-    : "600 18px var(--font-display)";
-  const statusFont = isScaled
-    ? `600 ${Math.max(11, Math.floor(rowHeight * 0.38))}px var(--font-ui)`
-    : "600 16px var(--font-ui)";
-  const oddsFont = isScaled
-    ? `700 ${Math.max(14, Math.floor(rowHeight * 0.48))}px var(--font-display)`
-    : "700 22px var(--font-display)";
+  // 6. Dynamic Table rows
+  const tableTopY = headerY + (isWide ? 24 : 20);
+  const availHeight = creditY - 18 - tableTopY;
+  const idealRowHeight = Math.floor(availHeight / Math.max(1, rows.length));
+  const rowHeight = Math.max(28, Math.min(100, idealRowHeight));
+  const tableHeight = rows.length * rowHeight;
+  const extraVertical = Math.max(0, availHeight - tableHeight);
+  const rowStartY = tableTopY + Math.min(80, Math.floor(extraVertical * 0.35));
 
-  const stripHeight = isScaled ? Math.max(14, rowHeight - 12) : 30;
-  const stripYOffset = Math.floor((rowHeight - stripHeight) / 2);
+  const rowFontSize = Math.max(13, Math.min(36, Math.round(rowHeight * 0.38)));
+  const deltaFontSize = Math.max(12, Math.min(30, Math.round(rowHeight * 0.34)));
+  const statusFontSize = Math.max(11, Math.min(22, Math.round(rowHeight * 0.28)));
+  const oddsFontSize = Math.max(14, Math.min(36, Math.round(rowHeight * 0.40)));
+  const stripHeight = Math.max(14, Math.min(50, Math.round(rowHeight * 0.55)));
+  const stripWidth = rowHeight >= 70 ? 6 : 4;
   const centerYOffset = Math.floor(rowHeight / 2);
+  const stripYOffset = Math.floor((rowHeight - stripHeight) / 2);
+
+  const rowFont = `600 ${rowFontSize}px var(--font-display)`;
+  const deltaFont = `600 ${deltaFontSize}px var(--font-display)`;
+  const statusFont = `600 ${statusFontSize}px var(--font-ui)`;
+  const oddsFont = `700 ${oddsFontSize}px var(--font-display)`;
 
   rows.forEach((row, idx) => {
     const rowY = rowStartY + idx * rowHeight;
@@ -369,7 +415,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
       type: "rect",
       x: stripX,
       y: rowY + stripYOffset,
-      width: 4,
+      width: stripWidth,
       height: stripHeight,
       fill: teamColor(row.constructorId),
       radius: 2,

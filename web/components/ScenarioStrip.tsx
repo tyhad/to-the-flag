@@ -58,7 +58,9 @@ export function ScenarioStrip({
   const [draft, setDraft] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [exportSize, setExportSize] = useState<CardSize>("square");
-  const [exportRows, setExportRows] = useState<CardRowsChoice>("12");
+  const [exportPreset, setExportPreset] = useState<"10" | "12" | "all" | "custom">("12");
+  const [customFrom, setCustomFrom] = useState<number>(1);
+  const [customTo, setCustomTo] = useState<number>(12);
   const [exporting, setExporting] = useState(false);
   const footerRef = useRef<HTMLElement>(null);
   /** The `data-focus-id` of the control that opened a form, so closing the form can put focus back on it. */
@@ -139,6 +141,13 @@ export function ScenarioStrip({
   async function handleExport() {
     setExporting(true);
     try {
+      const positionRange =
+        exportPreset === "custom"
+          ? { from: customFrom, to: customTo }
+          : undefined;
+      const rowLimit =
+        exportPreset === "10" ? "10" : exportPreset === "12" ? "12" : exportPreset === "all" ? "all" : undefined;
+
       const view = buildCardView(
         state,
         workspace,
@@ -147,7 +156,8 @@ export function ScenarioStrip({
         oddsResult,
         titleInfoMode,
         standingsTab,
-        exportRows,
+        rowLimit ?? "12",
+        positionRange,
       );
       await exportCard(view, exportSize);
     } catch {
@@ -262,14 +272,40 @@ export function ScenarioStrip({
           </select>
           <select
             aria-label="Export row count"
-            value={exportRows}
-            onChange={(e) => setExportRows(e.target.value as CardRowsChoice)}
+            value={exportPreset}
+            onChange={(e) => setExportPreset(e.target.value as "10" | "12" | "all" | "custom")}
             className={`${SELECT} h-8`}
           >
             <option value="10">Top 10</option>
             <option value="12">Top 12</option>
             <option value="all">Semua</option>
+            <option value="custom">Custom (P...–P...)</option>
           </select>
+          {exportPreset === "custom" ? (
+            <div className="flex items-center gap-1">
+              <span className="type-label text-text-2">P</span>
+              <input
+                type="number"
+                min={1}
+                max={customTo}
+                value={customFrom}
+                onChange={(e) => setCustomFrom(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                aria-label="From position"
+                className={`${SELECT} h-8 w-14 text-center`}
+              />
+              <span className="type-label text-text-3">–</span>
+              <span className="type-label text-text-2">P</span>
+              <input
+                type="number"
+                min={customFrom}
+                max={99}
+                value={customTo}
+                onChange={(e) => setCustomTo(Math.max(customFrom, parseInt(e.target.value, 10) || customFrom))}
+                aria-label="To position"
+                className={`${SELECT} h-8 w-14 text-center`}
+              />
+            </div>
+          ) : null}
           <button
             type="button"
             disabled={exporting}

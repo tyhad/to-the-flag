@@ -106,7 +106,8 @@ describe("web/viewModel/card: standings card layout", () => {
       const commands = buildCard(baseView, "square");
       const texts = commands.filter((c) => c.type === "text").map((c) => (c as any).text);
 
-      expect(texts).toContain("To the Flag");
+      expect(texts).toContain("Formula 1");
+      expect(texts).toContain("to the flag by Tyhad | F1 Watchalong");
       expect(texts.some((t) => t.includes("Season 2026") && t.includes("Round 16"))).toBe(true);
       expect(texts.some((t) => t.includes("Norris Win All"))).toBe(true);
     });
@@ -377,14 +378,51 @@ describe("web/viewModel/card: standings card layout", () => {
       expect(rankTexts).not.toContain("13");
     });
 
-    test("rowLimit 'all' includes all rows and stays within bounds", () => {
-      const commands = buildCard({ ...baseView, rows: manyRows, rowLimit: "all" }, "square");
+    test("positionRange filters rows to custom range, e.g. P3-P15", () => {
+      const commands = buildCard(
+        { ...baseView, rows: manyRows, positionRange: { from: 3, to: 15 } },
+        "square",
+      );
       const rankTexts = commands
         .filter((c) => c.type === "text" && (c as any).align === "right")
         .map((c: any) => c.text);
-      expect(rankTexts).toContain("1");
-      expect(rankTexts).toContain("25");
+      expect(rankTexts).not.toContain("1");
+      expect(rankTexts).not.toContain("2");
+      expect(rankTexts).toContain("3");
+      expect(rankTexts).toContain("15");
+      expect(rankTexts).not.toContain("16");
       verifyBounds(commands, 1080, 1080);
+    });
+  });
+
+  describe("simulation mode header", () => {
+    test("displays Simulation to Round when in simulation mode", () => {
+      const commands = buildCard(
+        { ...baseView, isSimulation: true, simulationRound: 24 },
+        "square",
+      );
+      const texts = commands.filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts.some((t) => t.includes("Simulation to Round 24"))).toBe(true);
+    });
+  });
+
+  describe("dynamic row scaling for small lists", () => {
+    test("scales row font and height when few rows are exported", () => {
+      const fewRowsCommands = buildCard(
+        { ...baseView, rows: mockRows.slice(0, 3) },
+        "square",
+      );
+      verifyBounds(fewRowsCommands, 1080, 1080);
+      // Ensure font size for rank/driver in small list is scaled up (> 20px)
+      const rankCmd = fewRowsCommands.find(
+        (c) => c.type === "text" && (c as any).text === "1",
+      );
+      expect(rankCmd).toBeDefined();
+      if (rankCmd && rankCmd.type === "text") {
+        const match = rankCmd.font.match(/(\d+)px/);
+        expect(match).toBeDefined();
+        expect(Number(match![1])).toBeGreaterThan(20);
+      }
     });
   });
 

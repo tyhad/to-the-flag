@@ -5,7 +5,7 @@
 import type { OddsResult } from "../../engine/odds";
 import { NO_TITLE_TEXT, buildTowerRows, type TowerStatus, type TowerTab } from "./tower";
 import { DEFAULT_TITLE_INFO, titleInfoVisible, type TitleInfoMode } from "./titleInfo";
-import type { CardRow, CardRowsChoice, CardView } from "./card";
+import type { CardPositionRange, CardRow, CardRowsChoice, CardView } from "./card";
 import type { Workspace } from "./workspace";
 import type { SavedScenario } from "./scenarios";
 import type { SeasonState } from "../../engine";
@@ -21,6 +21,7 @@ import type { SeasonState } from "../../engine";
  * @param titleInfoMode  The "Title info" choice.
  * @param tab         "wdc" or "wcc" (defaults to "wdc").
  * @param rowLimit    "10", "12", or "all" (defaults to "12").
+ * @param positionRange Optional custom position range, e.g. { from: 3, to: 15 }.
  */
 export function buildCardView(
   state: SeasonState,
@@ -31,6 +32,7 @@ export function buildCardView(
   titleInfoMode: TitleInfoMode = DEFAULT_TITLE_INFO,
   tab: TowerTab = "wdc",
   rowLimit: CardRowsChoice = "12",
+  positionRange?: CardPositionRange,
 ): CardView {
   const isWcc = tab === "wcc";
   const towerRows = buildTowerRows(state, workspace.scenario, tab);
@@ -55,6 +57,14 @@ export function buildCardView(
   const selected = selectedId !== null ? scenarios.find((s) => s.id === selectedId) : undefined;
   const scenarioName = selected?.name ?? "Base";
 
+  const lockedKeys = Object.keys(workspace.scenario.locks);
+  const isSimulation = lockedKeys.length > 0;
+  let simulationRound: number | undefined;
+  if (isSimulation) {
+    const roundNums = lockedKeys.map((k) => Number(k.split(":")[0])).filter((n) => !isNaN(n));
+    if (roundNums.length > 0) simulationRound = Math.max(...roundNums);
+  }
+
   return {
     season: state.season,
     asOfRound: state.asOfRound,
@@ -64,6 +74,9 @@ export function buildCardView(
     showTitleInfo: titleInfoVisible(titleInfoMode, towerRows),
     tab,
     rowLimit,
+    positionRange,
+    isSimulation,
+    simulationRound,
   };
 }
 

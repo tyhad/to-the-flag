@@ -43,17 +43,17 @@ describe("TitleInfoSwitch", () => {
     }));
 
   test("a visible label 'Title info' and a radio group named by it", () => {
-    const html = render("auto");
+    const html = render("on");
     expect(html).toMatch(/<span[^>]*id="title-info-label"[^>]*>Title info<\/span>/);
     expect(html).toMatch(/role="radiogroup"[^>]*aria-labelledby="title-info-label"/);
   });
 
-  test("three options in order: Auto, On, Off", () => {
-    expect(radios(render("auto")).map((r) => r.text)).toEqual(["Auto", "On", "Off"]);
+  test("two options in order: On, Off", () => {
+    expect(radios(render("on")).map((r) => r.text)).toEqual(["On", "Off"]);
   });
 
   test("exactly the selected option is checked and in the tab order", () => {
-    for (const [mode, index] of [["auto", 0], ["on", 1], ["off", 2]] as const) {
+    for (const [mode, index] of [["on", 0], ["off", 1]] as const) {
       const items = radios(render(mode));
       items.forEach((item, i) => {
         expect(item.tag).toContain(`aria-checked="${i === index}"`);
@@ -63,8 +63,8 @@ describe("TitleInfoSwitch", () => {
   });
 
   test("every option explains itself in a tooltip", () => {
-    for (const item of radios(render("auto"))) expect(item.tag).toMatch(/title="[^"]{10,}"/);
-    expect(render("auto")).toContain("once someone can no longer win the title");
+    for (const item of radios(render("on"))) expect(item.tag).toMatch(/title="[^"]{10,}"/);
+    expect(render("on")).toContain("always show the title status");
   });
 
   test("the keyboard focus ring is never removed (DESIGN.md: never remove it)", () => {
@@ -73,14 +73,14 @@ describe("TitleInfoSwitch", () => {
   });
 
   test("buttons are real buttons, not links or divs", () => {
-    expect(radios(render("auto"))[0]!.tag).toMatch(/^<button[^>]*type="button"/);
+    expect(radios(render("on"))[0]!.tag).toMatch(/^<button[^>]*type="button"/);
   });
 
   test("the selected option uses the same selected look as the tabs: accent border and s2 fill", () => {
     const items = radios(render("on"));
-    expect(items[1]!.tag).toContain("border-accent");
-    expect(items[1]!.tag).toContain("bg-s2");
-    expect(items[0]!.tag).not.toContain("bg-s2");
+    expect(items[0]!.tag).toContain("border-accent");
+    expect(items[0]!.tag).toContain("bg-s2");
+    expect(items[1]!.tag).not.toContain("bg-s2");
   });
 });
 
@@ -91,8 +91,8 @@ describe("useTitleInfo", () => {
   }
   const modeOf = (storage?: TitleInfoStorage) => renderToStaticMarkup(<Probe storage={storage} />);
 
-  test("the default is auto (no storage in this environment)", () => {
-    expect(modeOf()).toContain('data-mode="auto"');
+  test("the default is on (no storage in this environment)", () => {
+    expect(modeOf()).toContain('data-mode="on"');
   });
 
   test("starts from the remembered choice", () => {
@@ -112,7 +112,7 @@ describe("useTitleInfo", () => {
         throw new Error("blocked");
       },
     };
-    expect(modeOf(storage)).toContain('data-mode="auto"');
+    expect(modeOf(storage)).toContain('data-mode="on"');
   });
 });
 
@@ -176,7 +176,7 @@ describe("StandingsPanel and the switch", () => {
     );
 
   test("the switch sits above the table", () => {
-    const html = panel({ mode: "auto" });
+    const html = panel({ mode: "on" });
     expect(html).toContain('role="radiogroup"');
     expect(html.indexOf('role="radiogroup"')).toBeLessThan(html.indexOf("<ol"));
   });
@@ -194,21 +194,9 @@ describe("StandingsPanel and the switch", () => {
     expect(html).toContain("Position </span>1");
   });
 
-  test("Auto with someone out: drawn", () => {
-    const html = panel({ mode: "auto" });
-    expect(html).toContain(">Best<");
-    expect(html).toContain(">No title<");
-  });
-
-  test("Auto with nobody out: a plain table", () => {
-    const html = panel({ mode: "auto", state: early });
-    expect(html).not.toContain(">Best<");
-    expect(html).not.toContain(">Alive<");
-    expect(html).toContain("Position </span>1");
-  });
-
   test("the choice shows as selected in the switch", () => {
     expect(panel({ mode: "off" })).toMatch(/role="radio"[^>]*aria-checked="true"[^>]*>Off</);
+    expect(panel({ mode: "on" })).toMatch(/role="radio"[^>]*aria-checked="true"[^>]*>On</);
   });
 
   test("compare mode has no tower, so no switch", () => {
@@ -216,7 +204,7 @@ describe("StandingsPanel and the switch", () => {
     expect(html).not.toContain('role="radiogroup"');
   });
 
-  test("without a titleInfo prop (nothing to control) the panel still renders and shows the default, auto", () => {
+  test("without a titleInfo prop (nothing to control) the panel still renders and shows the default, on", () => {
     const html = renderToStaticMarkup(<StandingsPanel season={{ status: "ready", state }} />);
     expect(html).toContain(">No title<");
     expect(html).not.toContain('role="radiogroup"');

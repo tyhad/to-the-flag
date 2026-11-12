@@ -158,13 +158,12 @@ describe("web/viewModel/cardView: buildCardView", () => {
   });
 
   describe("the card follows the Title info choice", () => {
-    // Base: AAA 25, BBB 18, two races left (50 points on offer): both can still win, so nobody is out.
     const oneOut = () =>
       ({
         ...makeWorkspace(),
         scenario: { locks: { "2:race": { fixed: { AAA: 1 } }, "3:race": { fixed: { AAA: 1 } } } },
       }) as Workspace;
-    const build = (workspace: Workspace, mode?: "auto" | "on" | "off") =>
+    const build = (workspace: Workspace, mode?: "on" | "off") =>
       buildCardView(makeState(), workspace, makeScenarios(), null, null, mode);
 
     test("on: the status column is drawn", () => {
@@ -175,22 +174,9 @@ describe("web/viewModel/cardView: buildCardView", () => {
       expect(build(oneOut(), "off").showTitleInfo).toBe(false);
     });
 
-    test("auto with nobody out: not drawn", () => {
-      expect(build(makeWorkspace(), "auto").showTitleInfo).toBe(false);
-    });
-
-    test("auto with one driver out: drawn", () => {
-      expect(build(oneOut(), "auto").showTitleInfo).toBe(true);
-    });
-
-    test("auto is the default when no choice is passed", () => {
-      expect(build(makeWorkspace()).showTitleInfo).toBe(false);
+    test("on is the default when no choice is passed", () => {
+      expect(build(makeWorkspace()).showTitleInfo).toBe(true);
       expect(build(oneOut()).showTitleInfo).toBe(true);
-    });
-
-    test("the card decides from the drivers' table (it lists drivers), never from the teams'", () => {
-      // The flag is the same whatever the constructors table says: it only depends on the WDC rows.
-      expect(build(oneOut(), "auto").showTitleInfo).toBe(true);
     });
 
     test("the row data is unchanged by the choice: only whether it is drawn differs", () => {
@@ -217,7 +203,7 @@ describe("web/viewModel/cardView: buildCardView", () => {
         { id: "beta", wins: 300, probability: 0.3, display: "30%", avgPoints: 350, status: "alive" as const },
       ],
     };
-    const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), null, odds, "auto", "wcc", "all");
+    const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), null, odds, "on", "wcc", "all");
     expect(view.tab).toBe("wcc");
     expect(view.rowLimit).toBe("all");
     expect(view.rows.length).toBe(2);
