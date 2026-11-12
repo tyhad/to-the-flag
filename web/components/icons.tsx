@@ -26,3 +26,21 @@ export function ClockIcon() {
     </svg>
   );
 }
+
+/** The cross of the `✕ No title` tag. Always sits next to the text. */
+export function CrossIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
+      <path d="M3.5 3.5 12.5 12.5M12.5 3.5 3.5 12.5" />
+    </svg>
+  );
+}

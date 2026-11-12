@@ -1,6 +1,6 @@
 import { useTweenedNumber } from "../motion";
 import { teamColor } from "../theme/teams";
-import { formatPoints, statusTag, type TowerRow as Row } from "../viewModel/tower";
+import { formatPoints, rowTextTone, statusTag, type TowerRow as Row } from "../viewModel/tower";
 import { DeltaChip } from "./DeltaChip";
 import { StatusTag } from "./StatusTag";
 
@@ -13,8 +13,9 @@ export function TowerRow({ row }: { row: Row }) {
   const changed = row.pointsAdded !== 0;
   const tag = statusTag(row);
 
-  // Eliminated: text-3 and line-through. Not racing: text-3 only.
-  const textTone = row.eliminated ? "text-text-3 line-through" : row.inactive ? "text-text-3" : "text-text";
+  // Normal text for every driver and team that is racing, even one that cannot win the title: the tag says it.
+  // Only a driver who is not racing is dimmed (text-3).
+  const textTone = rowTextTone(row) === "muted" ? "text-text-3" : "text-text";
 
   return (
     <li

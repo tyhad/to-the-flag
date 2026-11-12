@@ -48,8 +48,6 @@ export interface TowerRow {
   status: TowerStatus | null;
   /** The driver is not in the latest round's results. */
   inactive: boolean;
-  /** An active driver who can no longer win the title. */
-  eliminated: boolean;
 }
 
 /**
@@ -84,20 +82,45 @@ export function formatPoints(points: number): string {
 export interface StatusTagView {
   label: string;
   tone: TowerStatus | "inactive";
+  /** A small icon drawn before the label. Only the no-title tag has one. */
+  icon?: "cross";
+  /** What a screen reader says instead of the label, when the label alone is not enough. */
+  accessibleName?: string;
 }
+
+/**
+ * The mark for a driver or team that can no longer win the title (D42): the tag `✕ No title`.
+ * No strike-through anywhere; the meaning is in the icon plus the text, never in color alone.
+ */
+export const NO_TITLE_LABEL = "No title";
+export const NO_TITLE_MARK = "✕";
+export const NO_TITLE_ACCESSIBLE_NAME = "Cannot win the title";
+/** The same mark as one line of text, for the PNG card. */
+export const NO_TITLE_TEXT = `${NO_TITLE_MARK} ${NO_TITLE_LABEL}`;
 
 const STATUS_LABELS: Record<TowerStatus, string> = {
   clinched: "Clinched",
   alive: "Alive",
   longShot: "Long shot",
-  eliminated: "Eliminated",
+  eliminated: NO_TITLE_LABEL,
 };
 
 /** The tag for a row, or null when the row has none (a team with no active car). */
 export function statusTag(row: Pick<TowerRow, "status" | "inactive">): StatusTagView | null {
   if (row.inactive) return { label: "not racing", tone: "inactive" };
   if (row.status === null) return null;
+  if (row.status === "eliminated") {
+    return { label: NO_TITLE_LABEL, tone: "eliminated", icon: "cross", accessibleName: NO_TITLE_ACCESSIBLE_NAME };
+  }
   return { label: STATUS_LABELS[row.status], tone: row.status };
+}
+
+/**
+ * The text tone of a row: `normal` for every driver and team that is racing, including one that cannot win
+ * the title (that is said by the tag); `muted` (text-3) only for a driver who is not racing.
+ */
+export function rowTextTone(row: Pick<TowerRow, "inactive">): "normal" | "muted" {
+  return row.inactive ? "muted" : "normal";
 }
 
 /**
@@ -168,7 +191,6 @@ function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRo
       pointsAdded: row.delta,
       status,
       inactive,
-      eliminated: status === "eliminated",
     };
   });
 }
@@ -201,7 +223,6 @@ function constructorRows(state: SeasonState, scenario: Scenario | undefined): To
       pointsAdded: row.delta,
       status,
       inactive: false,
-      eliminated: status === "eliminated",
     };
   });
 }

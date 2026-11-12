@@ -32,7 +32,7 @@ const mockRows = [
     currentPoints: 70,
     projectedPoints: 70,
     deltaPoints: 0,
-    statusText: "Eliminated",
+    statusText: "✕ No title",
     oddsDisplay: "—",
   },
 ];
@@ -46,7 +46,7 @@ const manyRows = Array.from({ length: 25 }, (_, i) => ({
   currentPoints: 100 - i,
   projectedPoints: 110 - i,
   deltaPoints: 10,
-  statusText: i === 0 ? "Alive" : "Eliminated",
+  statusText: i === 0 ? "Alive" : "✕ No title",
   oddsDisplay: i === 0 ? "50%" : "<1%",
 }));
 
@@ -125,6 +125,41 @@ describe("web/viewModel/card: standings card layout", () => {
 
       expect(texts.some((t) => t.includes("Model estimate"))).toBe(false);
       expect(texts).not.toContain(">99%");
+    });
+  });
+
+  describe("no-title mark", () => {
+    const statusCommands = (view: CardView) =>
+      buildCard(view, "square").filter(
+        (c): c is Extract<DrawCommand, { type: "text" }> => c.type === "text" && /Clinched|Alive|No title/.test(c.text),
+      );
+
+    test("a driver who cannot win the title shows '✕ No title'", () => {
+      const texts = statusCommands(baseView).map((c) => c.text);
+      expect(texts).toContain("✕ No title");
+      expect(texts).not.toContain("Eliminated");
+    });
+
+    test("it is drawn in text-3, never in red (DESIGN.md: no-title is not an alarm)", () => {
+      const cmd = statusCommands(baseView).find((c) => c.text === "✕ No title");
+      expect(cmd?.fill).toBe("var(--color-text-3)");
+      expect(cmd?.fill).not.toContain("red");
+    });
+
+    test("the other tags keep their colors", () => {
+      const fills = Object.fromEntries(statusCommands(baseView).map((c) => [c.text, c.fill]));
+      expect(fills["Clinched"]).toBe("var(--color-purple)");
+      expect(fills["Alive"]).toBe("var(--color-green)");
+    });
+
+    test("nothing on the card is a strike-through (the draw commands have no such command)", () => {
+      for (const size of ["square", "wide"] as const) {
+        const types = new Set(buildCard(baseView, size).map((c) => c.type));
+        expect([...types].sort()).toEqual(["line", "rect", "text"]);
+        // the only line is the header divider, which is horizontal and spans the header, not a row
+        const lines = buildCard(baseView, size).filter((c) => c.type === "line");
+        expect(lines).toHaveLength(1);
+      }
     });
   });
 

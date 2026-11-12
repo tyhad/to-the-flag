@@ -39,7 +39,7 @@ This tool is shown on screen-share and stream. Every decision below favors legib
 | `--color-orange` | `#ff9f43` | Very hard path |
 | `--color-red` | `#ff6b63` | Loss, delta down |
 
-Eliminated is **not** a color: render the row in `text-3` with a line-through on the name.
+No title is **not** a color, and nothing is ever struck through. A driver or team that can no longer win the title keeps the normal row text color and gets the tag `✕ No title` (section 6). A driver who is not racing is the one row that is dimmed: `text-3` with the tag "not racing".
 
 Contrast was computed (WCAG 2.x). Text colors above are ≥ 5.0:1 on `s1` and `s2`. Filled badges use `s0` as text color (≥ 6.5:1 on all four timing colors).
 
@@ -99,9 +99,9 @@ Fixed-viewport app, designed for a 1920×1080 screen-share and usable at 1280 wi
 
 ## 6. Components
 
-**Tower row.** `s1` row, 40px, 3px team strip at left, position (data), driver code (title), points `current → projected` (data), delta chip, status tag. Selected row = `s2` + 2px `accent` left border. Eliminated row = `text-3` + line-through.
+**Tower row.** `s1` row, 40px, 3px team strip at left, position (data), driver code (title), points `current → projected` (data), delta chip, status tag. Selected row = `s2` + 2px `accent` left border. A row that cannot win the title looks like any other racing row; its tag says so. Only a driver who is not racing is `text-3`.
 
-**Status tag.** Chamfered, filled, `s0` text, sentence case. Clinched = purple (+ glow). Alive = green. Long shot = yellow. Eliminated = no fill, `text-3`. Driver rows and team rows use the same tags; a team with no active car has none.
+**Status tag.** Chamfered, filled, `s0` text, sentence case. Clinched = purple (+ glow). Alive = green. Long shot = yellow. No title = no fill, `text-3`, a cross icon followed by the text "No title" (the screen reader says "Cannot win the title"); "not racing" = no fill, `text-3`, text only. Driver rows and team rows use the same tags; a team with no active car has none. The PNG card draws the same mark as the text `✕ No title` in `text-3`.
 
 **Delta chip.** `▲ 12` in green or `▼ 8` in red, `data` size. Zero shows `●` in `text-3`.
 
@@ -132,7 +132,7 @@ Fixed-viewport app, designed for a 1920×1080 screen-share and usable at 1280 wi
 - Plain words, active voice, sentence case. Buttons name the action: "Lock result", "Reset scenario", "Save scenario".
 - Labels: **Possible?** (math, no assumptions) and **Likely?** (model).
 - Always show "Model estimate" next to any simulated percentage and "as of Round N" in the header.
-- Never show `0%` / `100%` from simulation. Deterministic states (Clinched, Eliminated) are stated in words.
+- Never show `0%` / `100%` from simulation. Deterministic states (Clinched, No title) are stated in words.
 - Numbers: points as integers (half points allowed), probabilities rounded to whole percent (one decimal below 10%).
 
 ## 9. Do / Don't
@@ -146,7 +146,7 @@ Fixed-viewport app, designed for a 1920×1080 screen-share and usable at 1280 wi
 **Don't**
 - No neumorphic shadows, no drop shadows, no gradients as decoration.
 - No pure-white panels; white is for text and numerals.
-- Don't use red for "eliminated" (it reads as an alarm). Don't use purple for anything except clinched/best.
+- Don't use red for "No title" (it reads as an alarm), and never strike text through, in the UI or on the PNG card. Don't use purple for anything except clinched/best.
 - Don't put text below 13px; don't use `text-3` on anything lighter than `s2`.
 - Don't use one radius for everything; don't add all-caps labels or eyebrow text.
 

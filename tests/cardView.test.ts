@@ -146,6 +146,22 @@ describe("web/viewModel/cardView: buildCardView", () => {
     }
   });
 
+  test("a driver who cannot win the title gets the text '✕ No title'; the leader is 'Clinched'", () => {
+    // AAA wins both remaining races: 25 + 25 + 25 = 75, BBB can reach at most 18 (unspecified drivers add 0).
+    const workspace = {
+      ...makeWorkspace(),
+      scenario: { locks: { "2:race": { fixed: { AAA: 1 } }, "3:race": { fixed: { AAA: 1 } } } },
+    } as Workspace;
+    const view = buildCardView(makeState(), workspace, makeScenarios(), null, null);
+    expect(view.rows.find((r) => r.driverCode === "AAA")?.statusText).toBe("Clinched");
+    expect(view.rows.find((r) => r.driverCode === "BBB")?.statusText).toBe("✕ No title");
+  });
+
+  test("the word 'Eliminated' never appears on the card", () => {
+    const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), null, null);
+    for (const row of view.rows) expect(row.statusText).not.toBe("Eliminated");
+  });
+
   test("no tokens, server paths, or localhost in any field", () => {
     const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), "s1", makeOddsResult());
     const strings = [

@@ -3,6 +3,7 @@
  * Generates drawing commands for canvas rendering without any DOM or Canvas APIs.
  */
 import { teamColor } from "../theme/teams";
+import { NO_TITLE_TEXT } from "./tower";
 
 export type CardSize = "square" | "wide";
 
@@ -69,8 +70,9 @@ function statusColor(statusText: string): string {
       return "var(--color-green)";
     case "long shot":
       return "var(--color-yellow)";
-    case "eliminated":
-      return "var(--color-red)";
+    case NO_TITLE_TEXT.toLowerCase():
+      // No fill and text-3, like the tag in the table. Red reads as an alarm (DESIGN.md section 9).
+      return "var(--color-text-3)";
     default:
       return "var(--color-text-2)";
   }

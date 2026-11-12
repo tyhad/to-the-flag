@@ -3,7 +3,7 @@
  * The export button calls this to get the data for buildCard().
  */
 import type { OddsResult } from "../../engine/odds";
-import { buildTowerRows } from "./tower";
+import { NO_TITLE_TEXT, buildTowerRows, type TowerStatus } from "./tower";
 import type { CardRow, CardView } from "./card";
 import type { Workspace } from "./workspace";
 import type { SavedScenario } from "./scenarios";
@@ -38,7 +38,7 @@ export function buildCardView(
     currentPoints: r.basePoints,
     projectedPoints: r.points,
     deltaPoints: r.pointsAdded,
-    statusText: r.status ? capitalize(r.status) : "",
+    statusText: r.status ? statusText(r.status) : "",
     oddsDisplay: oddsById.get(r.id),
   }));
 
@@ -54,9 +54,9 @@ export function buildCardView(
   };
 }
 
-function capitalize(s: string): string {
-  if (!s) return s;
-  // "longShot" → "Long shot"
-  if (s === "longShot") return "Long shot";
-  return s.charAt(0).toUpperCase() + s.slice(1);
+/** "alive" → "Alive", "longShot" → "Long shot", "eliminated" → "✕ No title" (the same mark as the table tag). */
+function statusText(status: TowerStatus): string {
+  if (status === "eliminated") return NO_TITLE_TEXT;
+  if (status === "longShot") return "Long shot";
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
