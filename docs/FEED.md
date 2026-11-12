@@ -105,7 +105,8 @@ Returns driver title statuses (clinched, alive, or eliminated) and gap metrics.
       "points": 320,
       "maxPossible": 503,
       "gapToLeader": 0,
-      "pointsToClinch": 100
+      "pointsToClinch": 100,
+      "best_position": 1
     },
     {
       "driver": "RUS",
@@ -113,7 +114,8 @@ Returns driver title statuses (clinched, alive, or eliminated) and gap metrics.
       "points": 236,
       "maxPossible": 419,
       "gapToLeader": 84,
-      "pointsToClinch": null
+      "pointsToClinch": null,
+      "best_position": 1
     }
   ],
   "top1_driver": "ANT",
@@ -122,14 +124,32 @@ Returns driver title statuses (clinched, alive, or eliminated) and gap metrics.
   "top1_maxPossible": 503,
   "top1_gapToLeader": 0,
   "top1_pointsToClinch": 100,
+  "top1_best_position": 1,
+  "top1_best": 1,
   "top2_driver": "RUS",
   "top2_status": "alive",
   "top2_points": 236,
   "top2_maxPossible": 419,
   "top2_gapToLeader": 84,
-  "top2_pointsToClinch": null
+  "top2_pointsToClinch": null,
+  "top2_best_position": 1,
+  "top2_best": 1
 }
 ```
+
+**Fields**
+
+- Row fields keep their camelCase names (`driver`, `name`, `status`, `points`, `maxPossible`, `gapToLeader`,
+  `pointsToClinch`), except `best_position`, which is snake_case like the same field in `team-status`.
+- `best_position`: the highest place the driver can still reach **on points alone** (Phase 7), a whole number from 1 up.
+  It counts the other drivers whose points are already **strictly above** this driver's `maxPossible`, plus one. It is a
+  floor, not a promise: the driver may not be able to hold every rival back at once, and a tie on points is not counted
+  as being above (no countback). `1` means the driver can still win the title; `2` or more means the driver cannot. A
+  driver who is not racing has `maxPossible` equal to his points, so his best place is the place his points give him.
+  There is deliberately no "worst place".
+- Flattened fields for places 1 to 10: one per row field (`top1_driver`, `top1_best_position`, ...). `top1_best` to
+  `top10_best` are the short names for `best_position`, for easy field picking in an overlay. A place with no driver has
+  `top{n}_best` `0` rather than a missing key.
 
 ---
 
@@ -328,7 +348,8 @@ active scenario that no longer fits the season is ignored (as for `/api/feed/odd
       "status": "alive",
       "max_possible": 872,
       "gap_to_leader": 0,
-      "points_to_clinch": 166
+      "points_to_clinch": 166,
+      "best_position": 1
     },
     {
       "rank": 2,
@@ -338,7 +359,8 @@ active scenario that no longer fits the season is ignored (as for `/api/feed/odd
       "status": "alive",
       "max_possible": 721,
       "gap_to_leader": 151,
-      "points_to_clinch": 468
+      "points_to_clinch": 468,
+      "best_position": 1
     }
   ],
   "top1_rank": 1,
@@ -349,6 +371,8 @@ active scenario that no longer fits the season is ignored (as for `/api/feed/odd
   "top1_max_possible": 872,
   "top1_gap_to_leader": 0,
   "top1_points_to_clinch": 166,
+  "top1_best_position": 1,
+  "top1_best": 1,
   "top2_rank": 2,
   "top2_team": "ferrari"
 }
@@ -359,12 +383,18 @@ active scenario that no longer fits the season is ignored (as for `/api/feed/odd
 - `scenario`: `{ id, name }` of the active scenario, or `null`.
 - Row fields use snake_case: `rank`, `team` (constructor id), `name`, `points` (including the scenario's locked
   sessions), `status`, `max_possible` (points if the team's two cars finished 1-2 in every open session; a team with one
-  active car can only score for P1), `gap_to_leader`, and `points_to_clinch`.
+  active car can only score for P1), `gap_to_leader`, `points_to_clinch`, and `best_position`.
 - `points_to_clinch` is `0` when clinched and `null` when eliminated. Otherwise it is the points the team must hold to be
   safe against every rival scoring the maximum from here (conservative).
 - A team with no active driver is always `eliminated`.
+- `best_position`: the highest place the team can still reach **on points alone**, a whole number from 1 up: the number of
+  other teams whose points are already strictly above this team's `max_possible`, plus one. A floor, not a promise (see
+  `/api/feed/status` for the details). `1` means the team can still win the title; `2` or more means it cannot. It follows
+  the active scenario like the rest of the row. A team with no active car has its own points as `max_possible`, so its best
+  place is the place its points give it.
 - Flattened fields for places 1 to 10: `top1_*` to `top10_*`, one per row field (for example `top2_team`,
-  `top2_status`, `top2_points_to_clinch`). A place with no team is empty (`""`, `0`, `null` for `points_to_clinch`)
+  `top2_status`, `top2_points_to_clinch`, `top2_best_position`). `top1_best` to `top10_best` are the short names for
+  `best_position`. A place with no team is empty (`""`, `0`, `null` for `points_to_clinch`, `0` for the best place)
   rather than missing, and `rank` holds the place number.
 
 **Errors:** HTTP 503 with `error` and `message` when the season data is missing or invalid, like the other routes.
@@ -443,3 +473,6 @@ To bind fields from To the Flag into LiveOverlay Studio:
    - Leader team: `top1_team` (id) and `top1_name`
    - Leader status: `top1_status`
    - Second place: `top2_team`, `top2_points`, `top2_gap_to_leader`
+   - Highest place still possible for the third team: `top3_best` (`1` = still in the title fight; show it as `P` plus the
+     number if you want the same text as the web app)
+6. For the drivers' title status, bind `/api/feed/status` and use `top1_status`, `top1_best` and so on the same way.
