@@ -8,6 +8,7 @@ import { compareOptions } from "../viewModel/compare";
 import { MAX_NAME_LENGTH, buildChips, isDirty } from "../viewModel/scenarios";
 import type { Workspace } from "../viewModel/workspace";
 import { buildCardView } from "../viewModel/cardView";
+import type { TitleInfoMode } from "../viewModel/titleInfo";
 import { exportCard, type CardSize } from "../exportCard";
 import { AlertIcon } from "./icons";
 import { ScenarioChip } from "./ScenarioChip";
@@ -29,6 +30,8 @@ interface ScenarioStripProps {
   access?: AccessInfo;
   /** Latest WDC odds result from the "Likely?" tab. Null when the tab has not been opened or odds are not ready. */
   oddsResult?: OddsResult | null;
+  /** The "Title info" choice; the PNG card follows it. Defaults to auto. */
+  titleInfoMode?: TitleInfoMode;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -40,6 +43,7 @@ export function ScenarioStrip({
   strip,
   access: propAccess,
   oddsResult = null,
+  titleInfoMode,
 }: ScenarioStripProps) {
   const defaultAccess = useAccess();
   const access = propAccess ?? defaultAccess;
@@ -129,7 +133,7 @@ export function ScenarioStrip({
   async function handleExport() {
     setExporting(true);
     try {
-      const view = buildCardView(state, workspace, store.scenarios, strip.selectedId, oddsResult);
+      const view = buildCardView(state, workspace, store.scenarios, strip.selectedId, oddsResult, titleInfoMode);
       await exportCard(view, exportSize);
     } catch {
       // Silently ignore: browser may have blocked or canvas may not be available.

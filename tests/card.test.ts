@@ -163,6 +163,51 @@ describe("web/viewModel/card: standings card layout", () => {
     });
   });
 
+  describe("title info hidden (Off, or Auto while nobody is out)", () => {
+    const texts = (view: CardView, size: "square" | "wide" = "square") =>
+      buildCard(view, size).filter((c): c is Extract<DrawCommand, { type: "text" }> => c.type === "text");
+    const hidden: CardView = { ...baseView, showTitleInfo: false };
+
+    test("no STATUS header and no status text on any row", () => {
+      for (const size of ["square", "wide"] as const) {
+        const all = texts(hidden, size).map((c) => c.text);
+        expect(all).not.toContain("STATUS");
+        for (const status of ["Clinched", "Alive", "Long shot", "✕ No title"]) expect(all).not.toContain(status);
+      }
+    });
+
+    test("rank, driver, points and the change column stay", () => {
+      for (const size of ["square", "wide"] as const) {
+        const all = texts(hidden, size).map((c) => c.text);
+        for (const header of ["#", "DRIVER", "POINTS", "+/-"]) expect(all).toContain(header);
+        expect(all).toContain("VER · Max Verstappen");
+        expect(all).toContain("412 → 437");
+        expect(all).toContain("+25");
+      }
+    });
+
+    test("the odds column stays when there are odds", () => {
+      const all = texts({ ...hidden, hasOdds: true }).map((c) => c.text);
+      expect(all).toContain("ODDS");
+      expect(all).toContain(">99%");
+    });
+
+    test("shown by default: a view without the flag draws the status column as before", () => {
+      const all = texts(baseView).map((c) => c.text);
+      expect(all).toContain("STATUS");
+      expect(all).toContain("Clinched");
+      expect(texts({ ...baseView, showTitleInfo: true }).map((c) => c.text)).toContain("STATUS");
+    });
+
+    test("only the status texts are gone: the same commands otherwise", () => {
+      const withInfo = buildCard({ ...baseView, showTitleInfo: true }, "square");
+      const without = buildCard(hidden, "square");
+      const statusTexts = new Set(["STATUS", "Clinched", "Alive", "Long shot", "✕ No title"]);
+      const stripped = withInfo.filter((c) => !(c.type === "text" && statusTexts.has(c.text)));
+      expect(without).toEqual(stripped);
+    });
+  });
+
   describe("truncation", () => {
     test("truncates long driver names so they do not overflow", () => {
       const commands = buildCard(baseView, "square");

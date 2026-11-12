@@ -4,6 +4,7 @@
  */
 import type { OddsResult } from "../../engine/odds";
 import { NO_TITLE_TEXT, buildTowerRows, type TowerStatus } from "./tower";
+import { DEFAULT_TITLE_INFO, titleInfoVisible, type TitleInfoMode } from "./titleInfo";
 import type { CardRow, CardView } from "./card";
 import type { Workspace } from "./workspace";
 import type { SavedScenario } from "./scenarios";
@@ -17,6 +18,7 @@ import type { SeasonState } from "../../engine";
  * @param scenarios   The list of saved scenarios (to find the selected scenario's name).
  * @param selectedId  The id of the scenario chip currently selected (null for Base).
  * @param oddsResult  The latest odds result from the worker, or null when not on the "Likely?" tab.
+ * @param titleInfoMode  The "Title info" choice. The card lists drivers, so Auto looks at the drivers' table.
  */
 export function buildCardView(
   state: SeasonState,
@@ -24,6 +26,7 @@ export function buildCardView(
   scenarios: readonly SavedScenario[],
   selectedId: string | null,
   oddsResult: OddsResult | null,
+  titleInfoMode: TitleInfoMode = DEFAULT_TITLE_INFO,
 ): CardView {
   const towerRows = buildTowerRows(state, workspace.scenario, "wdc");
 
@@ -51,6 +54,7 @@ export function buildCardView(
     scenarioName,
     rows,
     hasOdds,
+    showTitleInfo: titleInfoVisible(titleInfoMode, towerRows),
   };
 }
 

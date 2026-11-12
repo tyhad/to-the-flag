@@ -80,6 +80,14 @@ export const BEST_COLUMN_LABEL = "Best";
 export const BEST_ACCESSIBLE_NAME = "Highest place still possible on points alone";
 export const BEST_HINT = "Best = the highest place still possible on points alone.";
 
+/** The columns of the table. `best` and `status` are the title info; without them it is a plain standings table. */
+export type TowerColumn = "rank" | "name" | "points" | "delta" | "best" | "status";
+
+/** Which columns are drawn: all six when the title info is shown, otherwise rank, name, points and change. */
+export function towerColumns(showTitleInfo: boolean): TowerColumn[] {
+  return showTitleInfo ? ["rank", "name", "points", "delta", "best", "status"] : ["rank", "name", "points", "delta"];
+}
+
 /** 2 -> "P2". */
 export function formatBest(best: number): string {
   return `P${best}`;

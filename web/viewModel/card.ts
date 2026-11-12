@@ -25,6 +25,11 @@ export interface CardView {
   scenarioName: string;
   rows: CardRow[];
   hasOdds?: boolean;
+  /**
+   * Draw the status column (the same decision as the table's "Title info" choice). Defaults to true; false gives a
+   * plain standings card: rank, driver, points and change (and odds, when there are odds).
+   */
+  showTitleInfo?: boolean;
 }
 
 export type DrawCommand =
@@ -84,6 +89,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   const height = 1080;
   const maxRows = 12;
   const rows = view.rows.slice(0, maxRows);
+  const showStatus = view.showTitleInfo !== false;
 
   const commands: DrawCommand[] = [];
 
@@ -235,16 +241,18 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
     baseline: "middle",
   });
 
-  commands.push({
-    type: "text",
-    text: "STATUS",
-    x: colStatus,
-    y: headerY,
-    font: headerFont,
-    fill: headerColor,
-    align: "left",
-    baseline: "middle",
-  });
+  if (showStatus) {
+    commands.push({
+      type: "text",
+      text: "STATUS",
+      x: colStatus,
+      y: headerY,
+      font: headerFont,
+      fill: headerColor,
+      align: "left",
+      baseline: "middle",
+    });
+  }
 
   if (view.hasOdds) {
     commands.push({
@@ -354,17 +362,19 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
       baseline: "middle",
     });
 
-    // Status
-    commands.push({
-      type: "text",
-      text: row.statusText,
-      x: colStatus,
-      y: centerY,
-      font: "600 16px var(--font-ui)",
-      fill: statusColor(row.statusText),
-      align: "left",
-      baseline: "middle",
-    });
+    // Status (only with the title info)
+    if (showStatus) {
+      commands.push({
+        type: "text",
+        text: row.statusText,
+        x: colStatus,
+        y: centerY,
+        font: "600 16px var(--font-ui)",
+        fill: statusColor(row.statusText),
+        align: "left",
+        baseline: "middle",
+      });
+    }
 
     // Odds (right aligned)
     if (view.hasOdds) {
