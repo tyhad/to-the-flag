@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCard, type CardView, type DrawCommand } from "../web/viewModel/card";
+import { buildCard, formatCardDriverName, type CardView, type DrawCommand } from "../web/viewModel/card";
 
 const mockRows = [
   {
@@ -12,6 +12,7 @@ const mockRows = [
     deltaPoints: 25,
     statusText: "Clinched",
     oddsDisplay: ">99%",
+    bestText: "P1",
   },
   {
     rank: 2,
@@ -23,17 +24,19 @@ const mockRows = [
     deltaPoints: 12,
     statusText: "Alive",
     oddsDisplay: "<1%",
+    bestText: "P1",
   },
   {
     rank: 3,
     driverCode: "ALB",
-    driverName: "Alexander Albon Ansusinha The Longest Name In The Pit Lane",
+    driverName: "Alexander Ansusinhathelongestnameinthepitlane",
     constructorId: "williams",
     currentPoints: 70,
     projectedPoints: 70,
     deltaPoints: 0,
     statusText: "✕ No title",
     oddsDisplay: "—",
+    bestText: "P10",
   },
 ];
 
@@ -172,6 +175,7 @@ describe("web/viewModel/card: standings card layout", () => {
       for (const size of ["square", "wide"] as const) {
         const all = texts(hidden, size).map((c) => c.text);
         expect(all).not.toContain("STATUS");
+        expect(all).not.toContain("BEST");
         for (const status of ["Clinched", "Alive", "Long shot", "✕ No title"]) expect(all).not.toContain(status);
       }
     });
@@ -180,7 +184,7 @@ describe("web/viewModel/card: standings card layout", () => {
       for (const size of ["square", "wide"] as const) {
         const all = texts(hidden, size).map((c) => c.text);
         for (const header of ["#", "DRIVER", "POINTS", "+/-"]) expect(all).toContain(header);
-        expect(all).toContain("VER · Max Verstappen");
+        expect(all).toContain("VER · Max VERSTAPPEN");
         expect(all).toContain("412 → 437");
         expect(all).toContain("+25");
       }
@@ -195,15 +199,18 @@ describe("web/viewModel/card: standings card layout", () => {
     test("shown by default: a view without the flag draws the status column as before", () => {
       const all = texts(baseView).map((c) => c.text);
       expect(all).toContain("STATUS");
+      expect(all).toContain("BEST");
       expect(all).toContain("Clinched");
       expect(texts({ ...baseView, showTitleInfo: true }).map((c) => c.text)).toContain("STATUS");
     });
 
-    test("only the status texts are gone: the same commands otherwise", () => {
+    test("only the title info texts are gone: the same commands otherwise", () => {
       const withInfo = buildCard({ ...baseView, showTitleInfo: true }, "square");
       const without = buildCard(hidden, "square");
-      const statusTexts = new Set(["STATUS", "Clinched", "Alive", "Long shot", "✕ No title"]);
-      const stripped = withInfo.filter((c) => !(c.type === "text" && statusTexts.has(c.text)));
+      const statusTexts = new Set(["STATUS", "BEST", "Clinched", "Alive", "Long shot", "✕ No title"]);
+      const stripped = withInfo.filter(
+        (c) => !(c.type === "text" && (statusTexts.has(c.text) || c.x === 785)),
+      );
       expect(without).toEqual(stripped);
     });
   });
@@ -257,6 +264,139 @@ describe("web/viewModel/card: standings card layout", () => {
           expect(cmd.text).not.toContain(".sqlite");
         }
       }
+    });
+  });
+
+  describe("driver name formatting (Point 6)", () => {
+    test("formats 3-word name to word before surname (capitalized) + surname (uppercase)", () => {
+      expect(formatCardDriverName("Andrea Kimi Antonelli")).toBe("Kimi ANTONELLI");
+    });
+
+    test("formats 2-word name to first name (capitalized) + surname (uppercase)", () => {
+      expect(formatCardDriverName("Max Verstappen")).toBe("Max VERSTAPPEN");
+      expect(formatCardDriverName("Lando Norris")).toBe("Lando NORRIS");
+      expect(formatCardDriverName("Lewis Hamilton")).toBe("Lewis HAMILTON");
+    });
+
+    test("formats single word to uppercase", () => {
+      expect(formatCardDriverName("Verstappen")).toBe("VERSTAPPEN");
+    });
+
+    test("handles empty string", () => {
+      expect(formatCardDriverName("")).toBe("");
+      expect(formatCardDriverName("   ")).toBe("");
+    });
+  });
+
+  describe("WCC card export (Point 1)", () => {
+    const wccView: CardView = {
+      season: 2026,
+      asOfRound: 16,
+      scenarioName: "Base",
+      tab: "wcc",
+      rows: [
+        {
+          rank: 1,
+          driverCode: "McLaren",
+          constructorId: "mclaren",
+          currentPoints: 500,
+          projectedPoints: 500,
+          deltaPoints: 0,
+          statusText: "Alive",
+          oddsDisplay: "75%",
+          bestText: "P1",
+        },
+        {
+          rank: 2,
+          driverCode: "Ferrari",
+          constructorId: "ferrari",
+          currentPoints: 470,
+          projectedPoints: 495,
+          deltaPoints: 25,
+          statusText: "Alive",
+          oddsDisplay: "25%",
+          bestText: "P1",
+        },
+      ],
+      hasOdds: true,
+      showTitleInfo: true,
+    };
+
+    test("header says CONSTRUCTOR instead of DRIVER", () => {
+      const texts = buildCard(wccView, "square").filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts).toContain("CONSTRUCTOR");
+      expect(texts).not.toContain("DRIVER");
+    });
+
+    test("subtitle includes Constructors", () => {
+      const texts = buildCard(wccView, "square").filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts.some((t) => t.includes("Constructors"))).toBe(true);
+    });
+
+    test("constructor rows display team name without driver code prefix", () => {
+      const texts = buildCard(wccView, "square").filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts).toContain("McLaren");
+      expect(texts).toContain("Ferrari");
+    });
+  });
+
+  describe("Best column (Point 2)", () => {
+    test("BEST column header and row values appear when showTitleInfo is true", () => {
+      const commands = buildCard({ ...baseView, showTitleInfo: true }, "square");
+      const texts = commands.filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts).toContain("BEST");
+      expect(texts).toContain("P1");
+      expect(texts).toContain("P10");
+    });
+
+    test("BEST column header is absent when showTitleInfo is false", () => {
+      const commands = buildCard({ ...baseView, showTitleInfo: false }, "square");
+      const texts = commands.filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts).not.toContain("BEST");
+    });
+  });
+
+  describe("row count choices (Point 3)", () => {
+    test("rowLimit '10' limits rows to 10", () => {
+      const commands = buildCard({ ...baseView, rows: manyRows, rowLimit: "10" }, "square");
+      const rankTexts = commands
+        .filter((c) => c.type === "text" && (c as any).align === "right")
+        .map((c: any) => c.text);
+      expect(rankTexts).toContain("1");
+      expect(rankTexts).toContain("10");
+      expect(rankTexts).not.toContain("11");
+    });
+
+    test("rowLimit '12' limits rows to 12", () => {
+      const commands = buildCard({ ...baseView, rows: manyRows, rowLimit: "12" }, "square");
+      const rankTexts = commands
+        .filter((c) => c.type === "text" && (c as any).align === "right")
+        .map((c: any) => c.text);
+      expect(rankTexts).toContain("1");
+      expect(rankTexts).toContain("12");
+      expect(rankTexts).not.toContain("13");
+    });
+
+    test("rowLimit 'all' includes all rows and stays within bounds", () => {
+      const commands = buildCard({ ...baseView, rows: manyRows, rowLimit: "all" }, "square");
+      const rankTexts = commands
+        .filter((c) => c.type === "text" && (c as any).align === "right")
+        .map((c: any) => c.text);
+      expect(rankTexts).toContain("1");
+      expect(rankTexts).toContain("25");
+      verifyBounds(commands, 1080, 1080);
+    });
+  });
+
+  describe("points display when unchanged (Point 4)", () => {
+    test("displays only projected points when points are unchanged", () => {
+      const commands = buildCard(baseView, "square");
+      const texts = commands.filter((c) => c.type === "text").map((c: any) => c.text);
+      // Row 3 (ALB) has currentPoints 70, projectedPoints 70
+      expect(texts).toContain("70");
+      expect(texts).not.toContain("70 → 70");
+      // Row 1 (VER) has changed points: 412 -> 437
+      expect(texts).toContain("412 → 437");
     });
   });
 });

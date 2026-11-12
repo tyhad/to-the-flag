@@ -29,10 +29,24 @@ interface StandingsPanelProps {
   contenders?: readonly string[];
   /** The "Title info" choice and how to change it. Without it the table decides as Auto and has no switch. */
   titleInfo?: { mode: TitleInfoMode; onChange: (mode: TitleInfoMode) => void };
+  /** Currently selected standings tab. When omitted, managed internally. */
+  tab?: TowerTab;
+  /** Callback when user changes the standings tab. */
+  onTabChange?: (tab: TowerTab) => void;
 }
 
-export function StandingsPanel({ season, scenario, compare, contenders, titleInfo }: StandingsPanelProps) {
-  const [tab, setTab] = useState<TowerTab>("wdc");
+export function StandingsPanel({
+  season,
+  scenario,
+  compare,
+  contenders,
+  titleInfo,
+  tab: propTab,
+  onTabChange,
+}: StandingsPanelProps) {
+  const [internalTab, setInternalTab] = useState<TowerTab>("wdc");
+  const tab = propTab ?? internalTab;
+  const setTab = onTabChange ?? setInternalTab;
   const state = season.status === "ready" ? season.state : undefined;
   const rows = useMemo(() => (state ? buildTowerRows(state, scenario, tab) : []), [state, scenario, tab]);
   const hasLocks = Object.keys(scenario?.locks ?? {}).length > 0;

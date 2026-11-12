@@ -203,6 +203,31 @@ describe("web/viewModel/cardView: buildCardView", () => {
     for (const row of view.rows) expect(row.statusText).not.toBe("Eliminated");
   });
 
+  test("rows include bestText", () => {
+    const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), null, null);
+    expect(view.rows[0]?.bestText).toBeDefined();
+    expect(view.rows[0]?.bestText).toMatch(/^P\d+$/);
+  });
+
+  test("builds cardView for WCC with tab = 'wcc'", () => {
+    const odds = {
+      ...makeOddsResult(),
+      wcc: [
+        { id: "alpha", wins: 700, probability: 0.7, display: "70%", avgPoints: 400, status: "alive" as const },
+        { id: "beta", wins: 300, probability: 0.3, display: "30%", avgPoints: 350, status: "alive" as const },
+      ],
+    };
+    const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), null, odds, "auto", "wcc", "all");
+    expect(view.tab).toBe("wcc");
+    expect(view.rowLimit).toBe("all");
+    expect(view.rows.length).toBe(2);
+    expect(view.hasOdds).toBe(true);
+    const alpha = view.rows.find((r) => r.constructorId === "alpha");
+    expect(alpha?.driverCode).toBe("Alpha Racing");
+    expect(alpha?.oddsDisplay).toBe("70%");
+    expect(alpha?.bestText).toBeDefined();
+  });
+
   test("no tokens, server paths, or localhost in any field", () => {
     const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), "s1", makeOddsResult());
     const strings = [

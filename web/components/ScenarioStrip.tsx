@@ -8,6 +8,8 @@ import { compareOptions } from "../viewModel/compare";
 import { MAX_NAME_LENGTH, buildChips, isDirty } from "../viewModel/scenarios";
 import type { Workspace } from "../viewModel/workspace";
 import { buildCardView } from "../viewModel/cardView";
+import type { CardRowsChoice } from "../viewModel/card";
+import type { TowerTab } from "../viewModel/tower";
 import type { TitleInfoMode } from "../viewModel/titleInfo";
 import { exportCard, type CardSize } from "../exportCard";
 import { AlertIcon } from "./icons";
@@ -32,6 +34,8 @@ interface ScenarioStripProps {
   oddsResult?: OddsResult | null;
   /** The "Title info" choice; the PNG card follows it. Defaults to auto. */
   titleInfoMode?: TitleInfoMode;
+  /** Active standings tab (WDC or WCC). The PNG export follows it. Defaults to wdc. */
+  standingsTab?: TowerTab;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -44,6 +48,7 @@ export function ScenarioStrip({
   access: propAccess,
   oddsResult = null,
   titleInfoMode,
+  standingsTab = "wdc",
 }: ScenarioStripProps) {
   const defaultAccess = useAccess();
   const access = propAccess ?? defaultAccess;
@@ -53,6 +58,7 @@ export function ScenarioStrip({
   const [draft, setDraft] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [exportSize, setExportSize] = useState<CardSize>("square");
+  const [exportRows, setExportRows] = useState<CardRowsChoice>("12");
   const [exporting, setExporting] = useState(false);
   const footerRef = useRef<HTMLElement>(null);
   /** The `data-focus-id` of the control that opened a form, so closing the form can put focus back on it. */
@@ -133,7 +139,16 @@ export function ScenarioStrip({
   async function handleExport() {
     setExporting(true);
     try {
-      const view = buildCardView(state, workspace, store.scenarios, strip.selectedId, oddsResult, titleInfoMode);
+      const view = buildCardView(
+        state,
+        workspace,
+        store.scenarios,
+        strip.selectedId,
+        oddsResult,
+        titleInfoMode,
+        standingsTab,
+        exportRows,
+      );
       await exportCard(view, exportSize);
     } catch {
       // Silently ignore: browser may have blocked or canvas may not be available.
@@ -244,6 +259,16 @@ export function ScenarioStrip({
           >
             <option value="square">Square (1080×1080)</option>
             <option value="wide">Wide (1920×1080)</option>
+          </select>
+          <select
+            aria-label="Export row count"
+            value={exportRows}
+            onChange={(e) => setExportRows(e.target.value as CardRowsChoice)}
+            className={`${SELECT} h-8`}
+          >
+            <option value="10">Top 10</option>
+            <option value="12">Top 12</option>
+            <option value="all">Semua</option>
           </select>
           <button
             type="button"

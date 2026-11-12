@@ -71,7 +71,8 @@ export async function exportCard(view: CardView, size: CardSize): Promise<void> 
   const commands = buildCard(view, size);
   renderCommands(ctx, commands);
 
-  const filename = `standings-${size}-${view.season}-r${view.asOfRound}.png`;
+  const tabPrefix = view.tab === "wcc" ? "wcc-" : "";
+  const filename = `standings-${tabPrefix}${size}-${view.season}-r${view.asOfRound}.png`;
 
   // Download via a temporary <a> element.
   await new Promise<void>((resolve, reject) => {

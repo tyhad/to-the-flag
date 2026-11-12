@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
+import type { TowerTab } from "../viewModel/tower";
 import { useHealth } from "../useHealth";
 import { useScenarioStore } from "../useScenarioStore";
 import { useSeason } from "../useSeason";
@@ -80,6 +81,7 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
 
   // Latest WDC odds result from the "Likely?" tab — null until the tab is opened and odds arrive.
   const [oddsResult, setOddsResult] = useState<OddsResult | null>(null);
+  const [standingsTab, setStandingsTab] = useState<TowerTab>("wdc");
 
   const isEditing = Object.keys(workspace.scenario.locks).length > 0;
   const freshness = useFreshness({
@@ -108,6 +110,8 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
           compare={compareView}
           contenders={workspace.contenders}
           titleInfo={{ mode: titleInfo, onChange: setTitleInfo }}
+          tab={standingsTab}
+          onTabChange={setStandingsTab}
         />}
       analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} onOddsResult={setOddsResult} />}
       strip={
@@ -118,6 +122,7 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
           strip={strip}
           oddsResult={oddsResult}
           titleInfoMode={titleInfo}
+          standingsTab={standingsTab}
         />
       }
       notice={dataNotice(state.health, state.asOfRound)}

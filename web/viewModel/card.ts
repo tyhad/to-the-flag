@@ -3,9 +3,11 @@
  * Generates drawing commands for canvas rendering without any DOM or Canvas APIs.
  */
 import { teamColor } from "../theme/teams";
+import type { TowerTab } from "./tower";
 import { NO_TITLE_TEXT } from "./tower";
 
 export type CardSize = "square" | "wide";
+export type CardRowsChoice = "10" | "12" | "all";
 
 export interface CardRow {
   rank: number;
@@ -17,6 +19,7 @@ export interface CardRow {
   deltaPoints: number;
   statusText: string;
   oddsDisplay?: string;
+  bestText?: string;
 }
 
 export interface CardView {
@@ -26,10 +29,12 @@ export interface CardView {
   rows: CardRow[];
   hasOdds?: boolean;
   /**
-   * Draw the status column (the same decision as the table's "Title info" choice). Defaults to true; false gives a
-   * plain standings card: rank, driver, points and change (and odds, when there are odds).
+   * Draw the status column and best column (the same decision as the table's "Title info" choice).
+   * Defaults to true; false gives a plain standings card: rank, driver, points and change (and odds).
    */
   showTitleInfo?: boolean;
+  tab?: TowerTab;
+  rowLimit?: CardRowsChoice;
 }
 
 export type DrawCommand =
@@ -67,6 +72,26 @@ function truncate(text: string, maxLength: number): string {
   return text.slice(0, maxLength - 1) + "…";
 }
 
+/**
+ * Formats driver name for the standings card to at most 2 words:
+ * The word before the surname (first letter capitalized, rest lowercase),
+ * and the surname/main name in UPPERCASE.
+ * e.g. "Andrea Kimi Antonelli" -> "Kimi ANTONELLI"
+ *      "Max Verstappen" -> "Max VERSTAPPEN"
+ *      "Verstappen" -> "VERSTAPPEN"
+ */
+export function formatCardDriverName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0]!.toUpperCase();
+
+  const surname = parts[parts.length - 1]!.toUpperCase();
+  const given = parts[parts.length - 2]!;
+  const formattedGiven = given.charAt(0).toUpperCase() + given.slice(1).toLowerCase();
+
+  return `${formattedGiven} ${surname}`;
+}
+
 function statusColor(statusText: string): string {
   switch (statusText.toLowerCase()) {
     case "clinched":
@@ -85,9 +110,12 @@ function statusColor(statusText: string): string {
 
 export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   const isWide = size === "wide";
+  const isWcc = view.tab === "wcc";
   const width = isWide ? 1920 : 1080;
   const height = 1080;
-  const maxRows = 12;
+
+  const rowLimit = view.rowLimit ?? "12";
+  const maxRows = rowLimit === "10" ? 10 : rowLimit === "all" ? view.rows.length : 12;
   const rows = view.rows.slice(0, maxRows);
   const showStatus = view.showTitleInfo !== false;
 
@@ -134,9 +162,12 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   });
 
   // Subtitle
+  const subtitle = isWcc
+    ? `Season ${view.season} · as of Round ${view.asOfRound} · Constructors`
+    : `Season ${view.season} · as of Round ${view.asOfRound}`;
   commands.push({
     type: "text",
-    text: `Season ${view.season} · as of Round ${view.asOfRound}`,
+    text: subtitle,
     x: leftX,
     y: isWide ? 155 : 124,
     font: isWide ? "500 20px var(--font-ui)" : "500 18px var(--font-ui)",
@@ -187,9 +218,10 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   // 4. Column X positions
   const colRank = leftX + (isWide ? 20 : 16);
   const colDriver = leftX + (isWide ? 100 : 70);
-  const colPoints = isWide ? 1120 : 640;
-  const colDelta = isWide ? 1280 : 730;
-  const colStatus = isWide ? 1420 : 790;
+  const colPoints = isWide ? 1320 : 675;
+  const colDelta = isWide ? 1410 : 740;
+  const colBest = isWide ? 1480 : 785;
+  const colStatus = isWide ? 1560 : 835;
   const colOdds = rightX;
 
   // Table column headers
@@ -210,7 +242,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
 
   commands.push({
     type: "text",
-    text: "DRIVER",
+    text: isWcc ? "CONSTRUCTOR" : "DRIVER",
     x: colDriver,
     y: headerY,
     font: headerFont,
@@ -244,6 +276,17 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   if (showStatus) {
     commands.push({
       type: "text",
+      text: "BEST",
+      x: colBest,
+      y: headerY,
+      font: headerFont,
+      fill: headerColor,
+      align: "center",
+      baseline: "middle",
+    });
+
+    commands.push({
+      type: "text",
       text: "STATUS",
       x: colStatus,
       y: headerY,
@@ -269,11 +312,31 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
 
   // 5. Table rows
   const rowStartY = isWide ? 276 : 234;
-  const rowHeight = isWide ? 58 : 58;
+  const availHeight = height - (margin + 20) - rowStartY;
+  const baseRowHeight = 58;
+  const rowHeight = rows.length <= 12 ? baseRowHeight : Math.min(baseRowHeight, Math.floor(availHeight / rows.length));
+  const isScaled = rowHeight < 50;
+
+  const rowFont = isScaled
+    ? `600 ${Math.max(13, Math.floor(rowHeight * 0.44))}px var(--font-display)`
+    : "600 20px var(--font-display)";
+  const deltaFont = isScaled
+    ? `600 ${Math.max(12, Math.floor(rowHeight * 0.40))}px var(--font-display)`
+    : "600 18px var(--font-display)";
+  const statusFont = isScaled
+    ? `600 ${Math.max(11, Math.floor(rowHeight * 0.38))}px var(--font-ui)`
+    : "600 16px var(--font-ui)";
+  const oddsFont = isScaled
+    ? `700 ${Math.max(14, Math.floor(rowHeight * 0.48))}px var(--font-display)`
+    : "700 22px var(--font-display)";
+
+  const stripHeight = isScaled ? Math.max(14, rowHeight - 12) : 30;
+  const stripYOffset = Math.floor((rowHeight - stripHeight) / 2);
+  const centerYOffset = Math.floor(rowHeight / 2);
 
   rows.forEach((row, idx) => {
     const rowY = rowStartY + idx * rowHeight;
-    const centerY = rowY + 28;
+    const centerY = rowY + centerYOffset;
 
     // Alternate row background
     if (idx % 2 === 1) {
@@ -282,7 +345,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
         x: leftX - 12,
         y: rowY + 2,
         width: cardWidth - 40,
-        height: rowHeight - 6,
+        height: rowHeight - 4,
         fill: "var(--color-s2)",
         radius: 6,
       });
@@ -294,7 +357,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
       text: String(row.rank),
       x: colRank,
       y: centerY,
-      font: "600 20px var(--font-display)",
+      font: rowFont,
       fill: "var(--color-text-3)",
       align: "right",
       baseline: "middle",
@@ -305,37 +368,50 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
     commands.push({
       type: "rect",
       x: stripX,
-      y: rowY + 13,
+      y: rowY + stripYOffset,
       width: 4,
-      height: 30,
+      height: stripHeight,
       fill: teamColor(row.constructorId),
       radius: 2,
     });
 
-    // Driver code and truncated name
-    const maxDriverChars = isWide ? 30 : 16;
-    const driverLabel = row.driverName
-      ? `${row.driverCode} · ${truncate(row.driverName, maxDriverChars)}`
-      : row.driverCode;
+    // Driver code / name or constructor name
+    let driverLabel: string;
+    if (isWcc) {
+      const maxChars = isWide ? 40 : 22;
+      driverLabel = truncate(row.driverName ?? row.driverCode, maxChars);
+    } else {
+      const maxChars = isWide ? 30 : 20;
+      const formattedName = row.driverName ? formatCardDriverName(row.driverName) : undefined;
+      driverLabel = formattedName
+        ? `${row.driverCode} · ${truncate(formattedName, maxChars)}`
+        : row.driverCode;
+    }
 
     commands.push({
       type: "text",
       text: driverLabel,
       x: colDriver,
       y: centerY,
-      font: "600 20px var(--font-display)",
+      font: rowFont,
       fill: "var(--color-text)",
       align: "left",
       baseline: "middle",
     });
 
     // Points current -> projected (right aligned)
+    // When unchanged, show only projected points
+    const pointsText =
+      row.currentPoints !== row.projectedPoints
+        ? `${row.currentPoints} → ${row.projectedPoints}`
+        : `${row.projectedPoints}`;
+
     commands.push({
       type: "text",
-      text: `${row.currentPoints} → ${row.projectedPoints}`,
+      text: pointsText,
       x: colPoints,
       y: centerY,
-      font: "600 20px var(--font-display)",
+      font: rowFont,
       fill: "var(--color-text)",
       align: "right",
       baseline: "middle",
@@ -356,20 +432,31 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
       text: deltaStr,
       x: colDelta,
       y: centerY,
-      font: "600 18px var(--font-display)",
+      font: deltaFont,
       fill: deltaColor,
       align: "right",
       baseline: "middle",
     });
 
-    // Status (only with the title info)
+    // Best and Status (only with the title info)
     if (showStatus) {
+      commands.push({
+        type: "text",
+        text: row.bestText ?? "—",
+        x: colBest,
+        y: centerY,
+        font: deltaFont,
+        fill: "var(--color-text-2)",
+        align: "center",
+        baseline: "middle",
+      });
+
       commands.push({
         type: "text",
         text: row.statusText,
         x: colStatus,
         y: centerY,
-        font: "600 16px var(--font-ui)",
+        font: statusFont,
         fill: statusColor(row.statusText),
         align: "left",
         baseline: "middle",
@@ -383,7 +470,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
         text: row.oddsDisplay ?? "—",
         x: colOdds,
         y: centerY,
-        font: "700 22px var(--font-display)",
+        font: oddsFont,
         fill: "var(--color-text)",
         align: "right",
         baseline: "middle",
