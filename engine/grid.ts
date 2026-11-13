@@ -181,3 +181,118 @@ export function parseGridText(text: string, state: SeasonState): ParsedGrid {
   if (order.length + pit.length === 0 && errors.length === 0) errors.push("The list is empty.");
   return { order, pit, errors };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Which grid is used (Phase 8, Step 2, decisions D46 and D47)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** Where the grid in use comes from: the owner typed it, OpenF1 published it, or it is the qualifying order. */
+export type GridSourceKind = "manual" | "openf1" | "qualifying";
+
+/** A manual grid as stored: the start order and the pit-lane starters. */
+export interface GridOverride {
+  order: readonly string[];
+  pit: readonly string[];
+}
+
+/** The round whose race is next: the lowest scheduled round, or null when the season is over. */
+export function nextScheduledRound(state: SeasonState): number | null {
+  let next: number | null = null;
+  for (const r of state.rounds) if (r.status === "scheduled" && (next === null || r.round < next)) next = r.round;
+  return next;
+}
+
+/**
+ * What the data file's `grid_source` text means for the app. Only a grid that comes entirely from OpenF1 is "openf1".
+ * Everything else (the qualifying fallback, a mix, an unknown or empty text) is "qualifying", so the app never claims
+ * more than the data says: a qualifying order ignores grid penalties and pit-lane starts.
+ */
+export function gridSourceKind(source: string): "openf1" | "qualifying" {
+  const parts = source
+    .toLowerCase()
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return parts.length > 0 && parts.every((p) => p === "openf1") ? "openf1" : "qualifying";
+}
+
+/** The drivers of a grid in start order (by place, then by code when two share a place). */
+export function gridToOrder(grid: Readonly<Record<string, number>>): string[] {
+  return Object.entries(grid)
+    .sort(([codeA, a], [codeB, b]) => a - b || (codeA < codeB ? -1 : codeA > codeB ? 1 : 0))
+    .map(([code]) => code);
+}
+
+function sameGrid(a: Readonly<Record<string, number>>, b: Readonly<Record<string, number>>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((code) => a[code] === b[code]);
+}
+
+export interface ResolvedGrid {
+  /** The season with `upcomingGrid` set from the manual grid when one applies; otherwise the same object as the input. */
+  state: SeasonState;
+  /** The next scheduled round (the only race a grid can be set for), or null when none is left. */
+  round: number | null;
+  /** The grid in use: the manual one, else the data file's, else null. `pit` is only known for a manual grid. */
+  effective: { order: string[]; pit: string[]; source: GridSourceKind } | null;
+  /** What the data file has for the next race (OpenF1 or qualifying), or null. */
+  data: { source: "openf1" | "qualifying"; order: string[] } | null;
+  /**
+   * null: no manual grid applies to this round; true: it is used; false: it is saved but does not fit the drivers
+   * now (a driver was added or is no longer racing), so it is ignored until it is saved again.
+   */
+  overrideValid: boolean | null;
+  /** A manual grid is in use, OpenF1 has published a grid, and the two are not the same. Never true otherwise. */
+  differs: boolean;
+}
+
+/**
+ * The effective starting grid of the next race: manual first, then what the data file has (D46).
+ * `override` is the manual grid saved for `nextScheduledRound(state)`, if any.
+ *
+ * A manual grid is used only for the next scheduled race, and only while that race has no result rows (a sprint's
+ * result rows do not count: the sprint runs before the race). It is never used when it does not pass `validateGrid`.
+ * Pure: the input state is not modified.
+ */
+export function resolveGrid(state: SeasonState, override: GridOverride | null): ResolvedGrid {
+  const round = nextScheduledRound(state);
+  if (round === null) return { state, round, effective: null, data: null, overrideValid: null, differs: false };
+
+  const upcoming = state.upcomingGrid !== undefined && state.upcomingGrid.round === round ? state.upcomingGrid : undefined;
+  const data = upcoming
+    ? { source: gridSourceKind(upcoming.source), order: gridToOrder(upcoming.grid) }
+    : null;
+
+  const raceDone = state.results.some((r) => r.round === round && r.kind === "race");
+  if (override === null || raceDone) {
+    return {
+      state,
+      round,
+      effective: data ? { order: data.order, pit: [], source: data.source } : null,
+      data,
+      overrideValid: null,
+      differs: false,
+    };
+  }
+
+  if (gridProblems(state, override.order, override.pit).length > 0) {
+    return {
+      state,
+      round,
+      effective: data ? { order: data.order, pit: [], source: data.source } : null,
+      data,
+      overrideValid: false,
+      differs: false,
+    };
+  }
+
+  const manual = gridFromOrder(override.order, override.pit);
+  return {
+    state: { ...state, upcomingGrid: { round, grid: manual, source: "manual" } },
+    round,
+    effective: { order: [...override.order], pit: [...override.pit], source: "manual" },
+    data,
+    overrideValid: true,
+    differs: data !== null && data.source === "openf1" && !sameGrid(manual, upcoming!.grid),
+  };
+}
