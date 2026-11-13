@@ -45,6 +45,24 @@ export interface CardView {
   simulationRound?: number;
 }
 
+/** One piece of a text line that has its own color (and, optionally, its own font). */
+export interface DrawTextRun {
+  text: string;
+  fill: string;
+  font?: string;
+}
+
+/** Where a line of `totalWidth` starts so that it is left, center or right aligned at `x`. Pure; used by the renderer. */
+export function runsStartX(align: "left" | "right" | "center", x: number, totalWidth: number): number {
+  if (align === "center") return x - totalWidth / 2;
+  if (align === "right") return x - totalWidth;
+  return x;
+}
+
+/** The credit line at the bottom of every card: a quiet lead-in and a brighter name. */
+export const CREDIT_LEAD = "to the flag by ";
+export const CREDIT_NAME = "Tyhad | F1 Watchalong";
+
 export type DrawCommand =
   | {
       type: "rect";
@@ -64,6 +82,11 @@ export type DrawCommand =
       fill: string;
       align: "left" | "right" | "center";
       baseline: "top" | "middle" | "bottom" | "alphabetic";
+      /**
+       * Optional: the same line drawn in pieces with their own color (and font). `text` must be the pieces joined,
+       * so anything that reads `text` still sees the whole line. `align` and `x` apply to the line as a whole.
+       */
+      runs?: DrawTextRun[];
     }
   | {
       type: "line";
@@ -348,13 +371,17 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   const creditY = height - margin - 12;
   commands.push({
     type: "text",
-    text: "to the flag by Tyhad | F1 Watchalong",
+    text: CREDIT_LEAD + CREDIT_NAME,
     x: width / 2,
     y: creditY,
     font: "500 14px var(--font-ui)",
     fill: "var(--color-text-3)",
     align: "center",
     baseline: "middle",
+    runs: [
+      { text: CREDIT_LEAD, fill: "var(--color-text-3)" },
+      { text: CREDIT_NAME, fill: "var(--color-text)", font: "600 14px var(--font-ui)" },
+    ],
   });
 
   // 6. Dynamic Table rows

@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { buildCard, formatCardDriverName, type CardView, type DrawCommand } from "../web/viewModel/card";
+import {
+  CREDIT_LEAD,
+  CREDIT_NAME,
+  buildCard,
+  formatCardDriverName,
+  runsStartX,
+  type CardView,
+  type DrawCommand,
+} from "../web/viewModel/card";
 
 const mockRows = [
   {
@@ -110,6 +118,36 @@ describe("web/viewModel/card: standings card layout", () => {
       expect(texts).toContain("to the flag by Tyhad | F1 Watchalong");
       expect(texts.some((t) => t.includes("Season 2026") && t.includes("Round 16"))).toBe(true);
       expect(texts.some((t) => t.includes("Norris Win All"))).toBe(true);
+    });
+  });
+
+  describe("credit line", () => {
+    const credit = (size: "square" | "wide") =>
+      buildCard(baseView, size).find(
+        (c): c is Extract<DrawCommand, { type: "text" }> =>
+          c.type === "text" && c.text === "to the flag by Tyhad | F1 Watchalong",
+      )!;
+
+    test("the name is brighter than the lead-in, both from tokens", () => {
+      for (const size of ["square", "wide"] as const) {
+        const runs = credit(size).runs!;
+        expect(runs.map((r) => r.text)).toEqual([CREDIT_LEAD, CREDIT_NAME]);
+        expect(runs[0]!.fill).toBe("var(--color-text-3)");
+        expect(runs[1]!.fill).toBe("var(--color-text)");
+      }
+    });
+
+    test("the runs joined are the whole line, and the line stays centered", () => {
+      const line = credit("square");
+      expect(line.runs!.map((r) => r.text).join("")).toBe(line.text);
+      expect(line.align).toBe("center");
+      expect(line.x).toBe(540);
+    });
+
+    test("runsStartX aligns the whole line", () => {
+      expect(runsStartX("left", 100, 40)).toBe(100);
+      expect(runsStartX("center", 100, 40)).toBe(80);
+      expect(runsStartX("right", 100, 40)).toBe(60);
     });
   });
 
