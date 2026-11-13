@@ -7,6 +7,7 @@ import {
   type SavedScenario,
 } from "./viewModel/scenarios";
 import type { AccessPayload } from "./viewModel/access";
+import { gridErrorMessage, parseGridResponse, type GridInfo } from "./viewModel/grid";
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; message: string };
 
@@ -128,5 +129,23 @@ export const scenarioApi = {
     const r = await call("PUT", "/api/active-scenario", { id });
     if (!r.ok) return fail(r);
     return { ok: true, data: id };
+  },
+};
+
+/** The starting grid of the next race. Same rules: relative URLs, never throws, failures in plain words. */
+export const gridApi = {
+  async get(): Promise<ApiResult<GridInfo>> {
+    const r = await call("GET", "/api/grid");
+    if (!r.ok) return { ok: false, message: gridErrorMessage(r.status, r.body) };
+    const info = parseGridResponse(true, r.body);
+    return info ? { ok: true, data: info } : { ok: false, message: UNEXPECTED };
+  },
+
+  /** Removes the manual grid. The answer is the grid now in use (the data file's). */
+  async clear(): Promise<ApiResult<GridInfo>> {
+    const r = await call("DELETE", "/api/grid");
+    if (!r.ok) return { ok: false, message: gridErrorMessage(r.status, r.body) };
+    const info = parseGridResponse(true, r.body);
+    return info ? { ok: true, data: info } : { ok: false, message: UNEXPECTED };
   },
 };

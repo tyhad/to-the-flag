@@ -3,9 +3,14 @@ import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
 import { FORM_WEIGHT_DEFAULT } from "../config";
 import { useOdds } from "../useOdds";
+import type { GridControls } from "../useGrid";
+import { gridNotice, gridTagFor } from "../viewModel/grid";
+import type { AccessVerdict } from "../viewModel/access";
 import { combineOddsStates, formWeightFor, type OddsTable } from "../viewModel/odds";
 import type { Workspace, WorkspaceMessage } from "../viewModel/workspace";
 import { EmptyState } from "./EmptyState";
+import { GridNotice } from "./GridNotice";
+import { GridSourceTag } from "./GridSourceTag";
 import { OddsPanel, OddsPlaceholder } from "./OddsPanel";
 import { PossiblePanel, type PathSubject } from "./PossiblePanel";
 import { Tabs, panelId, tabId, type TabItem } from "./Tabs";
@@ -35,9 +40,11 @@ export interface AnalysisRailProps {
   dispatch: Dispatch<WorkspaceMessage>;
   /** Called whenever the projected WDC odds result changes. Used by the export button in ScenarioStrip. */
   onOddsResult?: (result: OddsResult | null) => void;
+  /** Which starting grid is in use, and the notice's buttons. Without it the grid tag and notice are not shown. */
+  grid?: { controls: GridControls; canWrite: boolean; verdict: AccessVerdict };
 }
 
-export function AnalysisRail({ state, workspace, dispatch, onOddsResult }: AnalysisRailProps) {
+export function AnalysisRail({ state, workspace, dispatch, onOddsResult, grid }: AnalysisRailProps) {
   const [tab, setTab] = useState<AnalysisTab>("possible");
   // These live here, not in the panels, so they survive a switch to the other tab.
   const [formPercent, setFormPercent] = useState(FORM_WEIGHT_DEFAULT);
@@ -60,6 +67,9 @@ export function AnalysisRail({ state, workspace, dispatch, onOddsResult }: Analy
     onOddsResult?.(currentResult);
   }, [currentResult, onOddsResult]);
 
+  const tag = grid ? gridTagFor(grid.controls.state.info) : null;
+  const notice = grid ? gridNotice(grid.controls.state.info, grid.controls.state.dismissed) : null;
+
   return (
     <AnalysisFrame tab={tab} onTab={setTab}>
       {likely ? (
@@ -71,6 +81,20 @@ export function AnalysisRail({ state, workspace, dispatch, onOddsResult }: Analy
           onTable={setTable}
           formPercent={formPercent}
           onFormPercent={setFormPercent}
+          gridTag={tag ? <GridSourceTag source={grid!.controls.state.info!.effective!.source} /> : null}
+          gridNotice={
+            notice && grid ? (
+              <GridNotice
+                notice={notice}
+                busy={grid.controls.state.busy}
+                error={grid.controls.state.error}
+                canWrite={grid.canWrite}
+                verdict={grid.verdict}
+                onUseOpenF1={() => void grid.controls.chooseOpenF1()}
+                onKeepMine={grid.controls.keepMine}
+              />
+            ) : null
+          }
         />
       ) : (
         <PossiblePanel
