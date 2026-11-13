@@ -37,6 +37,7 @@ Set results for the remaining sessions and watch the table, the title status and
 | `bun scripts/statusReport.ts [db]` | Print the title status table (clinched / alive / eliminated) from the real data |
 | `bun scripts/exportFixture.ts <db> <out.json>` | Snapshot the loaded season as a JSON test fixture |
 | `bun scripts/addClassified.ts <db> <fixture.json>` | Add each result's `classified` flag (DNF or not) to an older fixture |
+| `bun run seed-grid` | Dev only. Copies the F1GStats database to `./test-grid.sqlite` and adds an invented starting grid for the next race, so the Race tab, grid tags and the notice can be tried before qualifying. The original is never changed. Start the app on the copy with `F1GSTATS_DB=./test-grid.sqlite bun run dev` (PowerShell: `$env:F1GSTATS_DB="./test-grid.sqlite"; bun run dev`). Options: `-- --from <db>`, `-- --out <file>`, `-- --source openf1\|qualifying` |
 | `bun run backtest` | Walk-forward test of the odds model against past races, with the settings grid and baselines (about 3 s). See `docs/MODEL.md` |
 | `bun run calibrate` | The multi-season protocol (D30), the grid signal and the qualifying noise; needs the history files in `../F1GStats/history`. `-- --grid-signal` or `-- --qualifying-noise` runs one part. See `docs/MODEL.md` |
 | `bun run title-check` | What-if sensitivity table and, with the history files, the title odds against the real champions. See `docs/MODEL.md` |
