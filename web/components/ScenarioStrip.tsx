@@ -278,7 +278,7 @@ export function ScenarioStrip({
           >
             <option value="10">Top 10</option>
             <option value="12">Top 12</option>
-            <option value="all">Semua</option>
+            <option value="all">All</option>
             <option value="custom">Custom (P...–P...)</option>
           </select>
           {exportPreset === "custom" ? (
