@@ -158,12 +158,13 @@ describe("web/viewModel/cardView: buildCardView", () => {
   });
 
   describe("the card follows the Title info choice", () => {
+    // Base: AAA 25, BBB 18, two races left (50 points on offer): both can still win, so nobody is out.
     const oneOut = () =>
       ({
         ...makeWorkspace(),
         scenario: { locks: { "2:race": { fixed: { AAA: 1 } }, "3:race": { fixed: { AAA: 1 } } } },
       }) as Workspace;
-    const build = (workspace: Workspace, mode?: "on" | "off") =>
+    const build = (workspace: Workspace, mode?: "auto" | "on" | "off") =>
       buildCardView(makeState(), workspace, makeScenarios(), null, null, mode);
 
     test("on: the status column is drawn", () => {
@@ -174,8 +175,16 @@ describe("web/viewModel/cardView: buildCardView", () => {
       expect(build(oneOut(), "off").showTitleInfo).toBe(false);
     });
 
-    test("on is the default when no choice is passed", () => {
-      expect(build(makeWorkspace()).showTitleInfo).toBe(true);
+    test("auto with nobody out: not drawn", () => {
+      expect(build(makeWorkspace(), "auto").showTitleInfo).toBe(false);
+    });
+
+    test("auto with one driver out: drawn", () => {
+      expect(build(oneOut(), "auto").showTitleInfo).toBe(true);
+    });
+
+    test("auto is the default when no choice is passed", () => {
+      expect(build(makeWorkspace()).showTitleInfo).toBe(false);
       expect(build(oneOut()).showTitleInfo).toBe(true);
     });
 

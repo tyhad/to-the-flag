@@ -7,10 +7,10 @@
  * passed in.
  */
 
-export const TITLE_INFO_MODES = ["on", "off"] as const;
+export const TITLE_INFO_MODES = ["auto", "on", "off"] as const;
 export type TitleInfoMode = (typeof TITLE_INFO_MODES)[number];
 
-export const DEFAULT_TITLE_INFO: TitleInfoMode = "on";
+export const DEFAULT_TITLE_INFO: TitleInfoMode = "auto";
 
 /** Where the choice is remembered in the browser. */
 export const TITLE_INFO_STORAGE_KEY = "ttf_title_info";
@@ -18,12 +18,14 @@ export const TITLE_INFO_STORAGE_KEY = "ttf_title_info";
 export const TITLE_INFO_LABEL = "Title info";
 
 export const TITLE_INFO_OPTION_LABELS: Record<TitleInfoMode, string> = {
+  auto: "Auto",
   on: "On",
   off: "Off",
 };
 
 /** One sentence per option, shown as a tooltip. */
 export const TITLE_INFO_OPTION_HINTS: Record<TitleInfoMode, string> = {
+  auto: "Auto: shown once someone can no longer win the title.",
   on: "On: always show the title status and the best place.",
   off: "Off: a plain standings table.",
 };
@@ -44,9 +46,9 @@ export function resolveTitleInfoStorage(): TitleInfoStorage | undefined {
   return undefined;
 }
 
-/** A stored or typed value as a mode; anything that is not one of the two gives the default. */
+/** A stored or typed value as a mode; anything that is not one of the three gives the default. */
 export function parseTitleInfo(value: unknown): TitleInfoMode {
-  return value === "off" ? "off" : "on";
+  return (TITLE_INFO_MODES as readonly unknown[]).includes(value) ? (value as TitleInfoMode) : DEFAULT_TITLE_INFO;
 }
 
 /** The remembered choice. Missing, invalid or unreadable storage gives the default; never throws. */
@@ -69,18 +71,22 @@ export function writeTitleInfo(mode: TitleInfoMode, storage: TitleInfoStorage | 
 
 /**
  * Whether the status tags and the Best column are drawn for a table.
- * `on` is true and `off` is false.
+ * `on` is true and `off` is false. `auto` is true only when some row's best place is 2 or worse, that is,
+ * when at least one entry can no longer win the title.
  */
-export function titleInfoVisible(mode: TitleInfoMode, _rows?: readonly { readonly best: number }[]): boolean {
-  return mode === "on";
+export function titleInfoVisible(mode: TitleInfoMode, rows: readonly { readonly best: number }[]): boolean {
+  if (mode === "on") return true;
+  if (mode === "off") return false;
+  return rows.some((row) => row.best >= 2);
 }
 
 /** The mode a key press on the switch moves to, or null when the key is not one the switch handles. */
 export function nextTitleInfo(current: TitleInfoMode, key: string): TitleInfoMode | null {
-  if (key === "ArrowRight" || key === "ArrowDown" || key === "ArrowLeft" || key === "ArrowUp") {
-    return current === "on" ? "off" : "on";
-  }
-  if (key === "Home") return "on";
-  if (key === "End") return "off";
+  const last = TITLE_INFO_MODES.length - 1;
+  const index = TITLE_INFO_MODES.indexOf(current);
+  if (key === "ArrowRight" || key === "ArrowDown") return TITLE_INFO_MODES[index === last ? 0 : index + 1]!;
+  if (key === "ArrowLeft" || key === "ArrowUp") return TITLE_INFO_MODES[index === 0 ? last : index - 1]!;
+  if (key === "Home") return TITLE_INFO_MODES[0];
+  if (key === "End") return TITLE_INFO_MODES[last]!;
   return null;
 }
