@@ -25,6 +25,7 @@ Phase 9 (multi-season prior) and Phase 10 (release V1.0) are planned in `SPEC.md
 7. `docs/PHASE_6.md`: the access and ops task list.
 8. `docs/PHASE_7.md`: the standings and positions task list, as built.
 9. `docs/PHASE_8.md`: the race weekend task list.
+10. `docs/EXPORT.md`: the PNG card (how it is built, its rules, and the steps to add content). Read it before touching the export.
 
 If code and documents disagree, follow the documents and ask the owner.
 
@@ -70,6 +71,7 @@ Phase 1 must provide these scripts with exactly these names:
 - The browser never touches SQLite. It gets one `SeasonState` from `/api/season` and runs the engine locally.
 - The web UI makes no external network requests; fonts and assets are bundled.
 - No secrets in the repo. Do not commit `.sqlite` files or `.env`.
+- Anything added to the PNG card follows `docs/EXPORT.md`: layout stays pure in `web/viewModel/card.ts`, the numbers come from the table view-model, colors are tokens, and `docs/EXPORT.md` and the README export list are updated in the same commit.
 
 ## How to work
 - One phase at a time, in the order given in `SPEC.md`. Do not add features from later phases.

@@ -168,7 +168,7 @@ Steps 1 to 7 are done. Step 1 is in F1GStats (`phase-7-validation`); Steps 2 to 
 - **`bun run check`:** the text tables got a `Best` column and `--json` has `bestPosition`. `scripts/statusReport.ts` (a separate script) is unchanged. The CLI and the feed still say `eliminated` as the status value; only the UI and the card say "No title".
 - **No `CHANGELOG.md` in this repo** (the release notes are planned for Phase 10); F1GStats has its own, updated in Step 1.
 
-**Checked with tests (both repos, in fresh clones with a clean install):** F1GStats `pytest` 66 passed; `to-the-flag` `bun test` 1672 passed (2 skipped), `bun run typecheck` and `bun run build` clean. The Round 16 values equal the list in "What exists" in the engine, the table view-model, `bun run check` and both feeds; two drivers (GAS, ALB) and one team (RB) are also checked against a hand count in `tests/bestColumn.test.ts`. A Ferrari one-two lock moves RB from P2 to P3 in the team feed, as counted by hand.
+**Checked with tests (both repos, in fresh clones with a clean install):** F1GStats `pytest` 66 passed; `to-the-flag` `bun test` 1691 passed (2 skipped), `bun run typecheck` and `bun run build` clean. The Round 16 values equal the list in "What exists" in the engine, the table view-model, `bun run check` and both feeds; two drivers (GAS, ALB) and one team (RB) are also checked against a hand count in `tests/bestColumn.test.ts`. A Ferrari one-two lock moves RB from P2 to P3 in the team feed, as counted by hand.
 
 **Not checked by the agent (needs a real browser or real data; tick these yourself):**
 
@@ -180,3 +180,14 @@ Steps 1 to 7 are done. Step 1 is in F1GStats (`phase-7-validation`); Steps 2 to 
 - [ ] `bun run check` and a real F1GStats fetch on the current data: the Best column shows, `--json` parses, and the V5 and V6 results are `ok` or `warn`, never `fail`, with a newly added driver and with 22 cars racing (unit-tested, but no real fetch was run).
 
 **The "done" list above:** items 1, 3 (values and `best ≥ 2` exactly when out), 5 and 7 are covered by the checks above. Item 2 (no strike-through) is enforced by a test; item 4 (Auto and Off behavior) is tested on the view-model and the markup, with the browser part in the list above; item 6 is covered by unit tests in F1GStats.
+
+## After the first review (PNG card export, same branch)
+
+Two commits came after the Phase 7 docs: `139a0e0` (WCC mode, row choice, Best column and name formatting on the card) and `5c13490` (new card header, custom position range, simulation note, dynamic row scaling). They are outside the Phase 7 plan; the owner needs them, so they stay on this branch and the card is now documented in `docs/EXPORT.md`.
+
+- `5c13490` also removed the **Auto** mode of the Title info control (only On and Off were left, default On). The owner confirmed Auto is needed, so it was **restored** as D44 says (`web/viewModel/titleInfo.ts` and its tests are back to the Step 5 version; `tests/cardView.test.ts` has the Auto cases again).
+- The export row choice said "Semua"; it now says "All" (the UI is in English).
+- The credit line on the card is drawn in two colors: "to the flag by " in `text-3` and "Tyhad | F1 Watchalong" in `text`, so the name stands out. This needed `runs` on the text drawing command (`docs/EXPORT.md`).
+- `docs/EXPORT.md` is new: how the card is built, its rules, and the steps to add exportable content.
+
+Still to check in a real browser for the card: both sizes, WDC and WCC, Title info Auto, On and Off, odds on and off, a custom range, and that the credit line is centered with the name visibly brighter.

@@ -74,9 +74,11 @@ The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio o
 ## Export picture (PNG)
 The scenario strip provides an *Export picture* button to render and download a standalone standings card as a PNG:
 - **Sizes:** Square (`1080×1080`, ideal for social media posts) and Wide (`1920×1080`, ideal for streaming screens).
-- **Contents:** Title, current season, as-of round, scenario name, top WDC standings (rank, driver code/name, team, current → projected points, delta, and the status tag when the *Title info* choice shows it).
+- **Table:** the WDC or the WCC table, whichever tab is open. Rows: Top 10, Top 12, All, or a custom range (for example P3 to P15).
+- **Contents:** Title, current season, as-of round, scenario name, the rows (rank, code/name, team, current → projected points, delta), and the Best place and status tag when the *Title info* choice shows them. When the scenario has locked sessions, the card says it is a simulation up to that round.
 - **Odds:** When the *Likely?* tab has model odds, they are shown alongside with the required `"Model estimate"` label.
 - **Privacy:** Tokens, server addresses, and file paths are never drawn in the image. The rendering happens offline in the browser canvas.
+- **Adding to the card:** how it is built and the steps to add new content are in [`docs/EXPORT.md`](docs/EXPORT.md).
 
 ## If something does not load
 | You see | What to do |
