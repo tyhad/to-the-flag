@@ -53,14 +53,38 @@ const editor = (c: GridControls, access: { canWrite?: boolean; verdict?: AccessV
   renderToStaticMarkup(<GridEditor state={access.state ?? season} controls={c} canWrite={access.canWrite ?? true} verdict={access.verdict ?? "open"} />);
 
 describe("GridEditor", () => {
-  test("lists every driver in start order with place, code and name", () => {
+  test("lists every driver in start order with place and code", () => {
     const html = editor(controls());
     expect(html).toContain('<ol aria-label="Starting grid"');
     expect((html.match(/<li/g) ?? []).length).toBe(6);
-    for (const code of six) expect(html).toContain(code);
-    expect(html.indexOf("AAA")).toBeLessThan(html.indexOf("BBB"));
+    for (const code of six) expect(html).toContain(`>${code}</span>`);
+    expect(html.indexOf(">AAA</span>")).toBeLessThan(html.indexOf(">BBB</span>"));
     expect(html).toContain("Place </span>1");
-    expect(html).toContain(season.drivers.find((d) => d.code === "AAA")!.name);
+  });
+
+  test("shows the code only: the full name is not written on the row, it is only a hover title", () => {
+    // The test season names every driver by code, so give them real-looking names here.
+    const named: SeasonState = { ...season, drivers: season.drivers.map((d) => ({ ...d, name: `Driver ${d.code}` })) };
+    const html = editor(controls(), { state: named });
+    expect(html).not.toContain("Driver AAA</");
+    expect(html).not.toMatch(/>[^<]*Driver [A-Z]{3}[^<]*</);
+    expect(html).toContain('title="Driver AAA"');
+    expect(html).toContain(">AAA</span>");
+  });
+
+  test("Up and Down are arrows, not words; each is still named for the driver", () => {
+    const html = editor(controls());
+    const up = html.match(/<button[^>]*aria-label="Move CCC up"[^>]*>(.*?)<\/button>/)![1]!;
+    const down = html.match(/<button[^>]*aria-label="Move CCC down"[^>]*>(.*?)<\/button>/)![1]!;
+    for (const inner of [up, down]) {
+      expect(inner.startsWith("<svg")).toBe(true);
+      expect(inner).toContain('aria-hidden="true"');
+      expect(inner.replace(/<[^>]*>/g, "")).toBe(""); // no visible words
+    }
+    expect(up).not.toBe(down);
+    expect(labelled(html, "Move CCC up")).toContain('title="Move CCC up"');
+    expect(html).not.toMatch(/>Up</);
+    expect(html).not.toMatch(/>Down</);
   });
 
   test("each row has a team color strip that is decoration only", () => {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { SeasonState } from "../../engine";
+import { ArrowDownIcon, ArrowUpIcon } from "./icons";
 import { teamColor } from "../theme/teams";
 import type { GridControls } from "../useGrid";
 import type { AccessVerdict } from "../viewModel/access";
@@ -27,6 +28,8 @@ const BTN = "type-label h-8 rounded-control border px-3 disabled:cursor-not-allo
 const BTN_PLAIN = `${BTN} border-line text-text-2 hover:border-accent-hover disabled:text-text-3 disabled:hover:border-line`;
 const BTN_PRIMARY = `${BTN} border-accent-fill bg-accent-fill text-text hover:bg-accent-fill-hover disabled:border-line disabled:bg-s2 disabled:text-text-3`;
 const BTN_SMALL = "type-label h-8 rounded-control border border-line px-2 text-text-2 hover:border-accent-hover disabled:cursor-not-allowed disabled:text-text-3 disabled:hover:border-line";
+// The arrows are icon-only: square, with the driver named in aria-label and title.
+const BTN_ARROW = `${BTN_SMALL} inline-flex w-8 items-center justify-center px-0`;
 
 type RowButton = "up" | "down" | "more";
 const buttonId = (code: string, which: RowButton) => `grid-${code}-${which}`;
@@ -232,8 +235,8 @@ function EditorListRow({ row, menuOpen, onMove, onToggleMenu, onCloseMenu, onCho
           {row.place}
         </span>
         <span className="flex min-w-0 flex-col">
-          <span className="type-title truncate text-text" title={row.name}>
-            {row.code} <span className="text-text-2">{row.name}</span>
+          <span className="type-title text-text" title={row.name}>
+            {row.code}
           </span>
           {row.pit ? <span className="type-note text-text-2">Pit-lane start</span> : null}
         </span>
@@ -244,9 +247,10 @@ function EditorListRow({ row, menuOpen, onMove, onToggleMenu, onCloseMenu, onCho
             onClick={() => onMove(row.code, "up")}
             disabled={!row.canUp}
             aria-label={`Move ${row.code} up`}
-            className={BTN_SMALL}
+            title={`Move ${row.code} up`}
+            className={BTN_ARROW}
           >
-            Up
+            <ArrowUpIcon />
           </button>
           <button
             type="button"
@@ -254,9 +258,10 @@ function EditorListRow({ row, menuOpen, onMove, onToggleMenu, onCloseMenu, onCho
             onClick={() => onMove(row.code, "down")}
             disabled={!row.canDown}
             aria-label={`Move ${row.code} down`}
-            className={BTN_SMALL}
+            title={`Move ${row.code} down`}
+            className={BTN_ARROW}
           >
-            Down
+            <ArrowDownIcon />
           </button>
           <button
             type="button"
