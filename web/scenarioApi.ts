@@ -141,6 +141,14 @@ export const gridApi = {
     return info ? { ok: true, data: info } : { ok: false, message: UNEXPECTED };
   },
 
+  /** Saves the manual grid of the next race. The answer is the grid now in use. */
+  async save(order: readonly string[], pit: readonly string[]): Promise<ApiResult<GridInfo>> {
+    const r = await call("PUT", "/api/grid", { order, pit });
+    if (!r.ok) return { ok: false, message: gridErrorMessage(r.status, r.body) };
+    const info = parseGridResponse(true, r.body);
+    return info ? { ok: true, data: info } : { ok: false, message: UNEXPECTED };
+  },
+
   /** Removes the manual grid. The answer is the grid now in use (the data file's). */
   async clear(): Promise<ApiResult<GridInfo>> {
     const r = await call("DELETE", "/api/grid");

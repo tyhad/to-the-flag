@@ -15,11 +15,14 @@ export interface GridControls {
   state: GridState;
   /** "Keep mine": hides the notice until OpenF1's grid changes. */
   keepMine: () => void;
-  /** "Use OpenF1 grid": removes the manual grid on the server, then refreshes the season so the odds follow. */
+  /** "Use OpenF1 grid" / "Use data grid": removes the manual grid on the server, then refreshes the season so the odds follow. */
   chooseOpenF1: () => Promise<void>;
+  /** "Save grid": saves the manual grid on the server, then refreshes the season so the odds follow. */
+  save: (order: readonly string[], pit: readonly string[]) => Promise<void>;
 }
 
 const REFRESH_FAILED = "The manual grid was removed, but the page could not refresh. Reload the page.";
+const SAVE_REFRESH_FAILED = "The grid was saved, but the page could not refresh. Reload the page.";
 
 /**
  * Which starting grid is in use (`GET /api/grid`), and what the owner did with the "OpenF1 has a different grid" notice.
@@ -59,5 +62,19 @@ export function useGrid(refreshSeason: () => Promise<boolean>, storage?: GridNot
     if (!(await refreshSeason())) dispatch({ type: "clearFailed", message: REFRESH_FAILED });
   }, [refreshSeason]);
 
-  return { state, keepMine, chooseOpenF1 };
+  const save = useCallback(
+    async (order: readonly string[], pit: readonly string[]) => {
+      dispatch({ type: "saveStarted" });
+      const res = await gridApi.save(order, pit);
+      if (!res.ok) {
+        dispatch({ type: "saveFailed", message: res.message });
+        return;
+      }
+      dispatch({ type: "saved", info: res.data });
+      if (!(await refreshSeason())) dispatch({ type: "saveFailed", message: SAVE_REFRESH_FAILED });
+    },
+    [refreshSeason],
+  );
+
+  return { state, keepMine, chooseOpenF1, save };
 }

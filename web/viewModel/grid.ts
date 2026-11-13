@@ -128,6 +128,7 @@ export function gridErrorMessage(status: number | null, body: unknown): string {
   if (status === null) return "Could not reach the server. Check that it is running.";
   if (status === 401) return "Enter the write token to change the grid.";
   if (status === 403) return "Writing is only allowed from this computer.";
+  if (status === 422 && isRecord(body) && isCodes(body.errors) && body.errors.length > 0) return body.errors.join(" ");
   if (isRecord(body) && typeof body.message === "string" && body.message !== "") return body.message;
   return `The server returned an error (${status}). Try again.`;
 }
@@ -137,14 +138,20 @@ export function gridErrorMessage(status: number | null, body: unknown): string {
 // ---------------------------------------------------------------------------------------------------------------------
 
 export interface GridState {
+  /** Whether the grid has been asked for yet, and whether that worked. */
+  status: "loading" | "ready" | "error";
   /** The grid in use, or null until it is loaded (or when it could not be). */
   info: GridInfo | null;
   /** The signature of the OpenF1 grid the owner chose to ignore ("Keep mine"). */
   dismissed: string | null;
   /** "Use OpenF1 grid" is running. */
   busy: boolean;
-  /** Why the last "Use OpenF1 grid" did not work, in plain words. */
+  /** Why the last "Use OpenF1 grid" (or "Use data grid") did not work, in plain words. */
   error: string | null;
+  /** "Save grid" is running. */
+  saving: boolean;
+  /** Why the last "Save grid" did not work, in plain words. */
+  saveError: string | null;
 }
 
 export type GridMessage =
@@ -155,16 +162,21 @@ export type GridMessage =
   | { type: "clearStarted" }
   /** The server removed the manual grid and answered with the grid now in use. */
   | { type: "cleared"; info: GridInfo }
-  | { type: "clearFailed"; message: string };
+  | { type: "clearFailed"; message: string }
+  /** "Save grid" was pressed: the request is on its way. */
+  | { type: "saveStarted" }
+  /** The server saved the manual grid and answered with the grid now in use. */
+  | { type: "saved"; info: GridInfo }
+  | { type: "saveFailed"; message: string };
 
 export function initialGridState(dismissed: string | null = null): GridState {
-  return { info: null, dismissed, busy: false, error: null };
+  return { status: "loading", info: null, dismissed, busy: false, error: null, saving: false, saveError: null };
 }
 
 export function gridReducer(state: GridState, message: GridMessage): GridState {
   switch (message.type) {
     case "loaded":
-      return { ...state, info: message.info };
+      return { ...state, status: message.info ? "ready" : "error", info: message.info };
     case "keepMine": {
       const signature = gridSignature(state.info);
       return signature === null ? state : { ...state, dismissed: signature };
@@ -175,6 +187,12 @@ export function gridReducer(state: GridState, message: GridMessage): GridState {
       return { ...state, info: message.info, busy: false, error: null };
     case "clearFailed":
       return { ...state, busy: false, error: message.message };
+    case "saveStarted":
+      return state.saving ? state : { ...state, saving: true, saveError: null };
+    case "saved":
+      return { ...state, info: message.info, saving: false, saveError: null };
+    case "saveFailed":
+      return { ...state, saving: false, saveError: message.message };
   }
 }
 

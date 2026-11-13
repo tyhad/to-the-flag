@@ -13,14 +13,16 @@ import { GridNotice } from "./GridNotice";
 import { GridSourceTag } from "./GridSourceTag";
 import { OddsPanel, OddsPlaceholder } from "./OddsPanel";
 import { PossiblePanel, type PathSubject } from "./PossiblePanel";
+import { RacePanel } from "./RacePanel";
 import { Tabs, panelId, tabId, type TabItem } from "./Tabs";
 
-type AnalysisTab = "possible" | "likely";
+type AnalysisTab = "possible" | "likely" | "race";
 
-// "Possible?" (math, no model) and "Likely?" (model) stay separate: no figure mixes them.
+// "Possible?" (math, no model) and "Likely?" (model) stay separate: no figure mixes them. "Race" is where the starting grid is set.
 const TABS: readonly TabItem<AnalysisTab>[] = [
   { id: "possible", label: "Possible?" },
   { id: "likely", label: "Likely?" },
+  { id: "race", label: "Race" },
 ];
 
 function AnalysisFrame({ tab, onTab, children }: { tab: AnalysisTab; onTab: (tab: AnalysisTab) => void; children: ReactNode }) {
@@ -69,6 +71,19 @@ export function AnalysisRail({ state, workspace, dispatch, onOddsResult, grid }:
 
   const tag = grid ? gridTagFor(grid.controls.state.info) : null;
   const notice = grid ? gridNotice(grid.controls.state.info, grid.controls.state.dismissed) : null;
+  // The same notice is shown in the Likely panel and in the Race tab.
+  const noticeElement =
+    notice && grid ? (
+      <GridNotice
+        notice={notice}
+        busy={grid.controls.state.busy}
+        error={grid.controls.state.error}
+        canWrite={grid.canWrite}
+        verdict={grid.verdict}
+        onUseOpenF1={() => void grid.controls.chooseOpenF1()}
+        onKeepMine={grid.controls.keepMine}
+      />
+    ) : null;
 
   return (
     <AnalysisFrame tab={tab} onTab={setTab}>
@@ -82,20 +97,14 @@ export function AnalysisRail({ state, workspace, dispatch, onOddsResult, grid }:
           formPercent={formPercent}
           onFormPercent={setFormPercent}
           gridTag={tag ? <GridSourceTag source={grid!.controls.state.info!.effective!.source} /> : null}
-          gridNotice={
-            notice && grid ? (
-              <GridNotice
-                notice={notice}
-                busy={grid.controls.state.busy}
-                error={grid.controls.state.error}
-                canWrite={grid.canWrite}
-                verdict={grid.verdict}
-                onUseOpenF1={() => void grid.controls.chooseOpenF1()}
-                onKeepMine={grid.controls.keepMine}
-              />
-            ) : null
-          }
+          gridNotice={noticeElement}
         />
+      ) : tab === "race" ? (
+        grid ? (
+          <RacePanel state={state} controls={grid.controls} canWrite={grid.canWrite} verdict={grid.verdict} notice={noticeElement} />
+        ) : (
+          <EmptyState title="The grid is not available">Reload the page to set the starting grid.</EmptyState>
+        )
       ) : (
         <PossiblePanel
           state={state}
@@ -120,6 +129,8 @@ export function AnalysisPlaceholder() {
     <AnalysisFrame tab={tab} onTab={setTab}>
       {tab === "likely" ? (
         <OddsPlaceholder />
+      ) : tab === "race" ? (
+        <EmptyState title="Starting grid">Once season data is loaded, you can correct the starting grid here.</EmptyState>
       ) : (
         <EmptyState title="Pick a contender">Once season data is loaded, see what it takes to win the title.</EmptyState>
       )}

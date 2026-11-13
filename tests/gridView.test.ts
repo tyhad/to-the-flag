@@ -178,6 +178,10 @@ describe("gridErrorMessage", () => {
     expect(gridErrorMessage(409, { error: "no_upcoming_round", message: "There is no race left in this season to set a grid for." })).toBe(
       "There is no race left in this season to set a grid for.",
     );
+    expect(gridErrorMessage(422, { errors: ["AAA is listed 2 times.", "Missing from the grid: FFF."] })).toBe(
+      "AAA is listed 2 times. Missing from the grid: FFF.",
+    );
+    expect(gridErrorMessage(422, { errors: [] })).toBe("The server returned an error (422). Try again.");
     expect(gridErrorMessage(500, null)).toBe("The server returned an error (500). Try again.");
     expect(gridErrorMessage(500, { message: "" })).toBe("The server returned an error (500). Try again.");
   });
@@ -187,7 +191,15 @@ describe("the buttons' effects (gridReducer)", () => {
   const loaded = gridReducer(initialGridState(), { type: "loaded", info: differing });
 
   test("starts empty and not busy", () => {
-    expect(initialGridState()).toEqual({ info: null, dismissed: null, busy: false, error: null });
+    expect(initialGridState()).toEqual({
+      status: "loading",
+      info: null,
+      dismissed: null,
+      busy: false,
+      error: null,
+      saving: false,
+      saveError: null,
+    });
     expect(initialGridState("x").dismissed).toBe("x");
   });
 
@@ -244,6 +256,37 @@ describe("the buttons' effects (gridReducer)", () => {
     expect(gridReducer(failed, { type: "clearStarted" }).error).toBeNull();
   });
 
+  test("loading is told apart from a grid that could not be loaded", () => {
+    expect(initialGridState().status).toBe("loading");
+    expect(gridReducer(initialGridState(), { type: "loaded", info: differing }).status).toBe("ready");
+    expect(gridReducer(initialGridState(), { type: "loaded", info: null }).status).toBe("error");
+  });
+
+  test("saving: busy while it runs, a second press is ignored, and the saved grid is the one in use", () => {
+    const running = gridReducer(loaded, { type: "saveStarted" });
+    expect(running.saving).toBe(true);
+    expect(gridReducer(running, { type: "saveStarted" })).toBe(running);
+    const done = gridReducer(running, { type: "saved", info: differing });
+    expect(done).toMatchObject({ saving: false, saveError: null });
+    expect(done.info).toBe(differing);
+  });
+
+  test("a failed save keeps the grid in use, shows the reason, and trying again clears it", () => {
+    const failed = gridReducer(gridReducer(loaded, { type: "saveStarted" }), { type: "saveFailed", message: "AAA is listed 2 times." });
+    expect(failed).toMatchObject({ saving: false, saveError: "AAA is listed 2 times." });
+    expect(failed.info).toBe(loaded.info);
+    expect(gridReducer(failed, { type: "saveStarted" }).saveError).toBeNull();
+  });
+
+  test("saving and clearing use their own error lines", () => {
+    const clearFailed = gridReducer(loaded, { type: "clearFailed", message: "clear problem" });
+    expect(clearFailed.error).toBe("clear problem");
+    expect(clearFailed.saveError).toBeNull();
+    const saveFailed = gridReducer(loaded, { type: "saveFailed", message: "save problem" });
+    expect(saveFailed.saveError).toBe("save problem");
+    expect(saveFailed.error).toBeNull();
+  });
+
   test("if the grid cannot be loaded there is no tag and no notice", () => {
     const none = gridReducer(initialGridState(), { type: "loaded", info: null });
     expect(gridTagFor(none.info)).toBeNull();
@@ -256,6 +299,9 @@ describe("the buttons' effects (gridReducer)", () => {
     gridReducer(loaded, { type: "clearStarted" });
     gridReducer(loaded, { type: "cleared", info: cleared });
     gridReducer(loaded, { type: "clearFailed", message: "x" });
+    gridReducer(loaded, { type: "saveStarted" });
+    gridReducer(loaded, { type: "saved", info: cleared });
+    gridReducer(loaded, { type: "saveFailed", message: "x" });
     expect(JSON.stringify(loaded)).toBe(before);
   });
 });
