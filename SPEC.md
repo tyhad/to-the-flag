@@ -1,7 +1,7 @@
 # To the Flag — Product & Engine Spec
 > Working name: **To the Flag** (owner proposal; check domain and repo availability). Tagline pending, see D3.
 
-**Status:** DRAFT v0.13. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal; see `docs/PHASE_4.md` and `docs/MODEL.md`) is done. Phase 5 (WCC Path Solver; see `docs/PHASE_5.md`) is done. Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export; see `docs/PHASE_6.md`) is done. Phase 7 (standings and positions) has a task list in `docs/PHASE_7.md` and has not started; Phase 8 (race weekend: manual starting grid, race forecast, grid export) has a task list in `docs/PHASE_8.md`; Phases 9 and 10 are planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
+**Status:** DRAFT v0.14. Phase 0 (F1GStats data, `main` @ `ccd268b`), Phase 1 (engine), Phase 2 (API, web UI, overlay feed; see `docs/PHASE_2.md`) and Phase 3 (Monte Carlo odds, the "Likely?" tab, the odds feed, a backtest; see `docs/PHASE_3.md` and `docs/MODEL.md`) are done. Phase 4 (model v2: history data, calibration, grid signal; see `docs/PHASE_4.md` and `docs/MODEL.md`) is done. Phase 5 (WCC Path Solver; see `docs/PHASE_5.md`) is done. Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export; see `docs/PHASE_6.md`) is done. Phase 7 (standings and positions: the `✕ No title` marker, the Best column, the Title info control, best places in the CLI and feed, F1GStats V5 and V6 hardening; see `docs/PHASE_7.md`) is done except the optional Step 8 (position probabilities), which was not built; Phase 8 (race weekend: manual starting grid, race forecast, grid export) has a task list in `docs/PHASE_8.md`; Phases 9 and 10 are planned (section 10). D1 (TypeScript engine) and D2 (theme) are approved.
 **Companion file:** `DESIGN.md` (visual rules). Read both before writing code.
 
 ---
@@ -74,6 +74,7 @@ Rules:
 - **Countback (A2.1.4.c)**, for drivers and teams alike: most first places in a **race**, then second places, then thirds, and so on; if still tied, apply the same criteria to the season's **qualifying results**. "In a race" means Grand Prix races, so sprint results do not count. Implement as config `countback.includeSprint = false` with tests. Level iv needs `qualifying_results` (optional, rarely reached).
 - **Constructors:** points from both F1 Cars count.
 - **Remaining points:** for each uncompleted session in the schedule: race 25 (team 43), sprint 8 (team 15).
+- **Best position (Phase 7, D43):** for a driver or team, `best = 1 + the number of other entries whose points are strictly greater than this entry's ceiling`, where the ceiling is the projected points plus what the entry can still score in the open sessions (a driver who is not racing, or a team with no active car, has ceiling = points). Those rivals are above in every scenario, so the entry cannot finish higher than `best`. It is a floor from points alone: it does not check that every rival can be held back at once, ties on points do not count as "above" (no countback), and there is deliberately no worst-place figure, because a points-only bound for the worst place is far too loose (rivals compete for the same finishing slots). `best = 1` exactly when the entry can still win the title, ties aside. Always labeled "on points alone".
 - **Entry list:** standings can include drivers who no longer race (2026 as of Round 16: 23 in standings, 22 per round). Only drivers present in the latest completed round can score in remaining sessions.
 
 ## 5. Data contract (what F1GStats must provide)
@@ -138,7 +139,7 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 
 ## 8. Features
 
-**F1. Standings engine (deterministic).** Current points + locked sessions → projected final table (points, position, delta vs base), status per driver: `clinched | alive | eliminated` (with countback), max remaining points, gap to leader, points needed to clinch.
+**F1. Standings engine (deterministic).** Current points + locked sessions → projected final table (points, position, delta vs base), status per driver: `clinched | alive | eliminated` (with countback), max remaining points, gap to leader, points needed to clinch, and the best place still possible on points alone (see section 4).
 
 **F2. Path Solver (WDC only in v1).**
 - Verdict: can contender X still win the title.
@@ -170,7 +171,8 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 - Never show `0%` or `100%` from simulation; use `<1%` / `>99%`.
 - Every simulated number is labeled "Model estimate" and shows "as of Round N".
 - Possible? and Likely? are separate UI areas; never combine them into one figure.
-- Deterministic states are stated in words (Clinched, Eliminated).
+- Deterministic states are stated in words (Clinched, `✕ No title`). Nothing is struck through.
+- "Best" is labeled "on points alone" and is never presented as a promise or a prediction.
 
 ## 10. Phases and acceptance criteria
 
@@ -183,7 +185,7 @@ Semantics for Path Solver: drivers outside the contender set are neutral fillers
 | 4. Model v2 (done; see `docs/PHASE_4.md`, `docs/MODEL.md`) | History data (2022 to 2025), a multi-season calibration harness, a top-heavy pace fit, the grid signal, model versioning | v2 defaults are adopted only if they pass the protocol in `docs/PHASE_4.md` (D30); the grid signal is adopted or rejected with numbers; v1 stays reproducible |
 | 5. WCC Path Solver (done; see `docs/PHASE_5.md`) | Team status, team path (`minOneTwos`, rival budgets), CLI report, feed routes, status tags in the WCC table, a Constructors view in "Possible?" | Fresh-clone tests pass; invariants hold (someone can always be champion, clinched means all others out, `easiest` ranks its team first); the CLI, feed and UI agree with a hand calculation for one team |
 | 6. Access and ops (done; see `docs/PHASE_6.md`) | LAN mode with a write token, `bun run start` and `bun run refresh`, a "New data" notice, PNG export, F1GStats `--verbose` | The server refuses to start on a non-local host without a token; writes need the token from other devices; refresh reports ok / check failed / error with matching exit codes; the open page shows new data without reloading itself; PNG export works offline; fresh-clone tests pass |
-| 7. Standings and positions (see `docs/PHASE_7.md`) | A `✕ No title` marker instead of the strike-through, a Best-position column for drivers and teams (by points ceiling), a "Title info" control (Auto, On, Off) for a plain standings table, best places in the CLI and the feed, F1GStats V5 and V6 hardening | No strike-through anywhere; `best ≥ 2` exactly when an entry cannot win the title; the control gives a plain table when it is off or nobody is out, and survives a reload; fresh-clone tests pass in both repos |
+| 7. Standings and positions (done; see `docs/PHASE_7.md`) | A `✕ No title` marker instead of the strike-through, a Best-position column for drivers and teams (by points ceiling), a "Title info" control (Auto, On, Off) for a plain standings table, best places in the CLI and the feed, F1GStats V5 and V6 hardening | No strike-through anywhere; `best ≥ 2` exactly when an entry cannot win the title; the control gives a plain table when it is off or nobody is out, and survives a reload; fresh-clone tests pass in both repos |
 | 8. Race weekend (see `docs/PHASE_8.md`) | A manual starting grid (manual, then OpenF1, then qualifying), grid source tags and an OpenF1 notice, a "Race" tab with the race forecast (win, podium, points, expected finish), a starting-grid PNG, CSV and JSON export, feed routes, an F1GStats message fix | A saved manual grid overrides the data grid for the next race only; the grid source is always visible; the forecast follows the effective grid and keeps existing numbers unchanged; exports work offline without secrets; fresh-clone tests pass in both repos |
 | 9. Multi-season prior (planned) | `prior_carryover` using the history data | To be defined when the phase starts |
 | 10. Release V1.0 (planned) | LICENSE and data attributions with a not-affiliated notice, CHANGELOG and version 1.0.0 with a tag, CI, scenario export and import, a season-rollover guide, README screenshots, a Host-header allowlist for the write routes, a full-weekend rehearsal | To be defined when the phase starts |
@@ -244,10 +246,10 @@ Implement one phase at a time. Each phase must run and be verified before the ne
 | D39 | Refreshing data | A script the owner runs (`bun run refresh`); the open page shows a "New data" notice and never reloads by itself | Done (Phase 6) |
 | D40 | PNG export | Canvas drawn from a pure layout, square 1080×1080 and wide 1920×1080, with "Model estimate" and "as of Round N" whenever odds are shown | Done (Phase 6) |
 | D41 | F1GStats debug output | Hidden by default, `--verbose` brings it back | Done (Phase 6) |
-| D42 | The "no title" marker | No strike-through anywhere; out-of-title drivers and teams keep the normal row color and get the tag `✕ No title`; "not racing" is unchanged | Approved |
-| D43 | "Best" position rule | `best = 1 + the number of other entries with points strictly greater than this entry's ceiling` (ceiling = projected points + what it can still score in open sessions; a driver who is not racing has ceiling = points). A floor from points alone; it does not check that every rival can be held back at once; no worst-place figure | Approved |
-| D44 | When title info shows | A "Title info" control: Auto (default; the tags and the Best column appear once someone is out of the title race in that table), On, Off; remembered in the browser; the PNG card follows it | Proposed |
-| D45 | Position probabilities | Optional: chances of each place from the Monte Carlo run, only if the owner asks | Proposed |
+| D42 | The "no title" marker | No strike-through anywhere; out-of-title drivers and teams keep the normal row color and get the tag `✕ No title`; "not racing" is unchanged | Done (Phase 7) |
+| D43 | "Best" position rule | `best = 1 + the number of other entries with points strictly greater than this entry's ceiling` (ceiling = projected points + what it can still score in open sessions; a driver who is not racing has ceiling = points). A floor from points alone; it does not check that every rival can be held back at once; no worst-place figure | Done (Phase 7) |
+| D44 | When title info shows | A "Title info" control: Auto (default; the tags and the Best column appear once someone is out of the title race in that table), On, Off; remembered in the browser; the PNG card follows it | Done (Phase 7) |
+| D45 | Position probabilities | Optional: chances of each place from the Monte Carlo run, only if the owner asks | Not built (optional Step 8 of Phase 7) |
 | D46 | Which grid wins | Manual, then OpenF1 (actual), then the qualifying fallback; a manual grid stays until cleared; a notice (never an automatic switch) when OpenF1 later differs; the source is always shown | Proposed |
 | D47 | Where a manual grid lives | `grid_overrides` in `to-the-flag.sqlite`, next scheduled race only, ignored once that round has results, never written to `f1gstats.sqlite`; saving needs the write token | Proposed |
 | D48 | Grid entry | A list prefilled with the current grid, quick corrections (move, drop N places, back of the grid, pit-lane start) and a paste box; every active driver exactly once; pit-lane starters behind everyone | Proposed |

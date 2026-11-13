@@ -10,6 +10,7 @@ describe("engine public API (engine/index.ts)", () => {
       "sessionKey", "parseSessionKey", "remainingSessions", "activeDrivers",
       "computeDriverStandings", "computeConstructorStandings",
       "driverStatus", "witnessScenario", "teamCars", "teamSessionMax", "teamWitnessScenario", "teamStatus", "solveWcc", "teamPaceLimit",
+      "bestPositions", "driverPositionEntries", "teamPositionEntries",
       "solveWdc", "paceLimit",
       "computeOdds", "formatProbability", "simulateSeason", "deriveSeed", "fitStrengths",
     ] as const) {

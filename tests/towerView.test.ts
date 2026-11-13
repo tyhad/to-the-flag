@@ -9,6 +9,7 @@ import {
   buildTowerRows,
   formatDelta,
   formatPoints,
+  rowTextTone,
   statusTag,
   type TowerRow,
 } from "../web/viewModel/tower";
@@ -58,7 +59,21 @@ describe("statusTag", () => {
     expect(statusTag({ ...base, status: "clinched" })).toEqual({ label: "Clinched", tone: "clinched" });
     expect(statusTag({ ...base, status: "alive" })).toEqual({ label: "Alive", tone: "alive" });
     expect(statusTag({ ...base, status: "longShot" })).toEqual({ label: "Long shot", tone: "longShot" });
-    expect(statusTag({ ...base, status: "eliminated" })).toEqual({ label: "Eliminated", tone: "eliminated" });
+    expect(statusTag({ ...base, status: "eliminated" })).toEqual({
+      label: "No title",
+      tone: "eliminated",
+      icon: "cross",
+      accessibleName: "Cannot win the title",
+    });
+  });
+
+  test("only the no-title tag carries an icon and an accessible name", () => {
+    for (const status of ["clinched", "alive", "longShot"] as const) {
+      const tag = statusTag({ ...base, status })!;
+      expect(tag.icon).toBeUndefined();
+      expect(tag.accessibleName).toBeUndefined();
+    }
+    expect(statusTag({ status: null, inactive: true })).not.toHaveProperty("icon");
   });
 
   test("an inactive driver shows the text 'not racing', whatever the status", () => {
@@ -130,17 +145,27 @@ describe("buildTowerRows: eliminated and inactive drivers", () => {
   test("an active driver who can no longer win is eliminated", () => {
     for (const id of ["CCC", "DDD"]) {
       expect(byId(rows, id).status).toBe("eliminated");
-      expect(byId(rows, id).eliminated).toBe(true);
+      expect(statusTag(byId(rows, id))?.label).toBe("No title");
       expect(byId(rows, id).inactive).toBe(false);
     }
-    expect(byId(rows, "AAA").eliminated).toBe(false);
-    expect(byId(rows, "BBB").eliminated).toBe(false);
+    expect(byId(rows, "AAA").status).not.toBe("eliminated");
+    expect(byId(rows, "BBB").status).not.toBe("eliminated");
+  });
+
+  test("no row view carries a strike flag (eliminated rows are not drawn differently)", () => {
+    for (const r of rows) {
+      expect(Object.keys(r).filter((k) => /strike|line.?through|eliminated/i.test(k))).toEqual([]);
+    }
+  });
+
+  test("an out-of-title driver keeps the normal text tone; only a driver who is not racing is muted", () => {
+    for (const id of ["AAA", "BBB", "CCC", "DDD"]) expect(rowTextTone(byId(rows, id))).toBe("normal");
+    expect(rowTextTone(byId(rows, "EEE"))).toBe("muted");
   });
 
   test("an inactive driver is flagged inactive, not eliminated, and has no status", () => {
     const eee = byId(rows, "EEE");
     expect(eee.inactive).toBe(true);
-    expect(eee.eliminated).toBe(false);
     expect(eee.status).toBeNull();
     expect(statusTag(eee)).toEqual({ label: "not racing", tone: "inactive" });
   });
@@ -238,7 +263,6 @@ describe("buildTowerRows: WCC after a locked scenario", () => {
     // blue 124 against red 129 with 5:race (43) left: both can still win
     for (const r of rows) {
       expect(r.inactive).toBe(false);
-      expect(r.eliminated).toBe(false);
       expect(statusTag(r)).toEqual({ label: "Alive", tone: "alive" });
     }
   });

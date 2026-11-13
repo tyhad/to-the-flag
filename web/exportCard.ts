@@ -4,7 +4,7 @@
  * Resolves design-token CSS vars from the page's computed styles (no raw hex).
  * The share token, write token, and server path never appear in the output.
  */
-import { buildCard, type CardSize, type CardView, type DrawCommand } from "./viewModel/card";
+import { buildCard, runsStartX, type CardSize, type CardView, type DrawCommand } from "./viewModel/card";
 
 export type { CardSize };
 
@@ -31,11 +31,28 @@ function renderCommands(ctx: CanvasRenderingContext2D, commands: DrawCommand[]):
         ctx.fillRect(cmd.x, cmd.y, cmd.width, cmd.height);
       }
     } else if (cmd.type === "text") {
-      ctx.font = resolveToken(cmd.font);
-      ctx.fillStyle = resolveToken(cmd.fill);
-      ctx.textAlign = cmd.align;
       ctx.textBaseline = cmd.baseline;
-      ctx.fillText(cmd.text, cmd.x, cmd.y);
+      if (cmd.runs && cmd.runs.length > 0) {
+        // Pieces with their own color: measure them all, then draw left to right from the aligned start.
+        ctx.textAlign = "left";
+        const fonts = cmd.runs.map((run) => resolveToken(run.font ?? cmd.font));
+        const widths = cmd.runs.map((run, i) => {
+          ctx.font = fonts[i]!;
+          return ctx.measureText(run.text).width;
+        });
+        let x = runsStartX(cmd.align, cmd.x, widths.reduce((sum, w) => sum + w, 0));
+        cmd.runs.forEach((run, i) => {
+          ctx.font = fonts[i]!;
+          ctx.fillStyle = resolveToken(run.fill);
+          ctx.fillText(run.text, x, cmd.y);
+          x += widths[i]!;
+        });
+      } else {
+        ctx.font = resolveToken(cmd.font);
+        ctx.fillStyle = resolveToken(cmd.fill);
+        ctx.textAlign = cmd.align;
+        ctx.fillText(cmd.text, cmd.x, cmd.y);
+      }
     } else if (cmd.type === "line") {
       ctx.strokeStyle = resolveToken(cmd.stroke);
       ctx.lineWidth = cmd.lineWidth;
@@ -71,7 +88,8 @@ export async function exportCard(view: CardView, size: CardSize): Promise<void> 
   const commands = buildCard(view, size);
   renderCommands(ctx, commands);
 
-  const filename = `standings-${size}-${view.season}-r${view.asOfRound}.png`;
+  const tabPrefix = view.tab === "wcc" ? "wcc-" : "";
+  const filename = `standings-${tabPrefix}${size}-${view.season}-r${view.asOfRound}.png`;
 
   // Download via a temporary <a> element.
   await new Promise<void>((resolve, reject) => {

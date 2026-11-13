@@ -1,25 +1,35 @@
 import { useTweenedNumber } from "../motion";
 import { teamColor } from "../theme/teams";
-import { formatPoints, statusTag, type TowerRow as Row } from "../viewModel/tower";
+import { BEST_ACCESSIBLE_NAME, formatPoints, rowTextTone, statusTag, type TowerRow as Row } from "../viewModel/tower";
 import { DeltaChip } from "./DeltaChip";
 import { StatusTag } from "./StatusTag";
 
-/** Column order: position, name, points, change, status. Numerals sit right-aligned in their columns. */
-export const TOWER_COLUMNS = "grid-cols-[2rem_minmax(0,1fr)_7rem_3.5rem_6rem]";
+/**
+ * Column order: position, name, points, change, best, status. Numerals sit right-aligned in their columns.
+ * The header row in Tower.tsx uses the same template, so the columns line up.
+ */
+export const TOWER_COLUMNS = "grid-cols-[2rem_minmax(0,1fr)_7rem_3.5rem_2.5rem_6rem]";
+/** The same without the title info (best and status): a plain standings table. */
+export const TOWER_COLUMNS_PLAIN = "grid-cols-[2rem_minmax(0,1fr)_7rem_3.5rem]";
 
-export function TowerRow({ row }: { row: Row }) {
+export function towerColumnsClass(showTitleInfo: boolean): string {
+  return showTitleInfo ? TOWER_COLUMNS : TOWER_COLUMNS_PLAIN;
+}
+
+export function TowerRow({ row, showTitleInfo = true }: { row: Row; showTitleInfo?: boolean }) {
   const tween = useTweenedNumber(row.points);
   const projected = tween === row.points ? row.points : Math.round(tween);
   const changed = row.pointsAdded !== 0;
   const tag = statusTag(row);
 
-  // Eliminated: text-3 and line-through. Not racing: text-3 only.
-  const textTone = row.eliminated ? "text-text-3 line-through" : row.inactive ? "text-text-3" : "text-text";
+  // Normal text for every driver and team that is racing, even one that cannot win the title: the tag says it.
+  // Only a driver who is not racing is dimmed (text-3).
+  const textTone = rowTextTone(row) === "muted" ? "text-text-3" : "text-text";
 
   return (
     <li
       data-flip-id={row.id}
-      className={`relative grid h-10 items-center gap-3 border-b border-line pl-4 pr-3 ${TOWER_COLUMNS}`}
+      className={`relative grid h-10 items-center gap-3 border-b border-line pl-4 pr-3 ${towerColumnsClass(showTitleInfo)}`}
     >
       <span
         aria-hidden="true"
@@ -63,7 +73,15 @@ export function TowerRow({ row }: { row: Row }) {
       <span className="justify-self-center">
         <DeltaChip rankChange={row.rankChange} />
       </span>
-      <span className="justify-self-start">{tag ? <StatusTag view={tag} /> : null}</span>
+      {showTitleInfo ? (
+        <>
+          <span className="type-data text-center text-text-2">
+            <span aria-hidden="true">{row.bestText}</span>
+            <span className="sr-only">{`${BEST_ACCESSIBLE_NAME}: ${row.bestText}`}</span>
+          </span>
+          <span className="justify-self-start">{tag ? <StatusTag view={tag} /> : null}</span>
+        </>
+      ) : null}
     </li>
   );
 }

@@ -8,6 +8,9 @@ import { compareOptions } from "../viewModel/compare";
 import { MAX_NAME_LENGTH, buildChips, isDirty } from "../viewModel/scenarios";
 import type { Workspace } from "../viewModel/workspace";
 import { buildCardView } from "../viewModel/cardView";
+import type { CardRowsChoice } from "../viewModel/card";
+import type { TowerTab } from "../viewModel/tower";
+import type { TitleInfoMode } from "../viewModel/titleInfo";
 import { exportCard, type CardSize } from "../exportCard";
 import { AlertIcon } from "./icons";
 import { ScenarioChip } from "./ScenarioChip";
@@ -29,6 +32,10 @@ interface ScenarioStripProps {
   access?: AccessInfo;
   /** Latest WDC odds result from the "Likely?" tab. Null when the tab has not been opened or odds are not ready. */
   oddsResult?: OddsResult | null;
+  /** The "Title info" choice; the PNG card follows it. Defaults to auto. */
+  titleInfoMode?: TitleInfoMode;
+  /** Active standings tab (WDC or WCC). The PNG export follows it. Defaults to wdc. */
+  standingsTab?: TowerTab;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -40,6 +47,8 @@ export function ScenarioStrip({
   strip,
   access: propAccess,
   oddsResult = null,
+  titleInfoMode,
+  standingsTab = "wdc",
 }: ScenarioStripProps) {
   const defaultAccess = useAccess();
   const access = propAccess ?? defaultAccess;
@@ -49,6 +58,9 @@ export function ScenarioStrip({
   const [draft, setDraft] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [exportSize, setExportSize] = useState<CardSize>("square");
+  const [exportPreset, setExportPreset] = useState<"10" | "12" | "all" | "custom">("12");
+  const [customFrom, setCustomFrom] = useState<number>(1);
+  const [customTo, setCustomTo] = useState<number>(12);
   const [exporting, setExporting] = useState(false);
   const footerRef = useRef<HTMLElement>(null);
   /** The `data-focus-id` of the control that opened a form, so closing the form can put focus back on it. */
@@ -129,7 +141,24 @@ export function ScenarioStrip({
   async function handleExport() {
     setExporting(true);
     try {
-      const view = buildCardView(state, workspace, store.scenarios, strip.selectedId, oddsResult);
+      const positionRange =
+        exportPreset === "custom"
+          ? { from: customFrom, to: customTo }
+          : undefined;
+      const rowLimit =
+        exportPreset === "10" ? "10" : exportPreset === "12" ? "12" : exportPreset === "all" ? "all" : undefined;
+
+      const view = buildCardView(
+        state,
+        workspace,
+        store.scenarios,
+        strip.selectedId,
+        oddsResult,
+        titleInfoMode,
+        standingsTab,
+        rowLimit ?? "12",
+        positionRange,
+      );
       await exportCard(view, exportSize);
     } catch {
       // Silently ignore: browser may have blocked or canvas may not be available.
@@ -241,6 +270,42 @@ export function ScenarioStrip({
             <option value="square">Square (1080×1080)</option>
             <option value="wide">Wide (1920×1080)</option>
           </select>
+          <select
+            aria-label="Export row count"
+            value={exportPreset}
+            onChange={(e) => setExportPreset(e.target.value as "10" | "12" | "all" | "custom")}
+            className={`${SELECT} h-8`}
+          >
+            <option value="10">Top 10</option>
+            <option value="12">Top 12</option>
+            <option value="all">All</option>
+            <option value="custom">Custom (P...–P...)</option>
+          </select>
+          {exportPreset === "custom" ? (
+            <div className="flex items-center gap-1">
+              <span className="type-label text-text-2">P</span>
+              <input
+                type="number"
+                min={1}
+                max={customTo}
+                value={customFrom}
+                onChange={(e) => setCustomFrom(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                aria-label="From position"
+                className={`${SELECT} h-8 w-14 text-center`}
+              />
+              <span className="type-label text-text-3">–</span>
+              <span className="type-label text-text-2">P</span>
+              <input
+                type="number"
+                min={customFrom}
+                max={99}
+                value={customTo}
+                onChange={(e) => setCustomTo(Math.max(customFrom, parseInt(e.target.value, 10) || customFrom))}
+                aria-label="To position"
+                className={`${SELECT} h-8 w-14 text-center`}
+              />
+            </div>
+          ) : null}
           <button
             type="button"
             disabled={exporting}

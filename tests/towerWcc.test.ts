@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { teamStatus } from "../engine/teamStatus";
 import type { Scenario, SeasonState } from "../engine/types";
-import { LONG_SHOT_GAP_SHARE, buildTowerRows, statusTag, type TowerRow } from "../web/viewModel/tower";
+import { LONG_SHOT_GAP_SHARE, buildTowerRows, rowTextTone, statusTag, type TowerRow } from "../web/viewModel/tower";
 import { makeState } from "./helpers";
 
 const byId = (rows: TowerRow[], id: string): TowerRow => {
@@ -32,12 +32,16 @@ describe("WCC tags: one per status", () => {
   test("the tag copy is the same as for drivers", () => {
     expect(statusTag(byId(rows, "red"))).toEqual({ label: "Alive", tone: "alive" });
     expect(statusTag(byId(rows, "green"))).toEqual({ label: "Long shot", tone: "longShot" });
-    expect(statusTag(byId(rows, "gold"))).toEqual({ label: "Eliminated", tone: "eliminated" });
+    expect(statusTag(byId(rows, "gold"))).toEqual({
+      label: "No title",
+      tone: "eliminated",
+      icon: "cross",
+      accessibleName: "Cannot win the title",
+    });
   });
 
-  test("an eliminated team is flagged so the row can be struck through; the others are not", () => {
-    expect(byId(rows, "gold").eliminated).toBe(true);
-    for (const id of ["red", "blue", "green"]) expect(byId(rows, id).eliminated).toBe(false);
+  test("a team that cannot win the title keeps the normal text tone, like every other team", () => {
+    for (const r of rows) expect(rowTextTone(r)).toBe("normal");
   });
 
   test("constructor rows are never inactive", () => {
@@ -121,7 +125,6 @@ describe("WCC tags: clinched, and a scenario that changes a status", () => {
     const rows = buildTowerRows(season(), scenario, "wcc");
     expect(statuses(rows)).toEqual({ red: "clinched", blue: "eliminated", green: "eliminated", gold: "eliminated" });
     expect(statusTag(byId(rows, "red"))).toEqual({ label: "Clinched", tone: "clinched" });
-    expect(byId(rows, "red").eliminated).toBe(false);
   });
 
   test("a lock turns a long shot into an eliminated team", () => {
@@ -154,11 +157,11 @@ describe("WCC tags: a team with no active car", () => {
   });
   const rows = buildTowerRows(s, undefined, "wcc");
 
-  test("has no tag and is not struck through", () => {
+  test("has no tag and keeps the normal text tone", () => {
     const gone = byId(rows, "gone");
     expect(gone.status).toBeNull();
     expect(statusTag(gone)).toBeNull();
-    expect(gone.eliminated).toBe(false);
+    expect(rowTextTone(gone)).toBe("normal");
   });
 
   test("the team that is left still gets its status", () => {

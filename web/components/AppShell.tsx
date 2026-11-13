@@ -1,10 +1,12 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
+import type { TowerTab } from "../viewModel/tower";
 import { useHealth } from "../useHealth";
 import { useScenarioStore } from "../useScenarioStore";
 import { useSeason } from "../useSeason";
 import { useStrip } from "../useStrip";
+import { useTitleInfo } from "../useTitleInfo";
 import { useWorkspace } from "../useWorkspace";
 import { useFreshness } from "../useFreshness";
 import { loadMessage, type SeasonLoad } from "../viewModel/season";
@@ -74,9 +76,12 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
   const store = useScenarioStore();
   const strip = useStrip(state, workspace, dispatch, store);
   const { compare } = strip;
+  // The "Title info" choice is shared by the table and the PNG card.
+  const [titleInfo, setTitleInfo] = useTitleInfo();
 
   // Latest WDC odds result from the "Likely?" tab — null until the tab is opened and odds arrive.
   const [oddsResult, setOddsResult] = useState<OddsResult | null>(null);
+  const [standingsTab, setStandingsTab] = useState<TowerTab>("wdc");
 
   const isEditing = Object.keys(workspace.scenario.locks).length > 0;
   const freshness = useFreshness({
@@ -104,9 +109,22 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
           scenario={workspace.scenario}
           compare={compareView}
           contenders={workspace.contenders}
+          titleInfo={{ mode: titleInfo, onChange: setTitleInfo }}
+          tab={standingsTab}
+          onTabChange={setStandingsTab}
         />}
       analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} onOddsResult={setOddsResult} />}
-      strip={<ScenarioStrip state={state} workspace={workspace} store={store} strip={strip} oddsResult={oddsResult} />}
+      strip={
+        <ScenarioStrip
+          state={state}
+          workspace={workspace}
+          store={store}
+          strip={strip}
+          oddsResult={oddsResult}
+          titleInfoMode={titleInfo}
+          standingsTab={standingsTab}
+        />
+      }
       notice={dataNotice(state.health, state.asOfRound)}
       newDataNotice={freshness.status === "new-data" ? <NewDataNotice message={freshness.message!} /> : null}
     />

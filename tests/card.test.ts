@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { buildCard, type CardView, type DrawCommand } from "../web/viewModel/card";
+import {
+  CREDIT_LEAD,
+  CREDIT_NAME,
+  buildCard,
+  formatCardDriverName,
+  runsStartX,
+  type CardView,
+  type DrawCommand,
+} from "../web/viewModel/card";
 
 const mockRows = [
   {
@@ -12,6 +20,7 @@ const mockRows = [
     deltaPoints: 25,
     statusText: "Clinched",
     oddsDisplay: ">99%",
+    bestText: "P1",
   },
   {
     rank: 2,
@@ -23,17 +32,19 @@ const mockRows = [
     deltaPoints: 12,
     statusText: "Alive",
     oddsDisplay: "<1%",
+    bestText: "P1",
   },
   {
     rank: 3,
     driverCode: "ALB",
-    driverName: "Alexander Albon Ansusinha The Longest Name In The Pit Lane",
+    driverName: "Alexander Ansusinhathelongestnameinthepitlane",
     constructorId: "williams",
     currentPoints: 70,
     projectedPoints: 70,
     deltaPoints: 0,
-    statusText: "Eliminated",
+    statusText: "✕ No title",
     oddsDisplay: "—",
+    bestText: "P10",
   },
 ];
 
@@ -46,7 +57,7 @@ const manyRows = Array.from({ length: 25 }, (_, i) => ({
   currentPoints: 100 - i,
   projectedPoints: 110 - i,
   deltaPoints: 10,
-  statusText: i === 0 ? "Alive" : "Eliminated",
+  statusText: i === 0 ? "Alive" : "✕ No title",
   oddsDisplay: i === 0 ? "50%" : "<1%",
 }));
 
@@ -103,9 +114,40 @@ describe("web/viewModel/card: standings card layout", () => {
       const commands = buildCard(baseView, "square");
       const texts = commands.filter((c) => c.type === "text").map((c) => (c as any).text);
 
-      expect(texts).toContain("To the Flag");
+      expect(texts).toContain("Formula 1");
+      expect(texts).toContain("to the flag by Tyhad | F1 Watchalong");
       expect(texts.some((t) => t.includes("Season 2026") && t.includes("Round 16"))).toBe(true);
       expect(texts.some((t) => t.includes("Norris Win All"))).toBe(true);
+    });
+  });
+
+  describe("credit line", () => {
+    const credit = (size: "square" | "wide") =>
+      buildCard(baseView, size).find(
+        (c): c is Extract<DrawCommand, { type: "text" }> =>
+          c.type === "text" && c.text === "to the flag by Tyhad | F1 Watchalong",
+      )!;
+
+    test("the name is brighter than the lead-in, both from tokens", () => {
+      for (const size of ["square", "wide"] as const) {
+        const runs = credit(size).runs!;
+        expect(runs.map((r) => r.text)).toEqual([CREDIT_LEAD, CREDIT_NAME]);
+        expect(runs[0]!.fill).toBe("var(--color-text-3)");
+        expect(runs[1]!.fill).toBe("var(--color-text)");
+      }
+    });
+
+    test("the runs joined are the whole line, and the line stays centered", () => {
+      const line = credit("square");
+      expect(line.runs!.map((r) => r.text).join("")).toBe(line.text);
+      expect(line.align).toBe("center");
+      expect(line.x).toBe(540);
+    });
+
+    test("runsStartX aligns the whole line", () => {
+      expect(runsStartX("left", 100, 40)).toBe(100);
+      expect(runsStartX("center", 100, 40)).toBe(80);
+      expect(runsStartX("right", 100, 40)).toBe(60);
     });
   });
 
@@ -125,6 +167,90 @@ describe("web/viewModel/card: standings card layout", () => {
 
       expect(texts.some((t) => t.includes("Model estimate"))).toBe(false);
       expect(texts).not.toContain(">99%");
+    });
+  });
+
+  describe("no-title mark", () => {
+    const statusCommands = (view: CardView) =>
+      buildCard(view, "square").filter(
+        (c): c is Extract<DrawCommand, { type: "text" }> => c.type === "text" && /Clinched|Alive|No title/.test(c.text),
+      );
+
+    test("a driver who cannot win the title shows '✕ No title'", () => {
+      const texts = statusCommands(baseView).map((c) => c.text);
+      expect(texts).toContain("✕ No title");
+      expect(texts).not.toContain("Eliminated");
+    });
+
+    test("it is drawn in text-3, never in red (DESIGN.md: no-title is not an alarm)", () => {
+      const cmd = statusCommands(baseView).find((c) => c.text === "✕ No title");
+      expect(cmd?.fill).toBe("var(--color-text-3)");
+      expect(cmd?.fill).not.toContain("red");
+    });
+
+    test("the other tags keep their colors", () => {
+      const fills = Object.fromEntries(statusCommands(baseView).map((c) => [c.text, c.fill]));
+      expect(fills["Clinched"]).toBe("var(--color-purple)");
+      expect(fills["Alive"]).toBe("var(--color-green)");
+    });
+
+    test("nothing on the card is a strike-through (the draw commands have no such command)", () => {
+      for (const size of ["square", "wide"] as const) {
+        const types = new Set(buildCard(baseView, size).map((c) => c.type));
+        expect([...types].sort()).toEqual(["line", "rect", "text"]);
+        // the only line is the header divider, which is horizontal and spans the header, not a row
+        const lines = buildCard(baseView, size).filter((c) => c.type === "line");
+        expect(lines).toHaveLength(1);
+      }
+    });
+  });
+
+  describe("title info hidden (Off, or Auto while nobody is out)", () => {
+    const texts = (view: CardView, size: "square" | "wide" = "square") =>
+      buildCard(view, size).filter((c): c is Extract<DrawCommand, { type: "text" }> => c.type === "text");
+    const hidden: CardView = { ...baseView, showTitleInfo: false };
+
+    test("no STATUS header and no status text on any row", () => {
+      for (const size of ["square", "wide"] as const) {
+        const all = texts(hidden, size).map((c) => c.text);
+        expect(all).not.toContain("STATUS");
+        expect(all).not.toContain("BEST");
+        for (const status of ["Clinched", "Alive", "Long shot", "✕ No title"]) expect(all).not.toContain(status);
+      }
+    });
+
+    test("rank, driver, points and the change column stay", () => {
+      for (const size of ["square", "wide"] as const) {
+        const all = texts(hidden, size).map((c) => c.text);
+        for (const header of ["#", "DRIVER", "POINTS", "+/-"]) expect(all).toContain(header);
+        expect(all).toContain("VER · Max VERSTAPPEN");
+        expect(all).toContain("412 → 437");
+        expect(all).toContain("+25");
+      }
+    });
+
+    test("the odds column stays when there are odds", () => {
+      const all = texts({ ...hidden, hasOdds: true }).map((c) => c.text);
+      expect(all).toContain("ODDS");
+      expect(all).toContain(">99%");
+    });
+
+    test("shown by default: a view without the flag draws the status column as before", () => {
+      const all = texts(baseView).map((c) => c.text);
+      expect(all).toContain("STATUS");
+      expect(all).toContain("BEST");
+      expect(all).toContain("Clinched");
+      expect(texts({ ...baseView, showTitleInfo: true }).map((c) => c.text)).toContain("STATUS");
+    });
+
+    test("only the title info texts are gone: the same commands otherwise", () => {
+      const withInfo = buildCard({ ...baseView, showTitleInfo: true }, "square");
+      const without = buildCard(hidden, "square");
+      const statusTexts = new Set(["STATUS", "BEST", "Clinched", "Alive", "Long shot", "✕ No title"]);
+      const stripped = withInfo.filter(
+        (c) => !(c.type === "text" && (statusTexts.has(c.text) || c.x === 785)),
+      );
+      expect(without).toEqual(stripped);
     });
   });
 
@@ -177,6 +303,176 @@ describe("web/viewModel/card: standings card layout", () => {
           expect(cmd.text).not.toContain(".sqlite");
         }
       }
+    });
+  });
+
+  describe("driver name formatting (Point 6)", () => {
+    test("formats 3-word name to word before surname (capitalized) + surname (uppercase)", () => {
+      expect(formatCardDriverName("Andrea Kimi Antonelli")).toBe("Kimi ANTONELLI");
+    });
+
+    test("formats 2-word name to first name (capitalized) + surname (uppercase)", () => {
+      expect(formatCardDriverName("Max Verstappen")).toBe("Max VERSTAPPEN");
+      expect(formatCardDriverName("Lando Norris")).toBe("Lando NORRIS");
+      expect(formatCardDriverName("Lewis Hamilton")).toBe("Lewis HAMILTON");
+    });
+
+    test("formats single word to uppercase", () => {
+      expect(formatCardDriverName("Verstappen")).toBe("VERSTAPPEN");
+    });
+
+    test("handles empty string", () => {
+      expect(formatCardDriverName("")).toBe("");
+      expect(formatCardDriverName("   ")).toBe("");
+    });
+  });
+
+  describe("WCC card export (Point 1)", () => {
+    const wccView: CardView = {
+      season: 2026,
+      asOfRound: 16,
+      scenarioName: "Base",
+      tab: "wcc",
+      rows: [
+        {
+          rank: 1,
+          driverCode: "McLaren",
+          constructorId: "mclaren",
+          currentPoints: 500,
+          projectedPoints: 500,
+          deltaPoints: 0,
+          statusText: "Alive",
+          oddsDisplay: "75%",
+          bestText: "P1",
+        },
+        {
+          rank: 2,
+          driverCode: "Ferrari",
+          constructorId: "ferrari",
+          currentPoints: 470,
+          projectedPoints: 495,
+          deltaPoints: 25,
+          statusText: "Alive",
+          oddsDisplay: "25%",
+          bestText: "P1",
+        },
+      ],
+      hasOdds: true,
+      showTitleInfo: true,
+    };
+
+    test("header says CONSTRUCTOR instead of DRIVER", () => {
+      const texts = buildCard(wccView, "square").filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts).toContain("CONSTRUCTOR");
+      expect(texts).not.toContain("DRIVER");
+    });
+
+    test("subtitle includes Constructors", () => {
+      const texts = buildCard(wccView, "square").filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts.some((t) => t.includes("Constructors"))).toBe(true);
+    });
+
+    test("constructor rows display team name without driver code prefix", () => {
+      const texts = buildCard(wccView, "square").filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts).toContain("McLaren");
+      expect(texts).toContain("Ferrari");
+    });
+  });
+
+  describe("Best column (Point 2)", () => {
+    test("BEST column header and row values appear when showTitleInfo is true", () => {
+      const commands = buildCard({ ...baseView, showTitleInfo: true }, "square");
+      const texts = commands.filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts).toContain("BEST");
+      expect(texts).toContain("P1");
+      expect(texts).toContain("P10");
+    });
+
+    test("BEST column header is absent when showTitleInfo is false", () => {
+      const commands = buildCard({ ...baseView, showTitleInfo: false }, "square");
+      const texts = commands.filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts).not.toContain("BEST");
+    });
+  });
+
+  describe("row count choices (Point 3)", () => {
+    test("rowLimit '10' limits rows to 10", () => {
+      const commands = buildCard({ ...baseView, rows: manyRows, rowLimit: "10" }, "square");
+      const rankTexts = commands
+        .filter((c) => c.type === "text" && (c as any).align === "right")
+        .map((c: any) => c.text);
+      expect(rankTexts).toContain("1");
+      expect(rankTexts).toContain("10");
+      expect(rankTexts).not.toContain("11");
+    });
+
+    test("rowLimit '12' limits rows to 12", () => {
+      const commands = buildCard({ ...baseView, rows: manyRows, rowLimit: "12" }, "square");
+      const rankTexts = commands
+        .filter((c) => c.type === "text" && (c as any).align === "right")
+        .map((c: any) => c.text);
+      expect(rankTexts).toContain("1");
+      expect(rankTexts).toContain("12");
+      expect(rankTexts).not.toContain("13");
+    });
+
+    test("positionRange filters rows to custom range, e.g. P3-P15", () => {
+      const commands = buildCard(
+        { ...baseView, rows: manyRows, positionRange: { from: 3, to: 15 } },
+        "square",
+      );
+      const rankTexts = commands
+        .filter((c) => c.type === "text" && (c as any).align === "right")
+        .map((c: any) => c.text);
+      expect(rankTexts).not.toContain("1");
+      expect(rankTexts).not.toContain("2");
+      expect(rankTexts).toContain("3");
+      expect(rankTexts).toContain("15");
+      expect(rankTexts).not.toContain("16");
+      verifyBounds(commands, 1080, 1080);
+    });
+  });
+
+  describe("simulation mode header", () => {
+    test("displays Simulation to Round when in simulation mode", () => {
+      const commands = buildCard(
+        { ...baseView, isSimulation: true, simulationRound: 24 },
+        "square",
+      );
+      const texts = commands.filter((c) => c.type === "text").map((c: any) => c.text);
+      expect(texts.some((t) => t.includes("Simulation to Round 24"))).toBe(true);
+    });
+  });
+
+  describe("dynamic row scaling for small lists", () => {
+    test("scales row font and height when few rows are exported", () => {
+      const fewRowsCommands = buildCard(
+        { ...baseView, rows: mockRows.slice(0, 3) },
+        "square",
+      );
+      verifyBounds(fewRowsCommands, 1080, 1080);
+      // Ensure font size for rank/driver in small list is scaled up (> 20px)
+      const rankCmd = fewRowsCommands.find(
+        (c) => c.type === "text" && (c as any).text === "1",
+      );
+      expect(rankCmd).toBeDefined();
+      if (rankCmd && rankCmd.type === "text") {
+        const match = rankCmd.font.match(/(\d+)px/);
+        expect(match).toBeDefined();
+        expect(Number(match![1])).toBeGreaterThan(20);
+      }
+    });
+  });
+
+  describe("points display when unchanged (Point 4)", () => {
+    test("displays only projected points when points are unchanged", () => {
+      const commands = buildCard(baseView, "square");
+      const texts = commands.filter((c) => c.type === "text").map((c: any) => c.text);
+      // Row 3 (ALB) has currentPoints 70, projectedPoints 70
+      expect(texts).toContain("70");
+      expect(texts).not.toContain("70 → 70");
+      // Row 1 (VER) has changed points: 412 -> 437
+      expect(texts).toContain("412 → 437");
     });
   });
 });

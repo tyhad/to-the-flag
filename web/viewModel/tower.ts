@@ -3,13 +3,16 @@
  * Turns the engine's tables into plain rows the components draw as they are.
  */
 import {
+  bestPositions,
   computeConstructorStandings,
   computeDriverStandings,
+  driverPositionEntries,
   driverStatus,
   parseSessionKey,
   remainingSessions,
   sessionMaxPoints,
   teamCars,
+  teamPositionEntries,
   teamSessionMaxPoints,
   teamStatus,
   type Scenario,
@@ -48,8 +51,13 @@ export interface TowerRow {
   status: TowerStatus | null;
   /** The driver is not in the latest round's results. */
   inactive: boolean;
-  /** An active driver who can no longer win the title. */
-  eliminated: boolean;
+  /**
+   * The highest place still possible on points alone (D43), from the projected table of the scenario.
+   * A floor, not a promise. 1 means the entry can still win the title (ties aside).
+   */
+  best: number;
+  /** `best` as shown: "P2". */
+  bestText: string;
 }
 
 /**
@@ -65,6 +73,24 @@ export interface Delta {
   tone: "up" | "down" | "none";
   /** The same change in words, for screen readers. */
   description: string;
+}
+
+/** The Best column: header, what a screen reader hears, and the one hint line under the table (D43). */
+export const BEST_COLUMN_LABEL = "Best";
+export const BEST_ACCESSIBLE_NAME = "Highest place still possible on points alone";
+export const BEST_HINT = "Best = the highest place still possible on points alone.";
+
+/** The columns of the table. `best` and `status` are the title info; without them it is a plain standings table. */
+export type TowerColumn = "rank" | "name" | "points" | "delta" | "best" | "status";
+
+/** Which columns are drawn: all six when the title info is shown, otherwise rank, name, points and change. */
+export function towerColumns(showTitleInfo: boolean): TowerColumn[] {
+  return showTitleInfo ? ["rank", "name", "points", "delta", "best", "status"] : ["rank", "name", "points", "delta"];
+}
+
+/** 2 -> "P2". */
+export function formatBest(best: number): string {
+  return `P${best}`;
 }
 
 const places = (n: number): string => `${n} ${n === 1 ? "place" : "places"}`;
@@ -84,20 +110,45 @@ export function formatPoints(points: number): string {
 export interface StatusTagView {
   label: string;
   tone: TowerStatus | "inactive";
+  /** A small icon drawn before the label. Only the no-title tag has one. */
+  icon?: "cross";
+  /** What a screen reader says instead of the label, when the label alone is not enough. */
+  accessibleName?: string;
 }
+
+/**
+ * The mark for a driver or team that can no longer win the title (D42): the tag `✕ No title`.
+ * No strike-through anywhere; the meaning is in the icon plus the text, never in color alone.
+ */
+export const NO_TITLE_LABEL = "No title";
+export const NO_TITLE_MARK = "✕";
+export const NO_TITLE_ACCESSIBLE_NAME = "Cannot win the title";
+/** The same mark as one line of text, for the PNG card. */
+export const NO_TITLE_TEXT = `${NO_TITLE_MARK} ${NO_TITLE_LABEL}`;
 
 const STATUS_LABELS: Record<TowerStatus, string> = {
   clinched: "Clinched",
   alive: "Alive",
   longShot: "Long shot",
-  eliminated: "Eliminated",
+  eliminated: NO_TITLE_LABEL,
 };
 
 /** The tag for a row, or null when the row has none (a team with no active car). */
 export function statusTag(row: Pick<TowerRow, "status" | "inactive">): StatusTagView | null {
   if (row.inactive) return { label: "not racing", tone: "inactive" };
   if (row.status === null) return null;
+  if (row.status === "eliminated") {
+    return { label: NO_TITLE_LABEL, tone: "eliminated", icon: "cross", accessibleName: NO_TITLE_ACCESSIBLE_NAME };
+  }
   return { label: STATUS_LABELS[row.status], tone: row.status };
+}
+
+/**
+ * The text tone of a row: `normal` for every driver and team that is racing, including one that cannot win
+ * the title (that is said by the tag); `muted` (text-3) only for a driver who is not racing.
+ */
+export function rowTextTone(row: Pick<TowerRow, "inactive">): "normal" | "muted" {
+  return row.inactive ? "muted" : "normal";
 }
 
 /**
@@ -144,7 +195,9 @@ export function buildTowerRows(state: SeasonState, scenario: Scenario | undefine
 
 function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRow[] {
   const table = computeDriverStandings(state, scenario);
-  const statuses = new Map(driverStatus(state, scenario).map((s) => [s.driver, s]));
+  const statusRows = driverStatus(state, scenario);
+  const statuses = new Map(statusRows.map((s) => [s.driver, s]));
+  const best = bestPositions(driverPositionEntries(statusRows));
   const drivers = new Map(state.drivers.map((d) => [d.code, d]));
   const teams = currentTeams(state);
   const remaining = pointsOnOffer(state, scenario);
@@ -155,6 +208,7 @@ function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRo
     const gap = statuses.get(row.id)?.gapToLeader ?? 0;
     let status: TowerStatus | null = null;
     if (!inactive) status = towerStatus(statuses.get(row.id)?.status ?? "eliminated", gap, remaining);
+    const bestPlace = best.get(row.id) ?? row.rank;
     return {
       id: row.id,
       label: row.id,
@@ -168,7 +222,8 @@ function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRo
       pointsAdded: row.delta,
       status,
       inactive,
-      eliminated: status === "eliminated",
+      best: bestPlace,
+      bestText: formatBest(bestPlace),
     };
   });
 }
@@ -176,7 +231,9 @@ function driverRows(state: SeasonState, scenario: Scenario | undefined): TowerRo
 function constructorRows(state: SeasonState, scenario: Scenario | undefined): TowerRow[] {
   const names = new Map(state.teams.map((t) => [t.id, t.name]));
   const table = computeConstructorStandings(state, scenario);
-  const statuses = new Map(teamStatus(state, scenario).map((s) => [s.team, s]));
+  const statusRows = teamStatus(state, scenario);
+  const statuses = new Map(statusRows.map((s) => [s.team, s]));
+  const best = bestPositions(teamPositionEntries(statusRows));
   const cars = teamCars(state);
   const remaining = pointsOnOffer(state, scenario, teamSessionMaxPoints);
 
@@ -188,6 +245,7 @@ function constructorRows(state: SeasonState, scenario: Scenario | undefined): To
       const found = statuses.get(row.id);
       status = towerStatus(found?.status ?? "eliminated", found?.gapToLeader ?? 0, remaining);
     }
+    const bestPlace = best.get(row.id) ?? row.rank;
     return {
       id: row.id,
       label: name,
@@ -201,7 +259,8 @@ function constructorRows(state: SeasonState, scenario: Scenario | undefined): To
       pointsAdded: row.delta,
       status,
       inactive: false,
-      eliminated: status === "eliminated",
+      best: bestPlace,
+      bestText: formatBest(bestPlace),
     };
   });
 }

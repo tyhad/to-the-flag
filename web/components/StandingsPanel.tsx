@@ -3,10 +3,12 @@ import type { Scenario } from "../../engine";
 import { loadMessage, type SeasonLoad } from "../viewModel/season";
 import { buildCompareRows, type CompareSide } from "../viewModel/compare";
 import { buildTowerRows, type TowerTab } from "../viewModel/tower";
+import { DEFAULT_TITLE_INFO, titleInfoVisible, type TitleInfoMode } from "../viewModel/titleInfo";
 import { CompareTable } from "./CompareTable";
 import { EmptyState } from "./EmptyState";
 import { FinishLane } from "./FinishLane";
 import { Tabs, panelId, tabId, type TabItem } from "./Tabs";
+import { TitleInfoSwitch } from "./TitleInfoSwitch";
 import { Tower } from "./Tower";
 
 const TABS: readonly TabItem<TowerTab>[] = [
@@ -25,13 +27,31 @@ interface StandingsPanelProps {
   compare?: CompareView | null;
   /** The drivers drawn in the finish lane. */
   contenders?: readonly string[];
+  /** The "Title info" choice and how to change it. Without it the table decides as Auto and has no switch. */
+  titleInfo?: { mode: TitleInfoMode; onChange: (mode: TitleInfoMode) => void };
+  /** Currently selected standings tab. When omitted, managed internally. */
+  tab?: TowerTab;
+  /** Callback when user changes the standings tab. */
+  onTabChange?: (tab: TowerTab) => void;
 }
 
-export function StandingsPanel({ season, scenario, compare, contenders }: StandingsPanelProps) {
-  const [tab, setTab] = useState<TowerTab>("wdc");
+export function StandingsPanel({
+  season,
+  scenario,
+  compare,
+  contenders,
+  titleInfo,
+  tab: propTab,
+  onTabChange,
+}: StandingsPanelProps) {
+  const [internalTab, setInternalTab] = useState<TowerTab>("wdc");
+  const tab = propTab ?? internalTab;
+  const setTab = onTabChange ?? setInternalTab;
   const state = season.status === "ready" ? season.state : undefined;
   const rows = useMemo(() => (state ? buildTowerRows(state, scenario, tab) : []), [state, scenario, tab]);
   const hasLocks = Object.keys(scenario?.locks ?? {}).length > 0;
+  // The WDC and the WCC decide separately: Auto looks at the rows of the table being viewed.
+  const showTitleInfo = titleInfoVisible(titleInfo?.mode ?? DEFAULT_TITLE_INFO, rows);
   const compareRows = useMemo(
     () => (state && compare?.ok ? buildCompareRows(state, compare.left.scenario, compare.right.scenario, tab) : []),
     [state, compare, tab],
@@ -67,7 +87,12 @@ export function StandingsPanel({ season, scenario, compare, contenders }: Standi
         ) : season.status === "ready" ? (
           <div className="flex flex-col gap-3">
             {hasLocks ? null : <p className="type-body text-text-2">Lock a result to see the table change.</p>}
-            <Tower rows={rows} label={tab === "wdc" ? "Drivers' championship" : "Constructors' championship"} />
+            {titleInfo ? <TitleInfoSwitch mode={titleInfo.mode} onChange={titleInfo.onChange} /> : null}
+            <Tower
+              rows={rows}
+              label={tab === "wdc" ? "Drivers' championship" : "Constructors' championship"}
+              showTitleInfo={showTitleInfo}
+            />
           </div>
         ) : (
           <EmptyState

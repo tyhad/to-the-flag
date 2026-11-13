@@ -7,6 +7,7 @@ import { computeOdds, type OddsResult } from "../../engine/odds";
 import type { OddsParams } from "../../engine/simulate";
 import type { SeasonState } from "../../engine/types";
 import { computeDriverStandings, computeConstructorStandings } from "../../engine/standings";
+import { bestPositions, driverPositionEntries, teamPositionEntries } from "../../engine/positions";
 import { driverStatus } from "../../engine/status";
 import { solveWdc } from "../../engine/solver";
 import { solveWcc } from "../../engine/teamSolver";
@@ -36,6 +37,20 @@ function flattenTopN(prefix: string, items: any[], n = 10): Record<string, any> 
   return result;
 }
 
+/**
+ * `top1_best` .. `top10_best`: the short names for the best place of places 1 to 10 (the same numbers as
+ * `top{n}_best_position`), for easy field picking in an overlay. A place with no entry is 0, never missing.
+ */
+function flattenBest(rows: readonly { best_position: number }[], n = 10): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (let i = 1; i <= n; i++) {
+    const best = rows[i - 1]?.best_position ?? 0;
+    result[`top${i}_best`] = best;
+    result[`top${i}_best_position`] = best;
+  }
+  return result;
+}
+
 /** One row of /api/feed/team-status. Snake_case keys, as the odds feed uses. */
 interface TeamStatusFeedRow {
   rank: number;
@@ -46,6 +61,8 @@ interface TeamStatusFeedRow {
   max_possible: number;
   gap_to_leader: number;
   points_to_clinch: number | null;
+  /** the highest place still possible on points alone (D43); 1 means the team can still win the title */
+  best_position: number;
 }
 
 /** top1_* .. top10_* for the team status rows. A place with no team is empty ("", 0, null), never missing. */
@@ -54,8 +71,10 @@ function flattenTeamStatus(rows: TeamStatusFeedRow[], n = 10): Record<string, st
   for (let i = 1; i <= n; i++) {
     const row: TeamStatusFeedRow = rows[i - 1] ?? {
       rank: i, team: "", name: "", points: 0, status: "", max_possible: 0, gap_to_leader: 0, points_to_clinch: null,
+      best_position: 0,
     };
     for (const [key, val] of Object.entries(row)) result[`top${i}_${key}`] = val;
+    result[`top${i}_best`] = row.best_position;
   }
   return result;
 }
@@ -137,8 +156,9 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
       const { state } = seasonRes.data;
       const rawRows = driverStatus(state);
       const driverMap = new Map(state.drivers.map((d) => [d.code, d.name]));
+      const best = bestPositions(driverPositionEntries(rawRows));
 
-      const rows = rawRows.map((r) => ({
+      const rows = rawRows.map((r, i) => ({
         driver: r.driver,
         name: driverMap.get(r.driver) ?? r.driver,
         status: r.status,
@@ -146,6 +166,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
         maxPossible: r.maxPossible,
         gapToLeader: r.gapToLeader,
         pointsToClinch: r.pointsToClinch,
+        best_position: best.get(r.driver) ?? i + 1,
       }));
 
       const baseMeta = {
@@ -160,6 +181,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
         ...baseMeta,
         rows,
         ...flattened,
+        ...flattenBest(rows, 10),
       };
 
       const jsonStr = JSON.stringify(payload);
@@ -208,18 +230,19 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
       const scenario = activeScenario(state);
       const teamNames = new Map(state.teams.map((t) => [t.id, t.name]));
 
-      const rows: TeamStatusFeedRow[] = teamStatus(state, scenario ? { locks: scenario.locks } : undefined).map(
-        (r, i) => ({
-          rank: i + 1,
-          team: r.team,
-          name: teamNames.get(r.team) ?? r.team,
-          points: r.points,
-          status: r.status,
-          max_possible: r.maxPossible,
-          gap_to_leader: r.gapToLeader,
-          points_to_clinch: r.pointsToClinch,
-        }),
-      );
+      const statusRows = teamStatus(state, scenario ? { locks: scenario.locks } : undefined);
+      const best = bestPositions(teamPositionEntries(statusRows));
+      const rows: TeamStatusFeedRow[] = statusRows.map((r, i) => ({
+        rank: i + 1,
+        team: r.team,
+        name: teamNames.get(r.team) ?? r.team,
+        points: r.points,
+        status: r.status,
+        max_possible: r.maxPossible,
+        gap_to_leader: r.gapToLeader,
+        points_to_clinch: r.pointsToClinch,
+        best_position: best.get(r.team) ?? i + 1,
+      }));
 
       const payload = {
         updated_at: state.health.checkedAt,

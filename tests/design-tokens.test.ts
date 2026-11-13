@@ -2,6 +2,7 @@
  * DESIGN.md guard (Phase 2 Step 4): files under web/ must use tokens only.
  * - No raw hex colors, except in web/styles/theme.css and web/theme/teams.ts.
  * - No box-shadow except the clinched glow token (`--shadow-clinched` / `shadow-clinched`).
+ * - No strike-through anywhere (Phase 7, D42): a driver or team that cannot win the title gets the `✕ No title` tag.
  */
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -13,12 +14,17 @@ const WEB_DIR = join(import.meta.dir, "..", "web");
 const HEX_ALLOWED = new Set(["styles/theme.css", "theme/teams.ts"]);
 
 const HEX = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![0-9a-zA-Z_-])/g;
+const STRIKE_THROUGH = /line-through/g;
 const BOX_SHADOW_DECLARATION = /(?:box-shadow|boxShadow)\s*[:=]\s*([^;}\n]*)/g;
 // Tailwind shadow and ring utilities (ring is built on box-shadow). `shadow-clinched` and `shadow-none` are allowed.
 const SHADOW_UTILITY = /(?<![\w-])(?:[\w-]+:)*(?:inset-shadow|drop-shadow|shadow|ring)(?:-(?!clinched(?![\w-])|none(?![\w-]))[\w[\]./%#-]+)/g;
 
 export function findHexColors(source: string): string[] {
   return source.match(HEX) ?? [];
+}
+
+export function findStrikeThrough(source: string): string[] {
+  return source.match(STRIKE_THROUGH) ?? [];
 }
 
 export function findBadShadows(source: string): string[] {
@@ -77,6 +83,19 @@ describe("design tokens: scanner self-test", () => {
   });
 });
 
+describe("design tokens: strike-through scanner self-test", () => {
+  test("finds the Tailwind utility and the CSS value", () => {
+    expect(findStrikeThrough('className="text-text-3 line-through"')).toEqual(["line-through"]);
+    expect(findStrikeThrough("text-decoration: line-through;")).toEqual(["line-through"]);
+    expect(findStrikeThrough('className="hover:line-through"')).toEqual(["line-through"]);
+  });
+
+  test("ignores other text decorations", () => {
+    expect(findStrikeThrough('className="underline text-text"')).toEqual([]);
+    expect(findStrikeThrough("text-decoration: none;")).toEqual([]);
+  });
+});
+
 describe("design tokens: web/ files", () => {
   test("there are web files to check", () => {
     expect(files.length).toBeGreaterThan(5);
@@ -95,6 +114,10 @@ describe("design tokens: web/ files", () => {
 
     test(`${name} has no box-shadow other than the clinched glow`, () => {
       expect(findBadShadows(source)).toEqual([]);
+    });
+
+    test(`${name} has no strike-through`, () => {
+      expect(findStrikeThrough(source)).toEqual([]);
     });
   }
 });

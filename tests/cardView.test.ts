@@ -146,6 +146,83 @@ describe("web/viewModel/cardView: buildCardView", () => {
     }
   });
 
+  test("a driver who cannot win the title gets the text '✕ No title'; the leader is 'Clinched'", () => {
+    // AAA wins both remaining races: 25 + 25 + 25 = 75, BBB can reach at most 18 (unspecified drivers add 0).
+    const workspace = {
+      ...makeWorkspace(),
+      scenario: { locks: { "2:race": { fixed: { AAA: 1 } }, "3:race": { fixed: { AAA: 1 } } } },
+    } as Workspace;
+    const view = buildCardView(makeState(), workspace, makeScenarios(), null, null);
+    expect(view.rows.find((r) => r.driverCode === "AAA")?.statusText).toBe("Clinched");
+    expect(view.rows.find((r) => r.driverCode === "BBB")?.statusText).toBe("✕ No title");
+  });
+
+  describe("the card follows the Title info choice", () => {
+    // Base: AAA 25, BBB 18, two races left (50 points on offer): both can still win, so nobody is out.
+    const oneOut = () =>
+      ({
+        ...makeWorkspace(),
+        scenario: { locks: { "2:race": { fixed: { AAA: 1 } }, "3:race": { fixed: { AAA: 1 } } } },
+      }) as Workspace;
+    const build = (workspace: Workspace, mode?: "auto" | "on" | "off") =>
+      buildCardView(makeState(), workspace, makeScenarios(), null, null, mode);
+
+    test("on: the status column is drawn", () => {
+      expect(build(makeWorkspace(), "on").showTitleInfo).toBe(true);
+    });
+
+    test("off: it is not, even when someone is out", () => {
+      expect(build(oneOut(), "off").showTitleInfo).toBe(false);
+    });
+
+    test("auto with nobody out: not drawn", () => {
+      expect(build(makeWorkspace(), "auto").showTitleInfo).toBe(false);
+    });
+
+    test("auto with one driver out: drawn", () => {
+      expect(build(oneOut(), "auto").showTitleInfo).toBe(true);
+    });
+
+    test("auto is the default when no choice is passed", () => {
+      expect(build(makeWorkspace()).showTitleInfo).toBe(false);
+      expect(build(oneOut()).showTitleInfo).toBe(true);
+    });
+
+    test("the row data is unchanged by the choice: only whether it is drawn differs", () => {
+      expect(build(oneOut(), "off").rows).toEqual(build(oneOut(), "on").rows);
+    });
+  });
+
+  test("the word 'Eliminated' never appears on the card", () => {
+    const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), null, null);
+    for (const row of view.rows) expect(row.statusText).not.toBe("Eliminated");
+  });
+
+  test("rows include bestText", () => {
+    const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), null, null);
+    expect(view.rows[0]?.bestText).toBeDefined();
+    expect(view.rows[0]?.bestText).toMatch(/^P\d+$/);
+  });
+
+  test("builds cardView for WCC with tab = 'wcc'", () => {
+    const odds = {
+      ...makeOddsResult(),
+      wcc: [
+        { id: "alpha", wins: 700, probability: 0.7, display: "70%", avgPoints: 400, status: "alive" as const },
+        { id: "beta", wins: 300, probability: 0.3, display: "30%", avgPoints: 350, status: "alive" as const },
+      ],
+    };
+    const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), null, odds, "on", "wcc", "all");
+    expect(view.tab).toBe("wcc");
+    expect(view.rowLimit).toBe("all");
+    expect(view.rows.length).toBe(2);
+    expect(view.hasOdds).toBe(true);
+    const alpha = view.rows.find((r) => r.constructorId === "alpha");
+    expect(alpha?.driverCode).toBe("Alpha Racing");
+    expect(alpha?.oddsDisplay).toBe("70%");
+    expect(alpha?.bestText).toBeDefined();
+  });
+
   test("no tokens, server paths, or localhost in any field", () => {
     const view = buildCardView(makeState(), makeWorkspace(), makeScenarios(), "s1", makeOddsResult());
     const strings = [

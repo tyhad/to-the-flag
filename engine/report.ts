@@ -2,6 +2,7 @@
  * Pure report formatting helpers.
  * Used by CLI scripts (check.ts) and API endpoints. Pure logic only.
  */
+import { bestPositions, driverPositionEntries, teamPositionEntries } from "./positions";
 import { solveWdc, type PathResult } from "./solver";
 import { remainingSessions } from "./sessions";
 import { driverStatus, type TitleStatus } from "./status";
@@ -18,6 +19,8 @@ export interface WdcRow {
   maxPossible: number;
   gapToLeader: number;
   pointsToClinch: number | null;
+  /** the highest place still possible on points alone (D43); 1 means the driver can still win the title */
+  bestPosition: number;
 }
 
 export interface WccRow {
@@ -29,6 +32,8 @@ export interface WccRow {
   maxPossible: number;
   gapToLeader: number;
   pointsToClinch: number | null;
+  /** the highest place still possible on points alone (D43); 1 means the team can still win the title */
+  bestPosition: number;
 }
 
 export interface CheckReport {
@@ -54,6 +59,7 @@ export interface CheckReport {
 export function buildCheckReport(state: SeasonState, driver?: string, team?: string): CheckReport {
   const rows = driverStatus(state);
   const names = new Map(state.drivers.map((d) => [d.code, d.name]));
+  const driverBest = bestPositions(driverPositionEntries(rows));
   const wdc: WdcRow[] = rows.map((r, i) => ({
     rank: i + 1,
     driver: r.driver,
@@ -63,6 +69,7 @@ export function buildCheckReport(state: SeasonState, driver?: string, team?: str
     maxPossible: r.maxPossible,
     gapToLeader: r.gapToLeader,
     pointsToClinch: r.pointsToClinch,
+    bestPosition: driverBest.get(r.driver) ?? i + 1,
   }));
 
   let targets: string[];
@@ -76,6 +83,7 @@ export function buildCheckReport(state: SeasonState, driver?: string, team?: str
 
   const teamRows = teamStatus(state);
   const teamNames = new Map(state.teams.map((t) => [t.id, t.name]));
+  const teamBest = bestPositions(teamPositionEntries(teamRows));
   const wcc: WccRow[] = teamRows.map((r, i) => ({
     rank: i + 1,
     team: r.team,
@@ -85,6 +93,7 @@ export function buildCheckReport(state: SeasonState, driver?: string, team?: str
     maxPossible: r.maxPossible,
     gapToLeader: r.gapToLeader,
     pointsToClinch: r.pointsToClinch,
+    bestPosition: teamBest.get(r.team) ?? i + 1,
   }));
 
   let teamTargets: string[];
@@ -152,14 +161,14 @@ export function formatCheckReport(report: CheckReport, dbPath: string): string {
   const grid = report.upcomingGrid;
   lines.push(grid ? `Upcoming grid: Round ${grid.round} (source: ${grid.source}, ${plural(grid.drivers, "driver")})` : "Upcoming grid: none", "");
 
-  const widths = [3, 6, 24, 11, 7, 6, 5, 8];
+  const widths = [3, 6, 24, 11, 5, 7, 6, 5, 8];
   const fmt = (cells: string[]) => cells.map((c, i) => c.padEnd(widths[i] ?? 0)).join(" ").trimEnd();
   lines.push("WDC table");
-  lines.push(fmt(["#", "Driver", "Name", "Status", "Points", "Max", "Gap", "ToClinch"]));
+  lines.push(fmt(["#", "Driver", "Name", "Status", "Best", "Points", "Max", "Gap", "ToClinch"]));
   for (const r of report.wdc) {
     lines.push(
       fmt([
-        String(r.rank), r.driver, r.name, r.status, String(r.points), String(r.maxPossible),
+        String(r.rank), r.driver, r.name, r.status, `P${r.bestPosition}`, String(r.points), String(r.maxPossible),
         String(r.gapToLeader), r.pointsToClinch === null ? "-" : String(r.pointsToClinch),
       ]),
     );
@@ -207,13 +216,13 @@ export function formatCheckReport(report: CheckReport, dbPath: string): string {
   }
 
   lines.push("", "WCC table");
-  const teamWidths = [3, 13, 18, 11, 7, 6, 5, 8];
+  const teamWidths = [3, 13, 18, 11, 5, 7, 6, 5, 8];
   const fmtTeam = (cells: string[]) => cells.map((c, i) => c.padEnd(teamWidths[i] ?? 0)).join(" ").trimEnd();
-  lines.push(fmtTeam(["#", "Team", "Name", "Status", "Points", "Max", "Gap", "ToClinch"]));
+  lines.push(fmtTeam(["#", "Team", "Name", "Status", "Best", "Points", "Max", "Gap", "ToClinch"]));
   for (const r of report.wcc) {
     lines.push(
       fmtTeam([
-        String(r.rank), r.team, r.name, r.status, String(r.points), String(r.maxPossible),
+        String(r.rank), r.team, r.name, r.status, `P${r.bestPosition}`, String(r.points), String(r.maxPossible),
         String(r.gapToLeader), r.pointsToClinch === null ? "-" : String(r.pointsToClinch),
       ]),
     );

@@ -3,8 +3,16 @@
  * Generates drawing commands for canvas rendering without any DOM or Canvas APIs.
  */
 import { teamColor } from "../theme/teams";
+import type { TowerTab } from "./tower";
+import { NO_TITLE_TEXT } from "./tower";
 
 export type CardSize = "square" | "wide";
+export type CardRowsChoice = "10" | "12" | "all";
+
+export interface CardPositionRange {
+  from: number;
+  to: number;
+}
 
 export interface CardRow {
   rank: number;
@@ -16,6 +24,7 @@ export interface CardRow {
   deltaPoints: number;
   statusText: string;
   oddsDisplay?: string;
+  bestText?: string;
 }
 
 export interface CardView {
@@ -24,7 +33,35 @@ export interface CardView {
   scenarioName: string;
   rows: CardRow[];
   hasOdds?: boolean;
+  /**
+   * Draw the status column and best column (the same decision as the table's "Title info" choice).
+   * Defaults to true; false gives a plain standings card: rank, driver, points and change (and odds).
+   */
+  showTitleInfo?: boolean;
+  tab?: TowerTab;
+  rowLimit?: CardRowsChoice;
+  positionRange?: CardPositionRange;
+  isSimulation?: boolean;
+  simulationRound?: number;
 }
+
+/** One piece of a text line that has its own color (and, optionally, its own font). */
+export interface DrawTextRun {
+  text: string;
+  fill: string;
+  font?: string;
+}
+
+/** Where a line of `totalWidth` starts so that it is left, center or right aligned at `x`. Pure; used by the renderer. */
+export function runsStartX(align: "left" | "right" | "center", x: number, totalWidth: number): number {
+  if (align === "center") return x - totalWidth / 2;
+  if (align === "right") return x - totalWidth;
+  return x;
+}
+
+/** The credit line at the bottom of every card: a quiet lead-in and a brighter name. */
+export const CREDIT_LEAD = "to the flag by ";
+export const CREDIT_NAME = "Tyhad | F1 Watchalong";
 
 export type DrawCommand =
   | {
@@ -45,6 +82,11 @@ export type DrawCommand =
       fill: string;
       align: "left" | "right" | "center";
       baseline: "top" | "middle" | "bottom" | "alphabetic";
+      /**
+       * Optional: the same line drawn in pieces with their own color (and font). `text` must be the pieces joined,
+       * so anything that reads `text` still sees the whole line. `align` and `x` apply to the line as a whole.
+       */
+      runs?: DrawTextRun[];
     }
   | {
       type: "line";
@@ -61,6 +103,26 @@ function truncate(text: string, maxLength: number): string {
   return text.slice(0, maxLength - 1) + "…";
 }
 
+/**
+ * Formats driver name for the standings card to at most 2 words:
+ * The word before the surname (first letter capitalized, rest lowercase),
+ * and the surname/main name in UPPERCASE.
+ * e.g. "Andrea Kimi Antonelli" -> "Kimi ANTONELLI"
+ *      "Max Verstappen" -> "Max VERSTAPPEN"
+ *      "Verstappen" -> "VERSTAPPEN"
+ */
+export function formatCardDriverName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0]!.toUpperCase();
+
+  const surname = parts[parts.length - 1]!.toUpperCase();
+  const given = parts[parts.length - 2]!;
+  const formattedGiven = given.charAt(0).toUpperCase() + given.slice(1).toLowerCase();
+
+  return `${formattedGiven} ${surname}`;
+}
+
 function statusColor(statusText: string): string {
   switch (statusText.toLowerCase()) {
     case "clinched":
@@ -69,8 +131,9 @@ function statusColor(statusText: string): string {
       return "var(--color-green)";
     case "long shot":
       return "var(--color-yellow)";
-    case "eliminated":
-      return "var(--color-red)";
+    case NO_TITLE_TEXT.toLowerCase():
+      // No fill and text-3, like the tag in the table. Red reads as an alarm (DESIGN.md section 9).
+      return "var(--color-text-3)";
     default:
       return "var(--color-text-2)";
   }
@@ -78,10 +141,21 @@ function statusColor(statusText: string): string {
 
 export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   const isWide = size === "wide";
+  const isWcc = view.tab === "wcc";
   const width = isWide ? 1920 : 1080;
   const height = 1080;
-  const maxRows = 12;
-  const rows = view.rows.slice(0, maxRows);
+
+  let rows = view.rows;
+  if (view.positionRange) {
+    const from = Math.max(1, view.positionRange.from);
+    const to = Math.max(from, view.positionRange.to);
+    rows = rows.filter((r) => r.rank >= from && r.rank <= to);
+  } else {
+    const rowLimit = view.rowLimit ?? "12";
+    const maxRows = rowLimit === "10" ? 10 : rowLimit === "all" ? rows.length : 12;
+    rows = rows.slice(0, maxRows);
+  }
+  const showStatus = view.showTitleInfo !== false;
 
   const commands: DrawCommand[] = [];
 
@@ -113,42 +187,63 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   const leftX = margin + 32;
   const rightX = margin + cardWidth - 32;
 
-  // Title
+  // Title: Line 1 - Formula 1
   commands.push({
     type: "text",
-    text: "To the Flag",
+    text: "Formula 1",
     x: leftX,
-    y: isWide ? 110 : 88,
-    font: isWide ? "700 48px var(--font-display)" : "700 38px var(--font-display)",
+    y: isWide ? 90 : 72,
+    font: isWide ? "700 44px var(--font-display)" : "700 34px var(--font-display)",
     fill: "var(--color-text)",
     align: "left",
     baseline: "middle",
   });
 
-  // Subtitle
+  // Title: Line 2 - Season ... · Round ...
   commands.push({
     type: "text",
-    text: `Season ${view.season} · as of Round ${view.asOfRound}`,
+    text: `Season ${view.season} · Round ${view.asOfRound}`,
     x: leftX,
-    y: isWide ? 155 : 124,
-    font: isWide ? "500 20px var(--font-ui)" : "500 18px var(--font-ui)",
+    y: isWide ? 128 : 102,
+    font: isWide ? "500 18px var(--font-ui)" : "500 15px var(--font-ui)",
     fill: "var(--color-text-2)",
     align: "left",
     baseline: "middle",
   });
 
-  // Scenario Name
-  const maxScenarioChars = isWide ? 60 : 38;
+  // Title: Line 3 - Championship Standings
+  const standingsTitle = isWcc
+    ? "World Constructors' Championship Standings"
+    : "World Drivers' Championship Standings";
   commands.push({
     type: "text",
-    text: truncate(view.scenarioName, maxScenarioChars),
+    text: standingsTitle,
     x: leftX,
-    y: isWide ? 190 : 156,
-    font: isWide ? "600 22px var(--font-display)" : "600 20px var(--font-display)",
-    fill: "var(--color-text-3)",
+    y: isWide ? 158 : 128,
+    font: isWide ? "700 24px var(--font-display)" : "700 19px var(--font-display)",
+    fill: "var(--color-text)",
     align: "left",
     baseline: "middle",
   });
+
+  // Title: Line 4 - Simulation / Scenario if active
+  const isSim = Boolean(view.isSimulation || view.simulationRound);
+  const hasCustomScenario = Boolean(view.scenarioName && view.scenarioName !== "Base");
+  if (isSim || hasCustomScenario) {
+    const simText = isSim
+      ? `Simulation to Round ${view.simulationRound ?? view.asOfRound}${hasCustomScenario ? ` · ${truncate(view.scenarioName, isWide ? 50 : 35)}` : ""}`
+      : truncate(view.scenarioName, isWide ? 60 : 40);
+    commands.push({
+      type: "text",
+      text: simText,
+      x: leftX,
+      y: isWide ? 186 : 152,
+      font: isWide ? "600 18px var(--font-display)" : "600 15px var(--font-display)",
+      fill: "var(--color-yellow)",
+      align: "left",
+      baseline: "middle",
+    });
+  }
 
   // Model estimate label
   if (view.hasOdds) {
@@ -156,7 +251,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
       type: "text",
       text: "Model estimate",
       x: rightX,
-      y: isWide ? 110 : 88,
+      y: isWide ? 90 : 72,
       font: isWide ? "600 20px var(--font-display)" : "600 16px var(--font-display)",
       fill: "var(--color-accent-text)",
       align: "right",
@@ -165,7 +260,8 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   }
 
   // Divider
-  const dividerY = isWide ? 216 : 180;
+  const hasSub = isSim || hasCustomScenario;
+  const dividerY = isWide ? (hasSub ? 210 : 182) : (hasSub ? 172 : 148);
   commands.push({
     type: "line",
     x1: leftX,
@@ -179,13 +275,14 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   // 4. Column X positions
   const colRank = leftX + (isWide ? 20 : 16);
   const colDriver = leftX + (isWide ? 100 : 70);
-  const colPoints = isWide ? 1120 : 640;
-  const colDelta = isWide ? 1280 : 730;
-  const colStatus = isWide ? 1420 : 790;
+  const colPoints = isWide ? 1320 : 675;
+  const colDelta = isWide ? 1410 : 740;
+  const colBest = isWide ? 1480 : 785;
+  const colStatus = isWide ? 1560 : 835;
   const colOdds = rightX;
 
   // Table column headers
-  const headerY = isWide ? 250 : 210;
+  const headerY = dividerY + (isWide ? 28 : 24);
   const headerFont = "600 14px var(--font-ui)";
   const headerColor = "var(--color-text-3)";
 
@@ -202,7 +299,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
 
   commands.push({
     type: "text",
-    text: "DRIVER",
+    text: isWcc ? "CONSTRUCTOR" : "DRIVER",
     x: colDriver,
     y: headerY,
     font: headerFont,
@@ -233,16 +330,29 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
     baseline: "middle",
   });
 
-  commands.push({
-    type: "text",
-    text: "STATUS",
-    x: colStatus,
-    y: headerY,
-    font: headerFont,
-    fill: headerColor,
-    align: "left",
-    baseline: "middle",
-  });
+  if (showStatus) {
+    commands.push({
+      type: "text",
+      text: "BEST",
+      x: colBest,
+      y: headerY,
+      font: headerFont,
+      fill: headerColor,
+      align: "center",
+      baseline: "middle",
+    });
+
+    commands.push({
+      type: "text",
+      text: "STATUS",
+      x: colStatus,
+      y: headerY,
+      font: headerFont,
+      fill: headerColor,
+      align: "left",
+      baseline: "middle",
+    });
+  }
 
   if (view.hasOdds) {
     commands.push({
@@ -257,13 +367,49 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
     });
   }
 
-  // 5. Table rows
-  const rowStartY = isWide ? 276 : 234;
-  const rowHeight = isWide ? 58 : 58;
+  // 5. Credit text at bottom center
+  const creditY = height - margin - 12;
+  commands.push({
+    type: "text",
+    text: CREDIT_LEAD + CREDIT_NAME,
+    x: width / 2,
+    y: creditY,
+    font: "500 14px var(--font-ui)",
+    fill: "var(--color-text-3)",
+    align: "center",
+    baseline: "middle",
+    runs: [
+      { text: CREDIT_LEAD, fill: "var(--color-text-3)" },
+      { text: CREDIT_NAME, fill: "var(--color-text)", font: "600 14px var(--font-ui)" },
+    ],
+  });
+
+  // 6. Dynamic Table rows
+  const tableTopY = headerY + (isWide ? 24 : 20);
+  const availHeight = creditY - 18 - tableTopY;
+  const idealRowHeight = Math.floor(availHeight / Math.max(1, rows.length));
+  const rowHeight = Math.max(28, Math.min(100, idealRowHeight));
+  const tableHeight = rows.length * rowHeight;
+  const extraVertical = Math.max(0, availHeight - tableHeight);
+  const rowStartY = tableTopY + Math.min(80, Math.floor(extraVertical * 0.35));
+
+  const rowFontSize = Math.max(13, Math.min(36, Math.round(rowHeight * 0.38)));
+  const deltaFontSize = Math.max(12, Math.min(30, Math.round(rowHeight * 0.34)));
+  const statusFontSize = Math.max(11, Math.min(22, Math.round(rowHeight * 0.28)));
+  const oddsFontSize = Math.max(14, Math.min(36, Math.round(rowHeight * 0.40)));
+  const stripHeight = Math.max(14, Math.min(50, Math.round(rowHeight * 0.55)));
+  const stripWidth = rowHeight >= 70 ? 6 : 4;
+  const centerYOffset = Math.floor(rowHeight / 2);
+  const stripYOffset = Math.floor((rowHeight - stripHeight) / 2);
+
+  const rowFont = `600 ${rowFontSize}px var(--font-display)`;
+  const deltaFont = `600 ${deltaFontSize}px var(--font-display)`;
+  const statusFont = `600 ${statusFontSize}px var(--font-ui)`;
+  const oddsFont = `700 ${oddsFontSize}px var(--font-display)`;
 
   rows.forEach((row, idx) => {
     const rowY = rowStartY + idx * rowHeight;
-    const centerY = rowY + 28;
+    const centerY = rowY + centerYOffset;
 
     // Alternate row background
     if (idx % 2 === 1) {
@@ -272,7 +418,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
         x: leftX - 12,
         y: rowY + 2,
         width: cardWidth - 40,
-        height: rowHeight - 6,
+        height: rowHeight - 4,
         fill: "var(--color-s2)",
         radius: 6,
       });
@@ -284,7 +430,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
       text: String(row.rank),
       x: colRank,
       y: centerY,
-      font: "600 20px var(--font-display)",
+      font: rowFont,
       fill: "var(--color-text-3)",
       align: "right",
       baseline: "middle",
@@ -295,37 +441,50 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
     commands.push({
       type: "rect",
       x: stripX,
-      y: rowY + 13,
-      width: 4,
-      height: 30,
+      y: rowY + stripYOffset,
+      width: stripWidth,
+      height: stripHeight,
       fill: teamColor(row.constructorId),
       radius: 2,
     });
 
-    // Driver code and truncated name
-    const maxDriverChars = isWide ? 30 : 16;
-    const driverLabel = row.driverName
-      ? `${row.driverCode} · ${truncate(row.driverName, maxDriverChars)}`
-      : row.driverCode;
+    // Driver code / name or constructor name
+    let driverLabel: string;
+    if (isWcc) {
+      const maxChars = isWide ? 40 : 22;
+      driverLabel = truncate(row.driverName ?? row.driverCode, maxChars);
+    } else {
+      const maxChars = isWide ? 30 : 20;
+      const formattedName = row.driverName ? formatCardDriverName(row.driverName) : undefined;
+      driverLabel = formattedName
+        ? `${row.driverCode} · ${truncate(formattedName, maxChars)}`
+        : row.driverCode;
+    }
 
     commands.push({
       type: "text",
       text: driverLabel,
       x: colDriver,
       y: centerY,
-      font: "600 20px var(--font-display)",
+      font: rowFont,
       fill: "var(--color-text)",
       align: "left",
       baseline: "middle",
     });
 
     // Points current -> projected (right aligned)
+    // When unchanged, show only projected points
+    const pointsText =
+      row.currentPoints !== row.projectedPoints
+        ? `${row.currentPoints} → ${row.projectedPoints}`
+        : `${row.projectedPoints}`;
+
     commands.push({
       type: "text",
-      text: `${row.currentPoints} → ${row.projectedPoints}`,
+      text: pointsText,
       x: colPoints,
       y: centerY,
-      font: "600 20px var(--font-display)",
+      font: rowFont,
       fill: "var(--color-text)",
       align: "right",
       baseline: "middle",
@@ -346,23 +505,36 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
       text: deltaStr,
       x: colDelta,
       y: centerY,
-      font: "600 18px var(--font-display)",
+      font: deltaFont,
       fill: deltaColor,
       align: "right",
       baseline: "middle",
     });
 
-    // Status
-    commands.push({
-      type: "text",
-      text: row.statusText,
-      x: colStatus,
-      y: centerY,
-      font: "600 16px var(--font-ui)",
-      fill: statusColor(row.statusText),
-      align: "left",
-      baseline: "middle",
-    });
+    // Best and Status (only with the title info)
+    if (showStatus) {
+      commands.push({
+        type: "text",
+        text: row.bestText ?? "—",
+        x: colBest,
+        y: centerY,
+        font: deltaFont,
+        fill: "var(--color-text-2)",
+        align: "center",
+        baseline: "middle",
+      });
+
+      commands.push({
+        type: "text",
+        text: row.statusText,
+        x: colStatus,
+        y: centerY,
+        font: statusFont,
+        fill: statusColor(row.statusText),
+        align: "left",
+        baseline: "middle",
+      });
+    }
 
     // Odds (right aligned)
     if (view.hasOdds) {
@@ -371,7 +543,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
         text: row.oddsDisplay ?? "—",
         x: colOdds,
         y: centerY,
-        font: "700 22px var(--font-display)",
+        font: oddsFont,
         fill: "var(--color-text)",
         align: "right",
         baseline: "middle",

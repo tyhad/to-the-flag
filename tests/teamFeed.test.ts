@@ -74,7 +74,7 @@ describe("GET /api/feed/team-status", () => {
     expect(json.scenario).toBeNull();
     expect(json.rows).toHaveLength(11);
     expect(Object.keys(json.rows[0])).toEqual([
-      "rank", "team", "name", "points", "status", "max_possible", "gap_to_leader", "points_to_clinch",
+      "rank", "team", "name", "points", "status", "max_possible", "gap_to_leader", "points_to_clinch", "best_position",
     ]);
   });
 
@@ -83,7 +83,7 @@ describe("GET /api/feed/team-status", () => {
     const json = (await (await get(app, "/api/feed/team-status")).json()) as any;
     expect(json.rows[0]).toEqual({
       rank: 1, team: "mercedes", name: "Mercedes", points: 556, status: "alive",
-      max_possible: 872, gap_to_leader: 0, points_to_clinch: 166,
+      max_possible: 872, gap_to_leader: 0, points_to_clinch: 166, best_position: 1,
     });
     expect(json.rows[1]).toMatchObject({ rank: 2, team: "ferrari", points: 405, gap_to_leader: 151 });
     expect(json.rows.filter((r: any) => r.status === "alive")).toHaveLength(4);
@@ -282,8 +282,10 @@ describe("the existing routes", () => {
   test("do not change", async () => {
     const app = createApp({ dbPath: DB_PATH, ttfDbPath: TTF_DB });
     const status = (await (await get(app, "/api/feed/status")).json()) as any;
+    // Phase 7 added `best_position` at the end of each row; the other fields keep their names and values.
     expect(status.rows[0]).toEqual({
       driver: "ANT", name: "Andrea Kimi Antonelli", status: "alive", points: 320, maxPossible: 503, gapToLeader: 0, pointsToClinch: 100,
+      best_position: 1,
     });
     expect("scenario" in status).toBe(false);
     const path = (await (await get(app, "/api/feed/path/NOR")).json()) as any;

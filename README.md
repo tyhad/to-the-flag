@@ -14,7 +14,7 @@ Set results for the remaining sessions and watch the table, the title status and
 ## What you can do
 - **Lock sessions.** Open a session card, lock it, and pick finishing positions. Drivers you do not pick score 0 in that session. Presets: *Contender wins*, *Rival out*, *Clear*.
 - **Follow contenders.** Five by default, up to eight. In *Contenders* mode only they can take a position; *All drivers* mode offers everyone still racing.
-- **Read the table.** Projected WDC and WCC with the change in places and points, and a status tag for each driver and each team (clinched, alive, long shot, eliminated). A team with no active car has no tag.
+- **Read the table.** Projected WDC and WCC with the change in places and points, and, once someone can no longer win the title, a status tag and a *Best* place for each driver and each team (clinched, alive, long shot, or `✕ No title`; a driver who is not racing is tagged *not racing*). A team with no active car has no tag. *Best* is the highest place the driver or team can still reach **on points alone**: it counts the rivals whose points are already above what this entry could still reach. It is a floor, not a promise: it does not check that every rival can be held back at once, and a tie on points is not counted as being above. `P1` means the title is still possible. The *Title info* control above the table has three settings: **Auto** (the default; the tags and *Best* appear once someone in that table is out of the title fight), **On** and **Off** (a plain standings table). The choice is remembered in the browser and the exported picture follows it.
 - **Ask what it takes.** *Possible?* shows what a contender needs to win the title, with a difficulty meter (a share of the remaining points, never a probability) and the easiest path, which you can load into the sandbox. Switch to *Constructors* for the same question about a team: the points it needs, the fewest one-twos (both cars P1 and P2) it needs if every rival scores nothing, and what each rival may still score if the team finishes 1-2 everywhere.
 - **See the gap.** The finish lane shows each contender's projected points, the most they can reach, and the total at which the leader clinches.
 - **Keep scenarios.** Save, rename, delete and compare scenarios, copy a share link, and show one on the overlay.
@@ -32,7 +32,7 @@ Set results for the remaining sessions and watch the table, the title status and
 | `bun run refresh` | Run F1GStats fetch to update local database (`f1gstats.sqlite`) |
 | `bun test` | Run all tests |
 | `bun run typecheck` | Type-check the whole project (`tsc --noEmit`) |
-| `bun run check` | Print season status and paths, for drivers and for constructors, from the real data file. `-- --driver CODE` or `-- --team ID` limits the path blocks to one; `-- --json` prints everything as JSON |
+| `bun run check` | Print season status (with each entry's best place) and paths, for drivers and for constructors, from the real data file. `-- --driver CODE` or `-- --team ID` limits the path blocks to one; `-- --json` prints everything as JSON |
 | `bun scripts/verifyStandings.ts [db]` | Check the engine's base table equals F1GStats `driver_standings` (order and points) |
 | `bun scripts/statusReport.ts [db]` | Print the title status table (clinched / alive / eliminated) from the real data |
 | `bun scripts/exportFixture.ts <db> <out.json>` | Snapshot the loaded season as a JSON test fixture |
@@ -66,7 +66,7 @@ Reading the UI, season data, health, and overlay feeds is open without a token. 
 > This is designed for a trusted home network, not the public internet. Do not forward the port on your router.
 
 ## Overlay feed
-The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio or any streaming tool, for example `http://127.0.0.1:3100/api/feed/active-scenario`. Routes, fields and binding steps are in [`docs/FEED.md`](docs/FEED.md). `/api/feed/odds` serves the model odds for the active scenario (or the base season), cached until the data or the scenario changes. `/api/feed/team-status` and `/api/feed/team-path/:team` serve the constructors' title status and path for the active scenario.
+The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio or any streaming tool, for example `http://127.0.0.1:3100/api/feed/active-scenario`. Routes, fields and binding steps are in [`docs/FEED.md`](docs/FEED.md). `/api/feed/odds` serves the model odds for the active scenario (or the base season), cached until the data or the scenario changes. `/api/feed/team-status` and `/api/feed/team-path/:team` serve the constructors' title status and path for the active scenario. `/api/feed/status` and `/api/feed/team-status` also carry `best_position` (and `top1_best` to `top10_best`).
 
 ## Share links
 *Copy link* puts the scenario in the address after a `#`, for example `http://127.0.0.1:3100/#s=v1.…&r=16`. Opening it imports the scenario and checks it against the current data. If it was made at an earlier round, you get a warning that results may differ. Nothing is sent to a server.
@@ -74,9 +74,11 @@ The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio o
 ## Export picture (PNG)
 The scenario strip provides an *Export picture* button to render and download a standalone standings card as a PNG:
 - **Sizes:** Square (`1080×1080`, ideal for social media posts) and Wide (`1920×1080`, ideal for streaming screens).
-- **Contents:** Title, current season, as-of round, scenario name, top WDC standings (rank, driver code/name, team, current → projected points, delta, status tag).
+- **Table:** the WDC or the WCC table, whichever tab is open. Rows: Top 10, Top 12, All, or a custom range (for example P3 to P15).
+- **Contents:** Title, current season, as-of round, scenario name, the rows (rank, code/name, team, current → projected points, delta), and the Best place and status tag when the *Title info* choice shows them. When the scenario has locked sessions, the card says it is a simulation up to that round.
 - **Odds:** When the *Likely?* tab has model odds, they are shown alongside with the required `"Model estimate"` label.
 - **Privacy:** Tokens, server addresses, and file paths are never drawn in the image. The rendering happens offline in the browser canvas.
+- **Adding to the card:** how it is built and the steps to add new content are in [`docs/EXPORT.md`](docs/EXPORT.md).
 
 ## If something does not load
 | You see | What to do |
