@@ -124,6 +124,8 @@ web/       components/RacePanel.tsx  components/GridEditor.tsx  components/GridS
 - Buttons "Export picture" (with the size), "Copy as CSV", "Copy as JSON" and "Download" in the Race tab. A qualifying-based grid carries "(qualifying)" in the picture, so the export never claims more than the data says.
 - No tokens, paths or notes in any export.
 
+**Owner's choices (14 Nov 2026), which replace the matching words above:** the picture is drawn like a real grid, not as two plain columns. Pole is at the front (the top); odd places are on the left and even places on the right, with each right-hand car half a row behind its neighbour, so P2 is on the front row but a little back. Each place is a box marked on the track (the line across the front and the two sides, open at the back). A box has the place, the team color and **the driver code only, no name** (the CSV and JSON keep the name). As for the standings card, the picture can show **All, Top 10, Top 12 or a custom range (P from, P to)**; a part of the grid keeps each place in its own column. The CSV and JSON always have every place. The picture is of the saved grid. The details are in `docs/EXPORT.md` ("The starting-grid card"); the layout is in `web/viewModel/gridCard.ts`.
+
 **Tests first (layout and text only):** 20 and 22 cars; the pit-lane block; long names; both sizes; CSV quoting and order; JSON round trip; the source label appears for qualifying and manual grids.
 
 **Check:** export both sizes from the real data and look at them: readable at phone size, pole is where a viewer expects it, nothing overlaps.

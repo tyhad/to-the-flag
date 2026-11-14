@@ -63,6 +63,24 @@ export function runsStartX(align: "left" | "right" | "center", x: number, totalW
 export const CREDIT_LEAD = "to the flag by ";
 export const CREDIT_NAME = "Tyhad | F1 Watchalong";
 
+/** Where a card's credit line goes: pass the center x and the y of the line. Shared by every card. */
+export function buildCreditCommand(x: number, y: number): DrawCommand {
+  return {
+    type: "text",
+    text: CREDIT_LEAD + CREDIT_NAME,
+    x,
+    y,
+    font: "500 14px var(--font-ui)",
+    fill: "var(--color-text-3)",
+    align: "center",
+    baseline: "middle",
+    runs: [
+      { text: CREDIT_LEAD, fill: "var(--color-text-3)" },
+      { text: CREDIT_NAME, fill: "var(--color-text)", font: "600 14px var(--font-ui)" },
+    ],
+  };
+}
+
 export type DrawCommand =
   | {
       type: "rect";
@@ -369,20 +387,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
 
   // 5. Credit text at bottom center
   const creditY = height - margin - 12;
-  commands.push({
-    type: "text",
-    text: CREDIT_LEAD + CREDIT_NAME,
-    x: width / 2,
-    y: creditY,
-    font: "500 14px var(--font-ui)",
-    fill: "var(--color-text-3)",
-    align: "center",
-    baseline: "middle",
-    runs: [
-      { text: CREDIT_LEAD, fill: "var(--color-text-3)" },
-      { text: CREDIT_NAME, fill: "var(--color-text)", font: "600 14px var(--font-ui)" },
-    ],
-  });
+  commands.push(buildCreditCommand(width / 2, creditY));
 
   // 6. Dynamic Table rows
   const tableTopY = headerY + (isWide ? 24 : 20);

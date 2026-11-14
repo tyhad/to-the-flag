@@ -81,6 +81,12 @@ The scenario strip provides an *Export picture* button to render and download a 
 - **Privacy:** Tokens, server addresses, and file paths are never drawn in the image. The rendering happens offline in the browser canvas.
 - **Adding to the card:** how it is built and the steps to add new content are in [`docs/EXPORT.md`](docs/EXPORT.md).
 
+### The starting grid
+The *Race* tab has an *Export* section for the starting grid of the next race:
+- **Picture:** *Export picture* draws the grid like a real one, with pole at the front, the second car on the front row a little further back, and the rows behind it. Only the driver code is written in each box, and pit-lane starters have their own block. Choose the size (square or wide) and the places: All, Top 10, Top 12, or a custom range (for example P6 to P15). A grid that comes from the qualifying order says so on the picture.
+- **Data:** *Copy as CSV*, *Copy as JSON*, *Download CSV* and *Download JSON* always give every place (`position,driver,name,team,pit,source`).
+- It exports the saved grid. No write token is needed. How the cards are built and how to add to them: [`docs/EXPORT.md`](docs/EXPORT.md).
+
 ## If something does not load
 | You see | What to do |
 |---|---|

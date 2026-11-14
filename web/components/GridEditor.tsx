@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { SeasonState } from "../../engine";
 import { ArrowDownIcon, ArrowUpIcon } from "./icons";
+import { GridExport } from "./GridExport";
 import { teamColor } from "../theme/teams";
 import type { GridControls } from "../useGrid";
 import type { AccessVerdict } from "../viewModel/access";
@@ -9,6 +10,7 @@ import {
   buildEditorRows,
   dataGridAvailability,
   initialEditorState,
+  isDirty,
   menuMessage,
   prefillEditor,
   saveAvailability,
@@ -203,6 +205,8 @@ export function GridEditor({ state, controls, canWrite, verdict }: GridEditorPro
           </p>
         ) : null,
       )}
+
+      {gs.info ? <GridExport state={state} info={gs.info} unsavedChanges={isDirty(ed)} /> : null}
     </div>
   );
 }
