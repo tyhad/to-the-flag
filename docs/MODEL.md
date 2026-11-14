@@ -340,6 +340,39 @@ Read with care: there are only 11 winners, so the win columns rest on a handful 
 model was too flat (about 2% to drivers who never won, the favourites doing better than forecast). The top-5 fit
 removes most of that: the back of the field is now at 0.9% for a win, and the middle rows are close to what happened.
 
+### The race forecast's points chance and expected finish (Phase 8, Step 5)
+
+`forecastRace` also returns `top10` (the chance of a points finish) and `meanPosition` (the average finishing place, a
+retirement counting as last). The win and podium numbers and their seeds do not change. **The backtest above does not
+score these two fields**: it was built for the question this project started with, who wins and who takes the podium.
+A manual walk-forward check on the 2026 season (rounds 6 to 20, live data at Round 20, the actual grid of every race,
+8,000 simulated races per forecast; 15 races, 330 driver-race pairs) says where they stand.
+
+| Check | Result |
+|---|---|
+| Points chance 10-20% | forecast 15.7%, happened 5.1% (79 pairs) |
+| Points chance 20-30% | forecast 24.1%, happened 23.7% (76 pairs) |
+| Points chance 80-90% | forecast 84.5%, happened 85.9% (64 pairs) |
+| Expected finish over all pairs | mean predicted place 0.14 higher than the place that happened; mean absolute error 3.9 |
+| Starting 16th to 20th | points 22.3% forecast against 10.7%; expected finish 15.1 against 16.8 |
+| Starting 21st or 22nd | points 20.9% forecast against 20.0%; expected finish 15.7 against 17.0 |
+
+The order carries information (points Brier 0.144 against 0.248 for "10/22 for everyone"), but the level near the back
+is too high, and the 10-20% band is where it shows most. The cause is the pace fit, not the forecast code:
+`paceStages` 5 sees only who finishes in the top five, so a driver who never gets there is almost indistinguishable
+from the rest of the midfield. At Round 20, HUL and PER have `theta` -1.16 and -1.05 (0.11 apart), while their average
+classified finish is 11.0 against 16.2 and their top-ten finishes are 5 of 20 against 0 of 20. With every finishing
+place (same half-life and prior) the strengths are 0.05 and -1.64, 1.7 apart. So at the back the forecast is driven
+almost only by the grid and by retirements: with the Round 21 test grid, PER (21st) gets 13% for the points and an
+expected finish of 15.9, HUL (15th) 18% and 14.8. This season's retirement rate makes that large: 81 of 440 race
+starts (18.4%) were not classified, and 11 of the 20 races had at least four retirements.
+
+This is a **limit of v2, recorded on purpose** and input for the next model version (v3), not a reason to change a
+default: 2026 is the confirmation season of the D30 protocol, so its numbers cannot choose a setting. A points-specific
+pace fit is a candidate for the next declared evaluation. On the same races, `paceStages` 8 (everything else at its
+default) gives a points Brier of 0.1357 against 0.1434 now, and separates HUL and PER (0.93 instead of 0.11); every
+finishing place gives 0.1411, and no grid at the current default gives 0.1594.
+
 ## Limits
 
 - **One season of data.** The model fits only the current season; history is used to choose the settings, not as a prior (Phase 7), so early-season odds are wide and are flagged `low
@@ -351,6 +384,12 @@ removes most of that: the back of the field is now at 0.9% for a win, and the mi
   proxy; the title odds themselves are only sanity-checked (clinched always 100% of simulations, eliminated never, a
   locked session moves the numbers the way the points do).
 - **What-if odds depend on the pace gap, and the pace gap depends on how old results are weighed.** In v1 the scenario "ANT out of the next four races, RUS wins all four" gave RUS 42% with a half-life of 8 rounds and 50% with no decay. Under v2 it is 51% without the grid and 50% with it (Step 9). Treat the number as one reading of a close contest, not a measurement.
+- **The race forecast's points chance and expected finish are indicative, not validated.** The backtest scores win and
+  podium only, so the middle and the back of the field are held to a fit made for the front: `paceStages` 5 cannot
+  separate drivers who never finish in the top five. On 2026 the 10-20% points band was overpredicted (15.7% forecast
+  against 5.1% happened), and the slowest cars were given a points chance they did not have (PER, BOT and STR 13% to
+  16% a race against none in the 15 races checked). The section above has the numbers; a points-specific pace fit is a
+  candidate for the next model version.
 - **What the model does not know:** upgrades, tracks, weather, penalties, grid positions beyond the next race (those are only simulated), reliability beyond a driver's
   own record, who is injured or about to leave. It sees only where drivers finished and whether they retired.
 - **Strength uncertainty is a heuristic**, not a full Bayesian posterior: one noise size, shrinking with the number of

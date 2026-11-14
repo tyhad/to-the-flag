@@ -160,5 +160,9 @@ Then open pull requests `phase-8-race-weekend` → `main` in `to-the-flag` and `
 
 - Only the race grid of the next scheduled round. Sprint grids and earlier or later rounds are not handled.
 - The forecast uses the grid and this season's form, not weather, tyres or strategy. A retirement is a chance, not a prediction.
+- The forecast's points chance and expected finish are new and outside the backtest: the pace fit is built for the
+  front (top-5 stages), so the middle and the back of the grid read too well (2026 check in `docs/MODEL.md`, "The race
+  forecast's points chance and expected finish"). Recorded as input for the next model version; no default is changed
+  on 2026 numbers.
 - A manual grid is only as good as what the owner types; the app checks that every active driver appears once, not that the grid matches the stewards' decision.
 - The grid term was fitted on qualifying orders and real grids from 2022 to 2025 (`docs/MODEL.md`); it is a statistical average, not a rule.
