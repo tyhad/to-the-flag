@@ -15,10 +15,12 @@ interface RacePanelProps {
   verdict: AccessVerdict;
   /** The "OpenF1 has a different grid" notice, when there is one (same notice as in the Likely panel). */
   notice?: ReactNode;
+  /** The race forecast, shown under the editor (it follows the grid above). */
+  forecast?: ReactNode;
 }
 
 /** The "Race" tab: the starting grid of the next race, where it comes from, and the editor. */
-export function RacePanel({ state, controls, canWrite, verdict, notice }: RacePanelProps) {
+export function RacePanel({ state, controls, canWrite, verdict, notice, forecast }: RacePanelProps) {
   const { info } = controls.state;
   const empty = emptyGridMessage(controls.state);
   const tag = gridTagFor(info);
@@ -42,7 +44,10 @@ export function RacePanel({ state, controls, canWrite, verdict, notice }: RacePa
       {empty ? (
         <EmptyState title={empty.title}>{empty.text}</EmptyState>
       ) : (
-        <GridEditor state={state} controls={controls} canWrite={canWrite} verdict={verdict} />
+        <>
+          <GridEditor state={state} controls={controls} canWrite={canWrite} verdict={verdict} />
+          {forecast}
+        </>
       )}
     </div>
   );

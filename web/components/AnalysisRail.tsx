@@ -3,8 +3,10 @@ import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
 import { FORM_WEIGHT_DEFAULT } from "../config";
 import { useOdds } from "../useOdds";
+import { useRaceForecast } from "../useRaceForecast";
 import type { GridControls } from "../useGrid";
 import { gridNotice, gridTagFor } from "../viewModel/grid";
+import { forecastDisplay } from "../viewModel/raceForecast";
 import type { AccessVerdict } from "../viewModel/access";
 import { combineOddsStates, formWeightFor, type OddsTable } from "../viewModel/odds";
 import type { Workspace, WorkspaceMessage } from "../viewModel/workspace";
@@ -13,6 +15,7 @@ import { GridNotice } from "./GridNotice";
 import { GridSourceTag } from "./GridSourceTag";
 import { OddsPanel, OddsPlaceholder } from "./OddsPanel";
 import { PossiblePanel, type PathSubject } from "./PossiblePanel";
+import { RaceForecast } from "./RaceForecast";
 import { RacePanel } from "./RacePanel";
 import { Tabs, panelId, tabId, type TabItem } from "./Tabs";
 
@@ -61,6 +64,9 @@ export function AnalysisRail({ state, workspace, dispatch, onOddsResult, grid }:
   // and the baseline for the change column when something is.
   const base = useOdds({ state, params, enabled: likely });
   const projected = useOdds({ state, scenario: workspace.scenario, params, enabled: likely && hasLocks });
+  // The race forecast follows the grid in the Race tab. It uses the same model settings as "Likely?", so the two agree.
+  const raceOpen = tab === "race";
+  const raceForecast = useRaceForecast({ state, params, enabled: raceOpen && Boolean(grid?.controls.state.info?.effective) });
   const panel = useMemo(() => (hasLocks ? combineOddsStates(projected, base) : combineOddsStates(base, null)), [hasLocks, projected, base]);
 
   // Expose the current projected result (or base when no locks) to the export button.
@@ -101,7 +107,16 @@ export function AnalysisRail({ state, workspace, dispatch, onOddsResult, grid }:
         />
       ) : tab === "race" ? (
         grid ? (
-          <RacePanel state={state} controls={grid.controls} canWrite={grid.canWrite} verdict={grid.verdict} notice={noticeElement} />
+          <RacePanel
+            state={state}
+            controls={grid.controls}
+            canWrite={grid.canWrite}
+            verdict={grid.verdict}
+            notice={noticeElement}
+            forecast={
+              <RaceForecast display={forecastDisplay(raceForecast, state, grid.controls.state.saving || grid.controls.state.busy)} />
+            }
+          />
         ) : (
           <EmptyState title="The grid is not available">Reload the page to set the starting grid.</EmptyState>
         )

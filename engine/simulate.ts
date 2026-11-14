@@ -496,11 +496,16 @@ export interface RaceForecast {
   win: Record<string, number>;
   /** chance of a classified finish in the top three, by driver code */
   podium: Record<string, number>;
+  /** chance of a classified finish in the points (the top ten), by driver code; a retirement is not in the points */
+  top10: Record<string, number>;
+  /** the average finishing place, by driver code; a retirement counts as last place (the field size) */
+  meanPosition: Record<string, number>;
 }
 
 /**
- * What the model expects of one open race: for each driver in `field`, the chance to win it and to finish on the
- * podium (a retirement is neither). It fits on `state` as it stands and draws the race exactly as `simulateSeason`
+ * What the model expects of one open race: for each driver in `field`, the chance to win it, to finish on the
+ * podium and to finish in the points (a retirement is none of them), and the average finishing place (a retirement
+ * counts as last). It fits on `state` as it stands and draws the race exactly as `simulateSeason`
  * draws an open session. `field` defaults to the drivers still racing; pass the entry list to forecast a past race
  * (the backtest does). Throws RangeError for nonsense parameters.
  *
@@ -538,23 +543,36 @@ export function forecastRace(
   const order = new Int32Array(n);
   const wins = new Float64Array(n);
   const podiums = new Float64Array(n);
+  const points = new Float64Array(n);
+  const placeSums = new Float64Array(n);
 
   for (let sim = 0; sim < nSims; sim++) {
     for (let i = 0; i < n; i++) strength[i] = form[i]! + sigma[i]! * rng.normal() + gridOffset[i]!;
     rankRacers(rng, racers, strength, raceRetire, sortKey, order);
-    for (let place = 0; place < Math.min(3, n); place++) {
+    // Read the finishing order; no random draw here, so the draws above are the same as before these fields existed.
+    for (let place = 0; place < n; place++) {
       const d = order[place]!;
-      if (!isFinisher(sortKey[d]!)) break; // everyone after a retiree has retired too
-      podiums[d]! += 1;
+      if (!isFinisher(sortKey[d]!)) {
+        // everyone after a retiree has retired too: each of them counts as last
+        for (let rest = place; rest < n; rest++) placeSums[order[rest]!]! += n;
+        break;
+      }
+      placeSums[d]! += place + 1;
+      if (place < 10) points[d]! += 1;
+      if (place < 3) podiums[d]! += 1;
       if (place === 0) wins[d]! += 1;
     }
   }
 
   const win: Record<string, number> = {};
   const podium: Record<string, number> = {};
+  const top10: Record<string, number> = {};
+  const meanPosition: Record<string, number> = {};
   codes.forEach((c, i) => {
     win[c] = wins[i]! / nSims;
     podium[c] = podiums[i]! / nSims;
+    top10[c] = points[i]! / nSims;
+    meanPosition[c] = placeSums[i]! / nSims;
   });
-  return { nSims, seed, win, podium };
+  return { nSims, seed, win, podium, top10, meanPosition };
 }
