@@ -457,6 +457,141 @@ answer (HTTP 200) with the path fields set to `null`. The route follows the acti
 
 ---
 
+### 8. `GET /api/feed/grid`
+
+Returns the starting grid of the **next race** that is in use: the manual grid when one is saved, otherwise the data
+file's grid (`openf1` or the qualifying order). This is the same grid the "Race" tab and the title odds use. It always
+shows the grid source, because a qualifying order may differ from the real grid (it ignores grid penalties and pit-lane
+starts).
+
+**Example Response** (shortened):
+```json
+{
+  "updated_at": "2026-10-07T02:06:22Z",
+  "as_of_round": 16,
+  "data_status": "ok",
+  "season": 2026,
+  "available": true,
+  "round": 17,
+  "source": "openf1",
+  "rows": [
+    { "position": 1, "driver": "VER", "name": "Max Verstappen", "team": "red_bull", "pit": false, "source": "openf1" },
+    { "position": 2, "driver": "NOR", "name": "Lando Norris", "team": "mclaren", "pit": false, "source": "openf1" },
+    { "position": 3, "driver": "HAD", "name": "Isack Hadjar", "team": "red_bull", "pit": false, "source": "openf1" }
+  ],
+  "p1_position": 1,
+  "p1_driver": "VER",
+  "p1_name": "Max Verstappen",
+  "p1_team": "red_bull",
+  "p1_pit": false,
+  "p1_source": "openf1",
+  "p2_position": 2,
+  "p2_driver": "NOR"
+}
+```
+
+**Fields**
+
+- `round`: the round of the race this grid is for (the next scheduled race).
+- `source`: where the grid comes from: `"manual"` (saved by the owner), `"openf1"` (the actual grid) or `"qualifying"`
+  (the qualifying order, which may differ from the real grid). Every row has the same `source`.
+- Rows, pole first: `position` (1-based; pit-lane starters come after everyone else), `driver` (code), `name`, `team`
+  (constructor id), `pit` (`true` only for a manual grid's pit-lane starters), `source`.
+- A data-file grid does not say who started from the pit lane, so those drivers are listed by place with `pit: false`.
+  A manual grid does know: its pit-lane starters are at the end with `pit: true`.
+- Flattened fields for places 1 to 22: `p1_*` to `p22_*`, one per row field (for example `p1_driver`, `p2_team`,
+  `p3_pit`, `p22_position`). A place with no driver is empty (`""`, `0`, `false`) rather than missing.
+
+**No grid:** HTTP 200 with the usual metadata and `{ "available": false }`; no `rows`, `source` or `p*_` fields. There is
+nothing to show yet (qualifying has not run and no manual grid was saved), or the season is over.
+
+**Errors:** HTTP 503 with `error` and `message` when the season data is missing or invalid, like the other routes.
+
+---
+
+### 9. `GET /api/feed/race-forecast`
+
+Returns the model's forecast for the next race, from the effective grid of `/api/feed/grid`: per driver the chance to
+win, to finish on the podium and in the points, and the expected finish. It is a **model estimate**, not a fact: show
+`label` next to the numbers. It is the same calculation as the "Race" tab in the web app and does **not** use the active
+scenario.
+
+**Example Response** (shortened):
+```json
+{
+  "updated_at": "2026-10-07T02:06:22Z",
+  "as_of_round": 16,
+  "data_status": "ok",
+  "season": 2026,
+  "available": true,
+  "model": "estimate",
+  "label": "Model estimate",
+  "round": 17,
+  "source": "openf1",
+  "n_sims": 10000,
+  "rows": [
+    {
+      "rank": 1,
+      "driver": "VER",
+      "name": "Max Verstappen",
+      "team": "red_bull",
+      "grid": 1,
+      "win_display": "31%",
+      "podium_display": "72%",
+      "points_display": "96%",
+      "mean_position": 2.31,
+      "source": "openf1"
+    },
+    {
+      "rank": 2,
+      "driver": "NOR",
+      "name": "Lando Norris",
+      "team": "mclaren",
+      "grid": 2,
+      "win_display": "24%",
+      "podium_display": "65%",
+      "points_display": "94%",
+      "mean_position": 2.78,
+      "source": "openf1"
+    }
+  ],
+  "top1_rank": 1,
+  "top1_driver": "VER",
+  "top1_grid": 1,
+  "top1_win_display": "31%",
+  "top2_driver": "NOR"
+}
+```
+
+**Fields**
+
+- `available`, `model`, `label`: always `true`, `"estimate"` and `"Model estimate"`.
+- `round`: the round of the race this forecast is for. `source`: the grid source, as in `/api/feed/grid` (`"manual"`,
+  `"openf1"` or `"qualifying"`). `n_sims`: the number of simulated races.
+- Rows are the drivers still racing, sorted by the chance to win, best first. Row fields: `rank`, `driver` (code),
+  `name`, `team` (constructor id), `grid` (the starting place the model used), `win_display`, `podium_display`,
+  `points_display`, `mean_position`, `source`.
+- **`*_display` are the texts to show.** They follow the same rules as `/api/feed/odds`: `"<1%"` below 1%, one decimal
+  from 1% to under 10%, a whole percent from 10% to 99%, and `">99%"` above. They are never `"0%"` or `"100%"`.
+- `mean_position` is the average finishing place, to two decimals; a retirement counts as the last place. It is the raw
+  number, so format it as you wish (`"3.4"` for one decimal, as the web app shows it).
+- Flattened fields for places 1 to 10: `top1_*` to `top10_*`, one per row field (for example `top1_driver`,
+  `top1_win_display`, `top2_grid`, `top10_mean_position`). A place with no row is empty (`""`, `0`) rather than missing.
+- The points chance and the expected finish are newer than the title odds' backtest; the model is fitted for the front
+  of the field, so the middle and the back of the grid read too well. See `docs/MODEL.md` ("The race forecast's points
+  chance and expected finish"). The win and podium numbers are the long-standing ones.
+
+**Caching:** the result is kept per season file version (which changes when the manual grid changes) and model
+parameters, so polling does not simulate again. The response header `X-Forecast-Cache` is `hit` when nothing had to be
+simulated and `miss` otherwise.
+
+**No grid:** HTTP 200 with the usual metadata and `{ "available": false }`; no `rows`, `label` or `top*_` fields. There is
+nothing to forecast until a grid is known.
+
+**Errors:** HTTP 503 with `error` and `message` when the season data is missing or invalid, like the other routes.
+
+---
+
 ## LiveOverlay Binding Guide
 
 To bind fields from To the Flag into LiveOverlay Studio:
@@ -476,3 +611,14 @@ To bind fields from To the Flag into LiveOverlay Studio:
    - Highest place still possible for the third team: `top3_best` (`1` = still in the title fight; show it as `P` plus the
      number if you want the same text as the web app)
 6. For the drivers' title status, bind `/api/feed/status` and use `top1_status`, `top1_best` and so on the same way.
+7. For the race weekend's starting grid, bind `/api/feed/grid`:
+   - Pole: `p1_driver`, `p1_name`, `p1_team`
+   - Second place: `p2_driver`, `p2_name`
+   - Grid source: `source` (`manual`, `openf1` or `qualifying`); show it, and label a qualifying grid as possibly
+     different from the real grid
+   - `available` tells you whether a grid is known yet; when it is `false`, hide the grid widget
+8. For the race forecast, bind `/api/feed/race-forecast`:
+   - Favourite: `top1_driver`, `top1_name`, `top1_win_display`, `top1_grid`
+   - Second and third: `top2_driver`, `top3_driver` and their `*_win_display` / `*_podium_display`
+   - Label: `label` (`"Model estimate"`); grid source: `source`; simulations: `n_sims`
+   - `available` tells you whether a grid (and so a forecast) exists yet
