@@ -5,7 +5,7 @@
 Branches: `phase-7-positions` in `to-the-flag`, and `phase-7-validation` in `F1GStats` (Step 1 only). One commit per step. Tests first wherever there is logic. Read `DESIGN.md` (sections 2, 6, 9), `docs/PHASE_2.md` (the table and feed), `docs/PHASE_5.md` (team status), `docs/FEED.md`, and `AGENTS.md`.
 
 **Goal:** make the table usable as a normal standings table, and show for every driver and team the highest place they can still reach on points.
-**Not in Phase 7:** a worst-possible-place figure (a points-only bound is far too loose, see below), a solver for "what does X need to finish P3", position probabilities (optional Step 8), multi-season prior (Phase 9).
+**Not in Phase 7:** a worst-possible-place figure (a points-only bound is far too loose, see below), a solver for "what does X need to finish P3", position probabilities (optional Step 8), multi-season prior (Phase 11).
 
 ## Decisions
 

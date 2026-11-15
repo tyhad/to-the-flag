@@ -5,7 +5,7 @@
 Branches: `phase-8-race-weekend` in `to-the-flag`, and `phase-8-grid-info` in `F1GStats` (Step 8 only). One commit per step. Tests first wherever there is logic. Read `docs/MODEL.md` (the grid term), `docs/PHASE_4.md` (Step 7 and 8), `docs/PHASE_6.md` (the write guard and the PNG card), `docs/FEED.md`, `DESIGN.md`, and `AGENTS.md`.
 
 **Goal:** use the tool on a race weekend: put in or correct the real starting grid when the data file only has the qualifying order, see what the model expects for that race, and export the grid.
-**Not in Phase 8:** sprint grids, a forecast for races beyond the next one, changes to the title-odds model, multi-season prior (Phase 9).
+**Not in Phase 8:** sprint grids, a forecast for races beyond the next one, changes to the title-odds model, multi-season prior (Phase 11).
 
 ## What is already there, and what is not
 
