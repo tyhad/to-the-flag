@@ -49,6 +49,7 @@ A Monte Carlo simulation of the rest of the season, built only from this season'
 | `paceStages` | 5 | finishing stages used in the pace fit; 0 means all places (v1 behavior) |
 | `gridWeight` | 1 | weight of the starting grid in a race: the finishing key gets `gridWeight * (-ln(grid place))` added; 0 ignores the grid (v2). Used by `forecastRace` when it is given a grid, and by the season simulation for races that have a grid (a real one, or a simulated one) |
 | `qualifyingNoise` | 2 | Gumbel scale of the simulated qualifying for a race with no real grid: qualifying key = strength + `qualifyingNoise` * Gumbel, and the order of the keys is the grid. 0 simulates no grid, so later races ignore the grid. Only used when `gridWeight` is above 0 |
+| `finishStages` | 0 | Phase 9: finishing stages of a separate pace fit for the finish part of the race forecast (`top10` and `meanPosition`). 0 means the same as `paceStages` (the v2 behavior, no second fit). Any other value that differs from `paceStages` makes `forecastRace` fit a second set of strengths and run a second pass (same `nSims`, grid and field, its own seed) for those two fields; `win`, `podium` and the seed stay those of the first pass. A value of at least the field size is the all-places fit. Not used by the season simulation (the title odds), and not part of the default seed |
 
 v1 is reproducible by passing `{ recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0 }`. `MODEL_VERSION` is `"v2"`.
 

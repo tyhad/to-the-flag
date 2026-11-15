@@ -68,6 +68,7 @@ describe("simulateSeason: basics", () => {
       paceStages: 5, // v2: top-5 pace stages, the largest structural gain (Step 6)
       gridWeight: 1, // Step 7: adopted by the D30 protocol (0 ignores the grid, the v2 behavior)
       qualifyingNoise: 2, // Step 8: estimated on 2022-2024 (0 simulates no grid for later races)
+      finishStages: 0, // Phase 9, Step 3: 0 = the finish part uses paceStages (the v2 behavior)
     });
   });
 
@@ -93,6 +94,8 @@ describe("simulateSeason: basics", () => {
       { sprintDnfFactor: -1 },
       { paceStages: -1 },
       { paceStages: 1.5 },
+      { finishStages: -1 },
+      { finishStages: 1.5 },
     ]) {
       expect(() => simulateSeason(state, undefined, bad)).toThrow(RangeError);
     }
