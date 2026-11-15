@@ -81,6 +81,7 @@ function Body({ display }: { display: Exclude<ForecastDisplay, { kind: "none" }>
             ))}
           </tbody>
         </table>
+        <p className="type-note text-right text-text-2">{view.indicative}</p>
       </div>
       <p className="type-note text-text-2">{view.note}</p>
     </div>

@@ -9,6 +9,12 @@ import type { ForecastData, ForecastState } from "./forecastRequests";
 /** The note under the table, word for word. */
 export const FORECAST_NOTE = "The forecast follows the grid above. Retirements and weather are not known.";
 
+/**
+ * Phase 9, Step 1: said under the table until Phase 9 decides on the points part. The points chance and the expected
+ * finish are newer than the win and podium numbers and read too well for the middle and the back of the grid.
+ */
+export const INDICATIVE_NOTE = "Indicative; the model is fitted for the front of the field.";
+
 export interface ForecastColumn {
   key: "grid" | "win" | "podium" | "points" | "finish";
   /** The short heading. */
@@ -41,6 +47,8 @@ export interface RaceForecastView {
   header: string;
   rows: ForecastRow[];
   note: string;
+  /** About the Points and Exp. finish columns only; shown under the table. */
+  indicative: string;
 }
 
 /** The words for where the grid came from: the same sources as the grid tag, short. */
@@ -80,6 +88,7 @@ export function buildRaceForecastView(data: ForecastData, state: SeasonState): R
     header: `Model estimate · as of Round ${data.asOfRound} · Grid: ${forecastGridWord(data.gridSource)}`,
     rows,
     note: FORECAST_NOTE,
+    indicative: INDICATIVE_NOTE,
   };
 }
 
