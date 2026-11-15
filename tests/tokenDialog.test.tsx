@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
+import * as accessModule from "../web/useAccess";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -169,5 +170,32 @@ describe("ScenarioStrip read-only state and write controls", () => {
     // + New button is not disabled when locked
     expect(html).not.toMatch(/data-focus-id="new"[^>]*disabled=""/);
     expect(html).not.toMatch(/data-focus-id="save-new"[^>]*disabled=""/);
+  });
+});
+
+describe("ScenarioStrip and the access state", () => {
+  const render = (access?: AccessInfo) =>
+    renderToStaticMarkup(
+      <ScenarioStrip state={state} workspace={initialWorkspace(state)} store={makeMockStore()} strip={makeMockStrip()} access={access} />,
+    );
+
+  test("with an access state from the page, the strip does not make a second one", () => {
+    const spy = spyOn(accessModule, "useAccess");
+    try {
+      render(makeMockAccess());
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test("without one, the strip makes its own (once)", () => {
+    const spy = spyOn(accessModule, "useAccess");
+    try {
+      render();
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -340,6 +340,17 @@ Read with care: there are only 11 winners, so the win columns rest on a handful 
 model was too flat (about 2% to drivers who never won, the favourites doing better than forecast). The top-5 fit
 removes most of that: the back of the field is now at 0.9% for a win, and the middle rows are close to what happened.
 
+### The race forecast in the app (Phase 8)
+
+The "Race" tab and `GET /api/feed/race-forecast` show what the model expects of the **next** race, from the grid in use
+(a saved manual grid, else OpenF1's, else the qualifying order; `docs/FEED.md`). Per driver, from 10,000 simulated races:
+the chance to **win**, to finish on the **podium** (top three), to finish in the **points** (top ten), and the
+**expected finish** (the average place, a retirement counting as last). It is `forecastRace` with the same settings as
+the "Likely?" tab (including the form slider), so the two agree, and the same grid is in the title odds. It is labeled
+"Model estimate" with the round it fitted on and the grid source. What it does not know is in the limits below: weather,
+tyres, strategy, penalties after the grid, and a retirement is a chance, not a prediction. The win and podium numbers and
+their seeds are unchanged by the new fields (golden tests in `tests/forecast.test.ts`).
+
 ### The race forecast's points chance and expected finish (Phase 8, Step 5)
 
 `forecastRace` also returns `top10` (the chance of a points finish) and `meanPosition` (the average finishing place, a

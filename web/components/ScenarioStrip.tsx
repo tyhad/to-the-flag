@@ -40,18 +40,30 @@ interface ScenarioStripProps {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-export function ScenarioStrip({
+/**
+ * The strip needs one access state for the whole page (the token dialog and the grid notice share it), so the page
+ * passes it in. Without it the strip makes its own. The hook is only called in that case: two access states at once
+ * would each ask the server, and each would register its own handler for a refused write.
+ */
+export function ScenarioStrip(props: ScenarioStripProps) {
+  return props.access ? <ScenarioStripView {...props} access={props.access} /> : <ScenarioStripWithOwnAccess {...props} />;
+}
+
+function ScenarioStripWithOwnAccess(props: ScenarioStripProps) {
+  const access = useAccess();
+  return <ScenarioStripView {...props} access={access} />;
+}
+
+function ScenarioStripView({
   state,
   workspace,
   store,
   strip,
-  access: propAccess,
+  access,
   oddsResult = null,
   titleInfoMode,
   standingsTab = "wdc",
-}: ScenarioStripProps) {
-  const defaultAccess = useAccess();
-  const access = propAccess ?? defaultAccess;
+}: Omit<ScenarioStripProps, "access"> & { access: AccessInfo }) {
   const canWrite = access.canWrite;
 
   const [mode, setMode] = useState<FormMode>("idle");

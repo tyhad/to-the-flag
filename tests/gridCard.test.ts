@@ -342,6 +342,15 @@ describe.each(SIZES)("drawing commands, %s card", (size) => {
     expect(notTokens).toHaveLength(22);
   });
 
+  test("no text is smaller than 14px, so what the audience reads stays readable (DESIGN.md checklist)", () => {
+    for (const view of [makeView(22), makeView(22, { pit: 6, source: "qualifying" }), makeView(22, { range: { from: 6, to: 15 } })]) {
+      for (const text of texts(buildGridCard(view, size))) {
+        const sizes = [text.font, ...(text.runs ?? []).map((r) => r.font ?? text.font)].map((f) => Number(/(\d+)px/.exec(f)![1]));
+        for (const px of sizes) expect(px).toBeGreaterThanOrEqual(14);
+      }
+    }
+  });
+
   test("the background fills the card, then the panel", () => {
     const [bg, panel] = buildGridCard(makeView(22), size) as Extract<DrawCommand, { type: "rect" }>[];
     expect(bg).toMatchObject({ x: 0, y: 0, width: w, height: h, fill: "var(--color-s0)" });

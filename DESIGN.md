@@ -125,6 +125,16 @@ Fixed-viewport app, designed for a 1920×1080 screen-share and usable at 1280 wi
 
 **States.** Empty: say what to do ("Lock a result to see the table change"). Error: say what failed and how to fix it; never apologize. Stale data: banner "Data check failed. Showing last valid data from Round N." with `yellow` icon.
 
+**Grid source tag.** Next to the heading of the Race tab and next to "Grid known: Round N" in Likely?: `label`, `border-line` and `text-2` for "Grid: manual" and "Grid: OpenF1"; the qualifying grid is "Grid: qualifying (may differ from the real grid)" in `yellow` with the alert icon, always with the words. A grid is never shown without its source.
+
+**OpenF1 grid notice.** A panel (`s1`, `accent` border) under the heading, text "OpenF1 now has the official grid, and it differs from yours." and two buttons: *Use OpenF1 grid* (primary) and *Keep mine*. It appears only when a manual grid is in use and OpenF1's grid differs; it never changes the grid by itself. *Use OpenF1 grid* is disabled with its reason when writing is not allowed; *Keep mine* writes nothing to the server.
+
+**Starting grid editor.** An ordered list, one row per driver: team strip, place, the driver code (the full name is only a hover title). *Up* and *Down* are icon-only arrow buttons named for the driver ("Move ANT up"); *More* opens a row of buttons (*Drop N places*, *Back of the grid*, *Pit-lane start*, or *Start from the grid* for a pit-lane starter). Pit-lane starters come after the grid and say "Pit-lane start". Tab goes Up, Down, More for each row (a disabled button is skipped); Enter or Space presses; Escape closes the menu and returns the focus to *More*; after a move the focus stays on the moved driver's button. *Paste a list* opens a text box with errors in plain words under it ("Nothing was changed."). *Save grid* and *Use data grid* are disabled with the reason written under them; arranging the list never needs a token.
+
+**Race forecast table.** A real table (`th scope`) of the driver code with its team strip, then Grid, Win, Podium, Points and Exp. finish in `data`; the header line says "Model estimate · as of Round N · Grid: source"; the note under it says what the forecast does not know. While a new forecast is calculated the old table stays, dimmed, with "Updating…". No `0%` or `100%`.
+
+**Export section.** At the end of the editor: size and places selects, *Export picture*, *Copy as CSV*, *Copy as JSON*, *Download CSV*, *Download JSON*. The picture follows the card rules in `docs/EXPORT.md`; it is of the saved grid, and a note says so while there are unsaved changes.
+
 ## 7. Motion
 
 - On any change: rows re-sort with a position-swap animation (≈ 250 ms) and numbers tween (≈ 300 ms). Use GSAP (already in the LiveOverlay stack) or CSS FLIP.
@@ -195,3 +205,7 @@ Fixed-viewport app, designed for a 1920×1080 screen-share and usable at 1280 wi
 - [ ] No `0%` / `100%` from simulation.
 - [ ] Keyboard focus is visible on every control; reduced motion is respected.
 - [ ] Fonts are bundled locally; the app works offline.
+- [ ] A starting grid is never shown without its source; a qualifying grid carries the warning words.
+- [ ] The grid editor, its menus and the paste box work with the keyboard (Tab, Enter or Space, Escape); icon-only buttons have an accessible name.
+- [ ] The race forecast says "Model estimate" and names the grid it follows.
+- [ ] Exports (PNG, CSV, JSON) hold no token, path or address.
