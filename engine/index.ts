@@ -9,6 +9,7 @@ export * from "./status";
 export * from "./teams";
 export * from "./teamStatus";
 export * from "./positions";
+export * from "./grid";
 export * from "./teamSolver";
 export * from "./solver";
 export * from "./report";

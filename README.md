@@ -20,6 +20,9 @@ Set results for the remaining sessions and watch the table, the title status and
 - **Keep scenarios.** Save, rename, delete and compare scenarios, copy a share link, and show one on the overlay.
 - **Ask what is likely.** *Likely?* shows model odds for the drivers' and the teams' title, from 10,000 simulated seasons. With locked sessions it also shows the change against the odds with nothing locked. The slider sets how much this season's form counts (0% makes all drivers equal). The numbers are always labelled *Model estimate*; clinched and eliminated drivers are stated in words, and a simulation never shows `0%` or `100%`. How the model works, how it was tested and what it cannot do: [`docs/MODEL.md`](docs/MODEL.md).
 
+- **Set the starting grid.** The *Race* tab shows the grid of the next race and where it comes from. Correct it (move a driver, drop places, back of the grid, pit-lane start, or paste a whole list) and *Save grid*; *Likely?* and the race forecast then use your grid.
+- **See the race forecast.** Under the grid, for each driver: the chance to win, to finish on the podium and in the points, and the expected finish. It is a model estimate for the next race only.
+
 *Possible?* is exact arithmetic and *Likely?* is a model; the two are never mixed into one figure.
 
 ## Commands
@@ -37,6 +40,7 @@ Set results for the remaining sessions and watch the table, the title status and
 | `bun scripts/statusReport.ts [db]` | Print the title status table (clinched / alive / eliminated) from the real data |
 | `bun scripts/exportFixture.ts <db> <out.json>` | Snapshot the loaded season as a JSON test fixture |
 | `bun scripts/addClassified.ts <db> <fixture.json>` | Add each result's `classified` flag (DNF or not) to an older fixture |
+| `bun run seed-grid` | Dev only. Copies the F1GStats database to `./test-grid.sqlite` and adds an invented starting grid for the next race, so the Race tab, grid tags and the notice can be tried before qualifying. The original is never changed. Start the app on the copy with `F1GSTATS_DB=./test-grid.sqlite bun run dev` (PowerShell: `$env:F1GSTATS_DB="./test-grid.sqlite"; bun run dev`). Options: `-- --from <db>`, `-- --out <file>`, `-- --source openf1\|qualifying` |
 | `bun run backtest` | Walk-forward test of the odds model against past races, with the settings grid and baselines (about 3 s). See `docs/MODEL.md` |
 | `bun run calibrate` | The multi-season protocol (D30), the grid signal and the qualifying noise; needs the history files in `../F1GStats/history`. `-- --grid-signal` or `-- --qualifying-noise` runs one part. See `docs/MODEL.md` |
 | `bun run title-check` | What-if sensitivity table and, with the history files, the title odds against the real champions. See `docs/MODEL.md` |
@@ -71,6 +75,30 @@ The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio o
 ## Share links
 *Copy link* puts the scenario in the address after a `#`, for example `http://127.0.0.1:3100/#s=v1.…&r=16`. Opening it imports the scenario and checks it against the current data. If it was made at an earlier round, you get a warning that results may differ. Nothing is sent to a server.
 
+## Race weekend: the starting grid
+
+The *Race* tab is for the race you are about to watch.
+
+**Which grid is used.** There are three sources, and the tab always says which one is in use ("Grid: manual", "Grid: OpenF1" or "Grid: qualifying"):
+1. **Manual**: a grid you typed and saved. It is used until you clear it.
+2. **OpenF1**: the actual grid with grid penalties, published a few hours before the race.
+3. **Qualifying**: the qualifying order, used when OpenF1 has no grid yet. It ignores grid penalties and pit-lane starts, so it is marked in yellow as "may differ from the real grid".
+
+**Correct the grid.**
+- Each driver has *Up* and *Down* arrows and a *More* menu: *Drop 1, 2, 3, 5 or 10 places*, *Back of the grid* and *Pit-lane start* (pit-lane starters go behind everyone, in the order you marked them; *Start from the grid* puts one back).
+- *Paste a list* takes driver codes separated by spaces, commas or lines, with an optional place number in front (`1 ANT`), and `PIT:` before the pit-lane starters. If anything cannot be read, or a driver is missing, repeated or not racing, it says so in plain words and changes nothing.
+- *Save grid* saves it. Every driver who is racing must appear exactly once. Saving follows the same rule as saving a scenario (see LAN mode): on the computer that runs the server no token is needed; from another device the write token is. Arranging the list needs no token.
+- *Use data grid* removes your grid, and the OpenF1 or qualifying grid is used again.
+- A manual grid is for the **next race only**. Once that race has results it is ignored (it stays in `to-the-flag.sqlite`; it is never written to the F1GStats data file).
+
+**When OpenF1 catches up.** If you saved a grid and OpenF1 later publishes a different one, a notice says so. It never switches by itself: *Use OpenF1 grid* removes yours, *Keep mine* hides the notice until OpenF1's grid changes.
+
+**The race forecast** (under the grid) shows, for the grid in use: the chance to win, to finish on the podium and in the points (the top ten), and the expected finish. It says "Model estimate", the round it is based on and the grid source. It uses this season's form and the grid, not weather, tyres or strategy, and a retirement is a chance, not a prediction. The chances at the back of the grid are the least reliable part (see `docs/MODEL.md`). *Likely?* and the title odds use the same grid.
+
+**Try it before qualifying.** The data file has no grid until qualifying has run. `bun run seed-grid` makes a copy of it with an invented grid so you can try the tab (see Commands).
+
+**Keyboard.** Everything works with the keyboard: Tab to a button and press Enter or Space, Escape closes a menu and puts the focus back on its *More* button, and after a move the focus stays on the driver you moved. The list has three stops per driver, so for a big change use *Paste a list*.
+
 ## Export picture (PNG)
 The scenario strip provides an *Export picture* button to render and download a standalone standings card as a PNG:
 - **Sizes:** Square (`1080×1080`, ideal for social media posts) and Wide (`1920×1080`, ideal for streaming screens).
@@ -79,6 +107,12 @@ The scenario strip provides an *Export picture* button to render and download a 
 - **Odds:** When the *Likely?* tab has model odds, they are shown alongside with the required `"Model estimate"` label.
 - **Privacy:** Tokens, server addresses, and file paths are never drawn in the image. The rendering happens offline in the browser canvas.
 - **Adding to the card:** how it is built and the steps to add new content are in [`docs/EXPORT.md`](docs/EXPORT.md).
+
+### The starting grid
+The *Race* tab has an *Export* section for the starting grid of the next race:
+- **Picture:** *Export picture* draws the grid like a real one, with pole at the front, the second car on the front row a little further back, and the rows behind it. Only the driver code is written in each box, and pit-lane starters have their own block. Choose the size (square or wide) and the places: All, Top 10, Top 12, or a custom range (for example P6 to P15). A grid that comes from the qualifying order says so on the picture.
+- **Data:** *Copy as CSV*, *Copy as JSON*, *Download CSV* and *Download JSON* always give every place (`position,driver,name,team,pit,source`).
+- It exports the saved grid. No write token is needed. How the cards are built and how to add to them: [`docs/EXPORT.md`](docs/EXPORT.md).
 
 ## If something does not load
 | You see | What to do |

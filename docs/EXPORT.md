@@ -1,8 +1,8 @@
-# The PNG card (Export picture)
+# The PNG cards (Export picture)
 
-How the exported standings card is built, the rules it follows, and the steps to add something new to it, so that new content looks and behaves like what is already there. Read this before changing `web/viewModel/card.ts`, `web/viewModel/cardView.ts`, `web/exportCard.ts` or the export controls in `web/components/ScenarioStrip.tsx`.
+How the exported cards are built, the rules they follow, and the steps to add something new to them, so that new content looks and behaves like what is already there. There are two cards: the **standings card** (WDC or WCC, from the scenario strip) and the **starting-grid card** (from the Race tab, Phase 8; see the last section). Read this before changing `web/viewModel/card.ts`, `web/viewModel/cardView.ts`, `web/viewModel/gridCard.ts`, `web/viewModel/gridExport.ts`, `web/exportCard.ts`, `web/exportText.ts` or the export controls in `web/components/ScenarioStrip.tsx` and `web/components/GridExport.tsx`.
 
-The card started in Phase 6 (`docs/PHASE_6.md`, Step 7, D40). Later work (WCC mode, row choice, custom range, simulation note, the Best and status columns of Phase 7) is described here as it is now.
+The standings card started in Phase 6 (`docs/PHASE_6.md`, Step 7, D40). Later work (WCC mode, row choice, custom range, simulation note, the Best and status columns of Phase 7) is described here as it is now.
 
 ## How it is built
 
@@ -28,7 +28,7 @@ page state ──▶ buildCardView()  ──▶ CardView ──▶ buildCard(vie
 - **Credit line** at the bottom center: "to the flag by " in `text-3` and "Tyhad | F1 Watchalong" in `text` (brighter, weight 600). It is one centered line drawn as two colored runs (see "Colored pieces in one line" below).
 - **File name:** `standings-[wcc-]{size}-{season}-r{round}.png`.
 
-## Rules the card follows
+## Rules the cards follow (both)
 
 1. **Layout stays pure.** `card.ts` and `cardView.ts` import no DOM or canvas. Anything visual that can be computed goes there and gets a test.
 2. **Colors are tokens.** Write `var(--color-…)` in commands; `exportCard.ts` resolves them. No raw hex. Team colors come only from `teamColor()`.
@@ -57,6 +57,29 @@ Follow these steps in order, so the new content matches what exists:
 7. **Docs, in the same commit.** Update "What the card contains today" and the table above in this file, the *Export picture* list in `README.md`, and the file name rule here if it changes. If a rule above has to bend, change the rule here and tell the owner first.
 8. **Browser check** (the pure layout cannot show this): export both sizes with WDC and WCC, Title info On, Off and Auto, odds on and off, a lock in the scenario, and a custom range. Look at the fit, the colors, the `✕` glyph, and the bottom credit line.
 
+## The starting-grid card (Phase 8)
+
+The same pipeline as the standings card, with its own data and layout: `buildGridCardView` (in `gridExport.ts`) makes a `GridCardView`, `buildGridCard` (in `gridCard.ts`) turns it into drawing commands, and `exportGridCard` (in `exportCard.ts`) draws them with the shared canvas renderer. `layoutGridCard` returns where every box goes; the drawing and the tests both use it.
+
+| Piece | File | Job | Tested in |
+|---|---|---|---|
+| Rows, CSV, JSON, range, file names, card data | `web/viewModel/gridExport.ts` | The rows are the same as the overlay feed's (`api/gridFeed.ts`), and a test keeps them equal. | `tests/gridExport.test.ts` |
+| Layout and drawing commands | `web/viewModel/gridCard.ts` | Pure. | `tests/gridCard.test.ts` |
+| Controls | `web/components/GridExport.tsx` | Size, places, and the five buttons, at the end of the grid editor. | `tests/gridExportMarkup.test.tsx`; by hand in a browser |
+| Copy and download | `web/exportText.ts` | Clipboard (with the older fallback for pages that are not https) and file download. | by hand in a browser |
+
+- **Picture sizes:** square 1080×1080 and wide 1920×1080, like the standings card. The file name is `starting-grid-{size}-{season}-r{round}[-p{from}-p{to}].png`.
+- **Look:** the grid is drawn like one on the track. Two columns, **pole at the top (the front)**: odd places on the left, even places on the right, and each right-hand car is half a row behind its neighbour, so P1 is furthest forward, P2 is on the front row but a little back, P3 is on the second row, and so on. Each place is a box marked on the track: the line across the front and the two sides, open at the back. Pole's box is drawn brighter. A box holds the place, the team color and **the driver code only** (no names).
+- **Header:** "Formula 1", "Starting grid · Round N", the race name when the schedule has it, and where the grid comes from, with the same words as the grid tag: "Grid: manual", "Grid: OpenF1", and "Grid: qualifying (may differ from the real grid)" in the yellow timing color. The card never claims more than the data says.
+- **Places:** All, Top 10, Top 12, or a custom range (P from, P to), like the standings card. A part of the grid keeps each place where it belongs (odd left, even right), and the header says "P6–P15 of 22". A range that has no places says so and draws no box. The range applies to the picture only: the CSV and JSON always have every place.
+- **Pit-lane starters** are in their own small block with the label "Pit lane" (below the grid on the square card, in the left column on the wide one), never on the grid. Only a manual grid knows who they are.
+- **The saved grid is exported**, not unsaved edits in the editor. The section says so while there are unsaved changes.
+- **CSV** has `position,driver,name,team,pit,source`, quoted where needed; **JSON** is the same rows as an array. Nothing else goes into either: no token, path or note. Reading and exporting need no write token.
+- **Credit line:** shared with the standings card through `buildCreditCommand`.
+- **Rows scale to fit:** the box size follows the number of rows (with a limit, so a few places do not look lost), and nothing leaves the card at either size. The tests check 1, 3, 12, 20, 21 and 22 cars, the pit-lane block with up to eight starters, and ranges.
+
+To add something to this card, follow "Adding new exportable content" above, with `GridCardView` / `GridCardRow` as the data, `layoutGridCard` and `buildGridCard` as the layout, and `GridExport.tsx` as the controls.
+
 ## Not covered by tests (check by eye)
 
-The canvas drawing itself (`exportCard.ts`), the real font rendering, and the controls. Say in the commit or the phase notes what was and was not checked in a browser.
+The canvas drawing itself (`exportCard.ts`), the real font rendering, the clipboard and download (`exportText.ts`), and the controls. Say in the commit or the phase notes what was and was not checked in a browser.

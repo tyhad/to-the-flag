@@ -5,6 +5,8 @@
  * The share token, write token, and server path never appear in the output.
  */
 import { buildCard, runsStartX, type CardSize, type CardView, type DrawCommand } from "./viewModel/card";
+import { buildGridCard } from "./viewModel/gridCard";
+import { gridExportFilename, type GridCardView } from "./viewModel/gridExport";
 
 export type { CardSize };
 
@@ -64,17 +66,8 @@ function renderCommands(ctx: CanvasRenderingContext2D, commands: DrawCommand[]):
   }
 }
 
-/**
- * Draws the standings card onto an offscreen canvas and downloads it as a PNG.
- *
- * @param view  The card data (assembled by buildCardView).
- * @param size  "square" (1080×1080) or "wide" (1920×1080).
- */
-export async function exportCard(view: CardView, size: CardSize): Promise<void> {
-  const isWide = size === "wide";
-  const width = isWide ? 1920 : 1080;
-  const height = 1080;
-
+/** Draws the commands on a canvas of this size and downloads it as a PNG with this file name. */
+async function downloadPng(commands: DrawCommand[], width: number, height: number, filename: string): Promise<void> {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -85,11 +78,7 @@ export async function exportCard(view: CardView, size: CardSize): Promise<void> 
   // Wait for fonts to be ready so text renders with the loaded face.
   await document.fonts.ready;
 
-  const commands = buildCard(view, size);
   renderCommands(ctx, commands);
-
-  const tabPrefix = view.tab === "wcc" ? "wcc-" : "";
-  const filename = `standings-${tabPrefix}${size}-${view.season}-r${view.asOfRound}.png`;
 
   // Download via a temporary <a> element.
   await new Promise<void>((resolve, reject) => {
@@ -112,4 +101,26 @@ export async function exportCard(view: CardView, size: CardSize): Promise<void> 
       });
     }, "image/png");
   });
+}
+
+const dimensions = (size: CardSize) => ({ width: size === "wide" ? 1920 : 1080, height: 1080 });
+
+/**
+ * Draws the standings card onto an offscreen canvas and downloads it as a PNG.
+ *
+ * @param view  The card data (assembled by buildCardView).
+ * @param size  "square" (1080×1080) or "wide" (1920×1080).
+ */
+export async function exportCard(view: CardView, size: CardSize): Promise<void> {
+  const { width, height } = dimensions(size);
+  const tabPrefix = view.tab === "wcc" ? "wcc-" : "";
+  const filename = `standings-${tabPrefix}${size}-${view.season}-r${view.asOfRound}.png`;
+  await downloadPng(buildCard(view, size), width, height, filename);
+}
+
+/** Draws the starting-grid card (Phase 8) and downloads it as a PNG. */
+export async function exportGridCard(view: GridCardView, size: CardSize): Promise<void> {
+  const { width, height } = dimensions(size);
+  const filename = gridExportFilename("png", { season: view.season, round: view.round, size, range: view.range });
+  await downloadPng(buildGridCard(view, size), width, height, filename);
 }

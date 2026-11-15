@@ -3,8 +3,10 @@
  * Served to LiveOverlay Studio or streaming tools.
  */
 import { Elysia } from "elysia";
+import { gridFromOrder } from "../../engine/grid";
 import { computeOdds, type OddsResult } from "../../engine/odds";
-import type { OddsParams } from "../../engine/simulate";
+import { activeDrivers } from "../../engine/sessions";
+import { forecastRace, type OddsParams, type RaceForecast } from "../../engine/simulate";
 import type { SeasonState } from "../../engine/types";
 import { computeDriverStandings, computeConstructorStandings } from "../../engine/standings";
 import { bestPositions, driverPositionEntries, teamPositionEntries } from "../../engine/positions";
@@ -13,6 +15,7 @@ import { solveWdc } from "../../engine/solver";
 import { solveWcc } from "../../engine/teamSolver";
 import { teamStatus } from "../../engine/teamStatus";
 import type { ScenarioDatabase } from "../db";
+import { buildForecastFeedPayload, buildGridFeedPayload, feedMeta } from "../gridFeed";
 import { OddsCache, buildOddsPayload, oddsCacheKey } from "../oddsFeed";
 import type { SeasonLoader } from "../seasonLoader";
 
@@ -92,6 +95,9 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
   // Simulating takes a few hundred milliseconds, so each result is kept until the season file, the scenario or the
   // parameters change. The scenario's updated_at is its version.
   const oddsCache = new OddsCache<OddsResult>();
+  // One race is much cheaper than a season, but polling an overlay should still not simulate on every request. The
+  // season ETag already changes when the manual grid in use changes.
+  const forecastCache = new OddsCache<RaceForecast>();
 
   // The team routes follow the active scenario. One that no longer fits the season (for example a locked session
   // has since been run) is ignored, so a live overlay keeps working (D26).
@@ -319,6 +325,54 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
         : buildOddsPayload(state, base.value, null, null);
 
       set.headers["x-odds-cache"] = base.hit && (projected?.hit ?? true) ? "hit" : "miss";
+      const jsonStr = JSON.stringify(payload);
+      set.headers["etag"] = computeEtag(jsonStr);
+      return payload;
+    })
+
+    .get("/grid", ({ set }) => {
+      const seasonRes = loader.getSeason();
+      if (!seasonRes.ok) {
+        set.status = seasonRes.statusCode;
+        return { error: seasonRes.error, message: seasonRes.message };
+      }
+      const { state, grid } = seasonRes.data;
+
+      // No grid in the data file and no manual grid: say so, but keep the usual metadata so the overlay can poll.
+      const payload =
+        grid.effective !== null && grid.round !== null
+          ? buildGridFeedPayload(state, grid.round, grid.effective)
+          : { ...feedMeta(state), available: false as const };
+
+      const jsonStr = JSON.stringify(payload);
+      set.headers["etag"] = computeEtag(jsonStr);
+      return payload;
+    })
+
+    .get("/race-forecast", ({ set }) => {
+      const seasonRes = loader.getSeason();
+      if (!seasonRes.ok) {
+        set.status = seasonRes.statusCode;
+        return { error: seasonRes.error, message: seasonRes.message };
+      }
+      const { state, grid, etag: seasonEtag } = seasonRes.data;
+
+      // The forecast follows the grid. Without a grid there is nothing to forecast yet.
+      if (grid.effective === null || grid.round === null) {
+        const payload = { ...feedMeta(state), available: false as const };
+        const jsonStr = JSON.stringify(payload);
+        set.headers["etag"] = computeEtag(jsonStr);
+        return payload;
+      }
+
+      const field = activeDrivers(state);
+      const gridPlaces = state.upcomingGrid?.grid ?? gridFromOrder(grid.effective.order, grid.effective.pit);
+      const cached = forecastCache.getOrCompute(oddsCacheKey(seasonEtag, null, oddsParams), () =>
+        forecastRace(state, oddsParams, field, gridPlaces),
+      );
+
+      const payload = buildForecastFeedPayload(state, cached.value, field, gridPlaces, grid.effective.source, grid.round);
+      set.headers["x-forecast-cache"] = cached.hit ? "hit" : "miss";
       const jsonStr = JSON.stringify(payload);
       set.headers["etag"] = computeEtag(jsonStr);
       return payload;

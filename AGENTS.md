@@ -12,7 +12,7 @@ Phase 4 (model v2: history data, calibration, grid signal) is done (`docs/PHASE_
 Phase 5 (WCC Path Solver) is done (`docs/PHASE_5.md`): team status and path in the engine, `bun run check` for teams, `/api/feed/team-status` and `/api/feed/team-path/:team`, status tags in the WCC table, and a Constructors view in "Possible?".
 Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export) is done (`docs/PHASE_6.md`).
 Phase 7 (standings and positions: the `✕ No title` marker, the Best column, the "Title info" switch (Auto, On, Off), best places in the CLI and feed, F1GStats V5 and V6 hardening) is done (`docs/PHASE_7.md`); its optional Step 8 (position probabilities) was not built.
-Phase 8 (race weekend: manual starting grid, race forecast, grid export) has a task list: `docs/PHASE_8.md`. Do not start it until the owner says so.
+Phase 8 (race weekend: a manual starting grid that overrides the data grid for the next race, grid source tags and an OpenF1 notice, the "Race" tab with the race forecast, the starting-grid PNG, CSV and JSON export, `/api/feed/grid` and `/api/feed/race-forecast`, and F1GStats saying "no grid yet" as `[INFO]`) is done (`docs/PHASE_8.md`; the PNG cards are in `docs/EXPORT.md`).
 Phase 9 (multi-season prior) and Phase 10 (release V1.0) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order

@@ -3,6 +3,8 @@ import type { OddsResult } from "../../engine/odds";
 import type { SeasonState } from "../../engine";
 import type { TowerTab } from "../viewModel/tower";
 import { useHealth } from "../useHealth";
+import { useAccess } from "../useAccess";
+import { useGrid } from "../useGrid";
 import { useScenarioStore } from "../useScenarioStore";
 import { useSeason } from "../useSeason";
 import { useStrip } from "../useStrip";
@@ -71,11 +73,25 @@ function Frame({
 }
 
 /** Only mounted once the season is loaded, so the scenario always starts from real data. */
-function Loaded({ health, season, state }: { health: HealthState; season: SeasonLoad; state: SeasonState }) {
+function Loaded({
+  health,
+  season,
+  state,
+  reloadSeason,
+}: {
+  health: HealthState;
+  season: SeasonLoad;
+  state: SeasonState;
+  reloadSeason: () => Promise<boolean>;
+}) {
   const [workspace, dispatch] = useWorkspace(state);
   const store = useScenarioStore();
   const strip = useStrip(state, workspace, dispatch, store);
   const { compare } = strip;
+  // One access state for the whole page: the strip's token dialog and the grid notice's buttons share it.
+  const access = useAccess();
+  // Which starting grid is in use. "Use OpenF1 grid" refreshes the season so the odds follow the change.
+  const grid = useGrid(reloadSeason);
   // The "Title info" choice is shared by the table and the PNG card.
   const [titleInfo, setTitleInfo] = useTitleInfo();
 
@@ -113,13 +129,22 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
           tab={standingsTab}
           onTabChange={setStandingsTab}
         />}
-      analysis={<AnalysisRail state={state} workspace={workspace} dispatch={dispatch} onOddsResult={setOddsResult} />}
+      analysis={
+        <AnalysisRail
+          state={state}
+          workspace={workspace}
+          dispatch={dispatch}
+          onOddsResult={setOddsResult}
+          grid={{ controls: grid, canWrite: access.canWrite, verdict: access.verdict }}
+        />
+      }
       strip={
         <ScenarioStrip
           state={state}
           workspace={workspace}
           store={store}
           strip={strip}
+          access={access}
           oddsResult={oddsResult}
           titleInfoMode={titleInfo}
           standingsTab={standingsTab}
@@ -133,9 +158,9 @@ function Loaded({ health, season, state }: { health: HealthState; season: Season
 
 export function AppShell() {
   const health = useHealth();
-  const season = useSeason();
+  const [season, reloadSeason] = useSeason();
 
-  if (season.status === "ready") return <Loaded health={health} season={season} state={season.state} />;
+  if (season.status === "ready") return <Loaded health={health} season={season} state={season.state} reloadSeason={reloadSeason} />;
 
   return (
     <Frame

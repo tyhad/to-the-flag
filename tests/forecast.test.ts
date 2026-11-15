@@ -138,3 +138,96 @@ describe("forecastRace", () => {
     expect(["ANT", "HAM", "NOR"]).toContain(top[0]);
   });
 });
+
+describe("forecastRace: the chance of points and the average finish (Phase 8, Step 5)", () => {
+  const round16 = JSON.parse(readFileSync(join(import.meta.dir, "fixtures", "season-2026-r16.json"), "utf8")) as SeasonState;
+  const racing = round16.drivers.filter((d) => d.active).map((d) => d.code);
+  const gridOf = Object.fromEntries(racing.map((code, i) => [code, i + 1]));
+
+  test("win and podium are exactly what they were before these fields existed (golden values)", () => {
+    const f = forecastRace(state, quick);
+    expect(f.win).toEqual({ AAA: 0.764, BBB: 0.176, CCC: 0.04975, DDD: 0.01025 });
+    expect(f.podium).toEqual({ AAA: 0.99825, BBB: 0.976, CCC: 0.82475, DDD: 0.201 });
+
+    const g = forecastRace(round16, { nSims: 3000, seed: 7 }, undefined, gridOf);
+    expect(g.win["ANT"]).toBeCloseTo(0.5593333333333333, 12);
+    expect(g.podium["ANT"]).toBeCloseTo(0.8983333333333333, 12);
+    expect(g.win["LEC"]).toBeCloseTo(0.068, 12);
+    expect(g.podium["LEC"]).toBeCloseTo(0.281, 12);
+    expect(g.win["HAM"]).toBeCloseTo(0.06633333333333333, 12);
+    expect(g.podium["HAM"]).toBeCloseTo(0.30133333333333334, 12);
+  });
+
+  test("the new fields cover exactly the drivers of the field, like win and podium", () => {
+    const f = forecastRace(state, quick, ["BBB", "DDD"]);
+    expect(Object.keys(f.top10).sort()).toEqual(["BBB", "DDD"]);
+    expect(Object.keys(f.meanPosition).sort()).toEqual(["BBB", "DDD"]);
+  });
+
+  test("without retirements: the four drivers all finish in the points, and the average places add up to 1+2+3+4", () => {
+    const f = forecastRace(state, { ...quick, includeDnf: false });
+    for (const c of order4) expect(f.top10[c]).toBe(1);
+    expect(sum(Object.values(f.meanPosition))).toBeCloseTo(10, 12);
+  });
+
+  test("the win chances of the field add up to 1, as before (no retirements)", () => {
+    const f = forecastRace(round16, { nSims: 2000, seed: 3, includeDnf: false }, undefined, gridOf);
+    expect(sum(Object.values(f.win))).toBeCloseTo(1, 12);
+    expect(sum(Object.values(f.top10))).toBeCloseTo(10, 12); // ten places in the points, always filled
+    expect(sum(Object.values(f.podium))).toBeCloseTo(3, 12);
+  });
+
+  test("with retirements the points places are not always filled: the sum is below 10, never above", () => {
+    const f = forecastRace(round16, { nSims: 2000, seed: 3, includeDnf: true }, undefined, gridOf);
+    const total = sum(Object.values(f.top10));
+    expect(total).toBeLessThanOrEqual(10 + 1e-12);
+    expect(total).toBeGreaterThan(8);
+  });
+
+  test("for every driver: win <= podium <= points <= 1", () => {
+    for (const includeDnf of [true, false]) {
+      const f = forecastRace(round16, { nSims: 2000, seed: 5, includeDnf }, undefined, gridOf);
+      for (const c of racing) {
+        expect(f.win[c]!).toBeLessThanOrEqual(f.podium[c]! + 1e-12);
+        expect(f.podium[c]!).toBeLessThanOrEqual(f.top10[c]! + 1e-12);
+        expect(f.top10[c]!).toBeLessThanOrEqual(1);
+        expect(f.win[c]!).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  test("the average finishing place lies between 1 and the size of the field", () => {
+    const f = forecastRace(round16, { nSims: 2000, seed: 5 }, undefined, gridOf);
+    for (const c of racing) {
+      expect(f.meanPosition[c]!).toBeGreaterThanOrEqual(1);
+      expect(f.meanPosition[c]!).toBeLessThanOrEqual(racing.length);
+    }
+  });
+
+  test("a retirement counts as last place: the average places add up to 1+2+...+N without retirements, and to more with them", () => {
+    const n = racing.length;
+    const triangle = (n * (n + 1)) / 2;
+    const without = forecastRace(round16, { nSims: 2000, seed: 5, includeDnf: false }, undefined, gridOf);
+    expect(sum(Object.values(without.meanPosition))).toBeCloseTo(triangle, 9);
+    const withDnf = forecastRace(round16, { nSims: 2000, seed: 5, includeDnf: true }, undefined, gridOf);
+    expect(sum(Object.values(withDnf.meanPosition))).toBeGreaterThan(triangle);
+    expect(sum(Object.values(withDnf.meanPosition))).toBeLessThanOrEqual(n * n);
+  });
+
+  test("the driver who always won has the lowest average place", () => {
+    const f = forecastRace(state, quick);
+    expect(f.meanPosition["AAA"]!).toBeLessThan(f.meanPosition["BBB"]!);
+    expect(f.meanPosition["BBB"]!).toBeLessThan(f.meanPosition["DDD"]!);
+  });
+
+  test("a driver on pole has a lower average place than the same driver at the back", () => {
+    const pole = forecastRace(round16, { nSims: 3000, seed: 9 }, undefined, { ...gridOf, LEC: 1 });
+    const back = forecastRace(round16, { nSims: 3000, seed: 9 }, undefined, { ...gridOf, LEC: racing.length });
+    expect(pole.meanPosition["LEC"]!).toBeLessThan(back.meanPosition["LEC"]!);
+    expect(pole.top10["LEC"]!).toBeGreaterThan(back.top10["LEC"]!);
+  });
+
+  test("is reproducible by seed, new fields included", () => {
+    expect(forecastRace(round16, { nSims: 500, seed: 4 }, undefined, gridOf)).toEqual(forecastRace(round16, { nSims: 500, seed: 4 }, undefined, gridOf));
+  });
+});

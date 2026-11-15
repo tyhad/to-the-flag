@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { SeasonState } from "../../engine";
 import { FORM_WEIGHT_STEP } from "../config";
 import { buildOddsView, oddsErrorCopy, snapFormPercent, type OddsPanelState, type OddsTable, type OddsView } from "../viewModel/odds";
@@ -14,6 +14,10 @@ interface OddsPanelProps {
   onTable: (table: OddsTable) => void;
   formPercent: number;
   onFormPercent: (percent: number) => void;
+  /** Which grid the odds use ("Grid: OpenF1"...), shown next to "Grid known: Round N". */
+  gridTag?: ReactNode;
+  /** The "OpenF1 has a different grid" notice, shown under the heading. */
+  gridNotice?: ReactNode;
 }
 
 const TABLES: readonly { id: OddsTable; label: string }[] = [
@@ -91,7 +95,7 @@ function Bars({ view }: { view: OddsView }) {
 }
 
 /** "Likely?": what the model thinks is probable. Always labelled as an estimate. */
-export function OddsPanel({ state, panel, hasLocks, table, onTable, formPercent, onFormPercent }: OddsPanelProps) {
+export function OddsPanel({ state, panel, hasLocks, table, onTable, formPercent, onFormPercent, gridTag, gridNotice }: OddsPanelProps) {
   const view = useMemo(
     () => (panel.result ? buildOddsView({ result: panel.result, base: panel.base, state, table, formPercent, hasLocks }) : null),
     [panel.result, panel.base, state, table, formPercent, hasLocks],
@@ -111,10 +115,13 @@ export function OddsPanel({ state, panel, hasLocks, table, onTable, formPercent,
           {view?.gridKnown ? (
             <span className="type-label rounded-control inline-flex h-6 items-center border border-line px-2 text-text-2">{view.gridKnown.tag}</span>
           ) : null}
+          {view?.gridKnown ? gridTag : null}
         </div>
         {view ? <p className="type-note text-text-2">{view.asOf}</p> : null}
         {view?.lowConfidence ? <p className="type-note text-text-2">{view.lowConfidence.note}</p> : null}
       </header>
+
+      {gridNotice}
 
       <TableToggle table={table} onTable={onTable} />
 

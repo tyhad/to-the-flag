@@ -11,6 +11,7 @@ import { SeasonLoader } from "./seasonLoader";
 
 import { ScenarioDatabase } from "./db";
 import { createScenarioRoutes } from "./routes/scenarios";
+import { createGridRoutes } from "./routes/grid";
 import { createFeedRoutes } from "./routes/feed";
 import { checkStartup, decideWrite } from "./access";
 import { buildStartupBanner } from "./banner";
@@ -46,6 +47,8 @@ export function createApp(options?: ServerOptions) {
   const ttfDbPath = options?.ttfDbPath ?? config.ttfDb;
   const loader = options?.loader ?? new SeasonLoader(dbPath);
   const scenarioDb = options?.scenarioDb ?? new ScenarioDatabase(ttfDbPath);
+  // The season the app serves includes the manual starting grid of the next race, so the loader reads it from here.
+  loader.setGridOverrides(scenarioDb);
   const token = options?.token !== undefined ? options.token : config.writeToken;
   const clientIp = options?.clientIp;
 
@@ -104,6 +107,7 @@ export function createApp(options?: ServerOptions) {
   });
 
   app.use(createScenarioRoutes(loader, scenarioDb, { token, clientIp }));
+  app.use(createGridRoutes(loader, scenarioDb, { token, clientIp }));
   app.use(createFeedRoutes(loader, scenarioDb, options?.oddsParams));
 
   return app;
