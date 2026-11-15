@@ -44,6 +44,10 @@ describe("RaceForecast", () => {
     expect(html.indexOf("Indicative;")).toBeGreaterThan(html.indexOf("</table>"));
   });
 
+  test("the indicative note is balanced, so a last word never sits alone on a line", () => {
+    expect(render(ready())).toMatch(/<p class="[^"]*text-balance[^"]*">Indicative;/);
+  });
+
   test("no indicative note while there is no table", () => {
     expect(render({ kind: "calculating" })).not.toContain("Indicative");
     expect(render({ kind: "failed", message: "boom" })).not.toContain("Indicative");

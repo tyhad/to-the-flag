@@ -4,7 +4,8 @@
  * Walk-forward backtest of the odds model (Phase 3, Step 10). For each completed race from round 6 on, the model is
  * fitted on the earlier rounds only and asked who wins and who takes the podium. Those forecasts are scored against
  * what happened, next to two naive baselines (everyone equal; in proportion to points so far), and a small grid of
- * settings is compared. Without an argument it uses tests/fixtures/season-2026-r16.json, so the numbers in
+ * settings is compared. Phase 9 adds the points chance (`top10`) and the expected finish (`meanPosition`) to the
+ * scores, next to the flat baseline "10/n for everyone" (10/22 in a full field). Without an argument it uses tests/fixtures/season-2026-r16.json, so the numbers in
  * docs/MODEL.md can be reproduced exactly.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -25,6 +26,8 @@ export const DEFAULT_GRID = {
   recencyHalfLife: [4, 8, 16, Number.POSITIVE_INFINITY],
   priorStrength: [0.5, 1, 2, 3],
 };
+/** Bin edges of the points reliability table: bands of ten points; the last band includes 1. */
+export const POINTS_EDGES: readonly number[] = Array.from({ length: 11 }, (_, i) => i / 10);
 export const SIGMAS = [0, 0.25, 0.5];
 /**
  * A setting is only "clearly" better if it wins by more than two standard errors AND by at least this much per race
@@ -57,39 +60,63 @@ export interface Outcome {
   winner: string | null;
   /** classified finishers in the top three */
   podium: string[];
+  /** classified finishers in the top ten: the points of a race (a retirement is never in it) */
+  top10: string[];
+  /**
+   * The place that happened, for everyone who started: the classified position, or the field size for a driver who was
+   * not classified (a retirement counts as last place, as in `forecastRace`).
+   */
+  finish: Record<string, number>;
 }
 
 export function outcomeOf(state: SeasonState, round: number): Outcome | null {
   const rows = state.results.filter((r) => r.round === round && r.kind === "race");
   if (rows.length === 0) return null;
+  const field = [...new Set(rows.map((r) => r.driver))];
+  const finish: Record<string, number> = {};
+  for (const d of field) finish[d] = field.length;
+  for (const r of rows) if (r.classified) finish[r.driver] = r.position;
   return {
     round,
-    field: [...new Set(rows.map((r) => r.driver))],
+    field,
     winner: rows.find((r) => r.classified && r.position === 1)?.driver ?? null,
     podium: rows.filter((r) => r.classified && r.position <= 3).map((r) => r.driver),
+    top10: rows.filter((r) => r.classified && r.position <= 10).map((r) => r.driver),
+    finish,
   };
 }
 
 // ---------- the baselines ----------
 
-export type Forecast = Pick<RaceForecast, "win" | "podium">;
+export type Forecast = Pick<RaceForecast, "win" | "podium" | "top10" | "meanPosition">;
 
-/** Everyone equal: 1/n to win and 3/n to be on the podium. */
+/**
+ * Everyone equal: 1/n to win, 3/n to be on the podium, 10/n to be in the points (10/22 in a full field), and the
+ * middle place, (n + 1) / 2, as the expected finish. This is the baseline of the points scores.
+ */
 export function uniformForecast(field: readonly string[]): Forecast {
   const win: Record<string, number> = {};
   const podium: Record<string, number> = {};
+  const top10: Record<string, number> = {};
+  const meanPosition: Record<string, number> = {};
   for (const d of field) {
     win[d] = 1 / field.length;
     podium[d] = Math.min(1, 3 / field.length);
+    top10[d] = Math.min(1, 10 / field.length);
+    meanPosition[d] = (field.length + 1) / 2;
   }
-  return { win, podium };
+  return { win, podium, top10, meanPosition };
 }
 
-/** In proportion to the points scored before the race. With no points at all, everyone equal. */
+/**
+ * In proportion to the points scored before the race. With no points at all, everyone equal. It says nothing about
+ * the points chance or the finish, so those two are the flat ones; the report does not print its points scores.
+ */
 export function pointsForecast(before: SeasonState, field: readonly string[]): Forecast {
   const points = new Map(computeDriverStandings(before).map((r) => [r.id, r.points]));
   const total = field.reduce((s, d) => s + (points.get(d) ?? 0), 0);
-  if (total <= 0) return uniformForecast(field);
+  const flat = uniformForecast(field);
+  if (total <= 0) return flat;
   const win: Record<string, number> = {};
   const podium: Record<string, number> = {};
   for (const d of field) {
@@ -97,7 +124,7 @@ export function pointsForecast(before: SeasonState, field: readonly string[]): F
     win[d] = share;
     podium[d] = Math.min(1, 3 * share);
   }
-  return { win, podium };
+  return { win, podium, top10: flat.top10, meanPosition: flat.meanPosition };
 }
 
 // ---------- the scores ----------
@@ -199,7 +226,7 @@ export function walkForward(state: SeasonState, params: Partial<OddsParams> = {}
       seed,
       outcome,
       forecasts: {
-        model: { win: model.win, podium: model.podium },
+        model: { win: model.win, podium: model.podium, top10: model.top10, meanPosition: model.meanPosition },
         uniform: uniformForecast(outcome.field),
         points: pointsForecast(before, outcome.field),
       },
@@ -208,15 +235,31 @@ export function walkForward(state: SeasonState, params: Partial<OddsParams> = {}
   return records;
 }
 
-export function pairsOf(records: readonly RaceRecord[], method: Method, event: "win" | "podium"): Pair[] {
+export type Event = "win" | "podium" | "top10";
+
+export function pairsOf(records: readonly RaceRecord[], method: Method, event: Event): Pair[] {
   const pairs: Pair[] = [];
   for (const r of records) {
     for (const d of r.outcome.field) {
-      const happened = event === "win" ? r.outcome.winner === d : r.outcome.podium.includes(d);
+      const happened = event === "win" ? r.outcome.winner === d : event === "podium" ? r.outcome.podium.includes(d) : r.outcome.top10.includes(d);
       pairs.push({ p: r.forecasts[method][event][d] ?? 0, y: happened ? 1 : 0 });
     }
   }
   return pairs;
+}
+
+/** Mean absolute difference between the expected finishing place and the place that happened. Lower is better. */
+export function finishMae(records: readonly RaceRecord[], method: Method): number {
+  let total = 0;
+  let n = 0;
+  for (const r of records) {
+    for (const d of r.outcome.field) {
+      total += Math.abs((r.forecasts[method].meanPosition[d] ?? (r.outcome.field.length + 1) / 2) - r.outcome.finish[d]!);
+      n++;
+    }
+  }
+  if (n === 0) throw new RangeError("finish error of no forecasts");
+  return total / n;
 }
 
 export interface Scores {
@@ -228,11 +271,18 @@ export interface Scores {
   winnerLogLoss: number;
   podiumLogLoss: number;
   podiumBrier: number;
+  /** Brier score of the points chance: the outcome is "classified in the top ten" */
+  pointsBrier: number;
+  /** mean absolute error of the expected finish against the place that happened (a retirement is last) */
+  finishMae: number;
+  /** the points chance by bands of ten points; a band with no pairs has `null` numbers */
+  pointsReliability: ReliabilityBin[];
 }
 
 export function scoreMethod(records: readonly RaceRecord[], method: Method): Scores {
   const win = pairsOf(records, method, "win");
   const podium = pairsOf(records, method, "podium");
+  const points = pairsOf(records, method, "top10");
   const withWinner = records.filter((r) => r.outcome.winner !== null);
   const winnerLogLoss =
     withWinner.reduce((s, r) => s - Math.log(clipProbability(r.forecasts[method].win[r.outcome.winner!] ?? 0)), 0) / withWinner.length;
@@ -244,6 +294,9 @@ export function scoreMethod(records: readonly RaceRecord[], method: Method): Sco
     winnerLogLoss,
     podiumLogLoss: logLoss(podium),
     podiumBrier: brierScore(podium),
+    pointsBrier: brierScore(points),
+    finishMae: finishMae(records, method),
+    pointsReliability: reliability(points, POINTS_EDGES),
   };
 }
 
@@ -326,6 +379,35 @@ const halfLifeText = (h: number) => (Number.isFinite(h) ? String(h) : "no decay"
 function table(rows: string[][], rightFrom = 1): string[] {
   const widths = rows[0]!.map((_, c) => Math.max(...rows.map((r) => r[c]!.length)));
   return rows.map((r) => "  " + r.map((cell, c) => (c < rightFrom ? cell.padEnd(widths[c]!) : cell.padStart(widths[c]!))).join("  "));
+}
+
+/** The points chance and the expected finish: the model against 10/n for everyone, and the reliability by bands. */
+export function formatPointsSection(records: readonly RaceRecord[]): string[] {
+  const lines: string[] = [];
+  lines.push("Points chance and expected finish (not used to choose the settings above)");
+  lines.push("  The outcome is \"classified in the top ten\"; a retirement counts as last place for the finish.");
+  const methods: [string, Method][] = [["Model (defaults)", "model"], ["10/n for everyone", "uniform"]];
+  lines.push(
+    ...table([
+      ["method", "points Brier", "finish MAE"],
+      ...methods.map(([label, m]) => {
+        const s = scoreMethod(records, m);
+        return [label, fmt(s.pointsBrier, 4), fmt(s.finishMae, 2)];
+      }),
+    ]),
+  );
+  lines.push("");
+  lines.push("Reliability, default model, finishing in the points");
+  lines.push(
+    ...table([
+      ["forecast", "pairs", "forecast mean", "happened"],
+      // a band with no pairs has nothing to show: it is left out, not printed as a row of dashes
+      ...reliability(pairsOf(records, "model", "top10"), POINTS_EDGES)
+        .filter((b) => b.n > 0)
+        .map((b) => [`${Math.round(b.from * 100)}-${Math.round(b.to * 100)}%`, String(b.n), pct(b.meanPredicted), pct(b.observed)]),
+    ]),
+  );
+  return lines;
 }
 
 export interface ReportInput {
@@ -428,6 +510,9 @@ export function formatReport({ state, nSims, cells, records, sigmaCells }: Repor
     );
     lines.push("");
   }
+
+  lines.push(...formatPointsSection(records));
+  lines.push("");
 
   const model = scoreMethod(records, "model");
   const uniform = scoreMethod(records, "uniform");
