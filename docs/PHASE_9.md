@@ -3,6 +3,7 @@
 Branch: `phase-9-points-model` (to-the-flag only). One commit per step. Tests first wherever there is logic. Read `docs/MODEL.md` (especially "The race forecast's points chance and expected finish"), `docs/PHASE_4.md` (the D30 protocol) and `docs/PHASE_8.md` before anything else.
 
 **Goal:** make the race forecast's points chance (`top10`) and expected finish (`meanPosition`) as trustworthy as its win and podium numbers, using the D30 protocol, and never adopt a change on 2026 numbers alone.
+**Result:** done. Both candidate fixes (A and B, 20 candidates) were evaluated and none passed D53, so the model stays v2 and the "indicative" note stays. The numbers and the full output are in `docs/MODEL.md` ("Model v3: points chance and expected finish"). The tools stay: the points scores in `bun run backtest`, the setting `finishStages` (default 0) and `bun run calibrate -- --points`.
 **Not in Phase 9:** the multi-season prior (moved to Phase 11, after V1.0), weather, tyres, track types, any change to the title odds.
 
 ## The finding this phase answers
@@ -54,7 +55,7 @@ Those numbers are a **hint, not evidence**: 2026 is the confirmation season of D
 
 **Goal:** option B exists as a setting, defaulting to no change.
 
-**Change:** `finishStages: number` in `OddsParams` (`0` means "same as `paceStages`", the v2 behavior). `forecastRace` fits a second set of strengths with `finishStages` only when it differs from `paceStages`, runs a second pass with its own seed derived from the first, and takes `top10` and `meanPosition` from that pass; `win` and `podium` always come from the first pass. `checkParams` validates it (a whole number, 0 or more). Not used by `simulateSeason`.
+**Change:** `finishStages: number` in `OddsParams` (`0` means "same as `paceStages`", the v2 behavior; for the all-places fit use a large number such as 99, because 0 is already taken to mean "same as `paceStages`"). `forecastRace` fits a second set of strengths with `finishStages` only when it differs from `paceStages`, runs a second pass with its own seed derived from the first, and takes `top10` and `meanPosition` from that pass; `win` and `podium` always come from the first pass. `checkParams` validates it (a whole number, 0 or more). Not used by `simulateSeason`.
 
 **Tests first:** with `finishStages: 0` every output equals today's; with any value, `win` and `podium` are identical to the run without it; `top10` and `meanPosition` change; two runs with the same seed agree; `nSims` of the second pass equals the first.
 
@@ -64,7 +65,7 @@ Those numbers are a **hint, not evidence**: 2026 is the confirmation season of D
 
 **Goal:** one command applies D53.
 
-**Change (`scripts/calibrate.ts`):** `--points` prints, for a list of candidates (A: `paceStages` 5, 8, 10, 0 with prior 0.5, 1, 3; B: `finishStages` 8, 10, 0 with the same priors), the per-season and pooled points Brier and finish MAE with standard errors, the reliability table, and the D53 verdict for each against the current defaults. Tune on 2022 to 2024, validate on 2025, print 2026 last, labeled "confirmation" (`--live` for the live data). Never use 2026 to choose.
+**Change (`scripts/calibrate.ts`):** `--points` prints, for a list of candidates (A: `paceStages` 5, 8, 10, 99 (all places) with prior 0.5, 1, 3; B: `finishStages` 8, 10, 99 (all places) with the same priors; the harness names the number once, `ALL_PLACES`, and `paceStages` 0 and 99 fit the same thing), the per-season and pooled points Brier and finish MAE with standard errors, the reliability table, and the D53 verdict for each against the current defaults. Tune on 2022 to 2024, validate on 2025, print 2026 last, labeled "confirmation" (`--live` for the live data). Never use 2026 to choose.
 
 **Tests first:** the verdict is `no` when the candidate equals the default, when it wins only on training, and when it fails the early-season or the win and podium check.
 

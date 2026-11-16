@@ -577,9 +577,11 @@ scenario.
   number, so format it as you wish (`"3.4"` for one decimal, as the web app shows it).
 - Flattened fields for places 1 to 10: `top1_*` to `top10_*`, one per row field (for example `top1_driver`,
   `top1_win_display`, `top2_grid`, `top10_mean_position`). A place with no row is empty (`""`, `0`) rather than missing.
-- The points chance and the expected finish are newer than the title odds' backtest; the model is fitted for the front
-  of the field, so the middle and the back of the grid read too well. See `docs/MODEL.md` ("The race forecast's points
-  chance and expected finish"). The win and podium numbers are the long-standing ones.
+- **`points_display` and `mean_position` are indicative.** They are newer than the title odds' backtest; the model is
+  fitted for the front of the field, so the middle and the back of the grid read too well. The web app says
+  "Indicative; the model is fitted for the front of the field." under the table; if you show these two numbers in an
+  overlay, say the same or leave them out. The fields and their values do not change. See `docs/MODEL.md` ("The race
+  forecast's points chance and expected finish"). The win and podium numbers are the long-standing ones.
 
 **Caching:** the result is kept per season file version (which changes when the manual grid changes) and model
 parameters, so polling does not simulate again. The response header `X-Forecast-Cache` is `hit` when nothing had to be

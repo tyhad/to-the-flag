@@ -41,6 +41,14 @@ export interface OddsParams extends StrengthParams {
    * the grid term sees. 0 simulates no grid (later races then ignore the grid). Only used when `gridWeight` is above 0.
    */
   qualifyingNoise: number;
+  /**
+   * Phase 9, Step 3: the number of finishing stages of a separate pace fit for the finish part of a race forecast
+   * (`top10` and `meanPosition`). 0 means "same as `paceStages`", the v2 behavior. Any other value that differs from
+   * `paceStages` makes `forecastRace` fit a second set of strengths and run a second pass for those two fields;
+   * `win` and `podium` always come from the first pass. A value of at least the field size is the all-places fit.
+   * The season simulation does not use it, and it is not part of the default seed.
+   */
+  finishStages: number;
 }
 
 export const defaultOddsParams: OddsParams = {
@@ -56,6 +64,7 @@ export const defaultOddsParams: OddsParams = {
   // Step 8: qualifying noise 2, the value that makes the real grids of 2022-2024 most likely (Plackett-Luce likelihood
   // on strengths fitted before each race). Used only for races with no real grid.
   qualifyingNoise: 2,
+  finishStages: 0,
 };
 
 export interface SimulationResult {
@@ -92,6 +101,9 @@ function checkParams(p: OddsParams): void {
   }
   if (!(Number.isFinite(p.qualifyingNoise) && p.qualifyingNoise >= 0)) {
     throw new RangeError(`qualifyingNoise must be a finite number of 0 or more, got ${p.qualifyingNoise}`);
+  }
+  if (!Number.isInteger(p.finishStages) || p.finishStages < 0) {
+    throw new RangeError(`finishStages must be an integer of 0 or more, got ${p.finishStages}`);
   }
 }
 
@@ -131,6 +143,9 @@ export function deriveSeed(state: SeasonState, scenario: Scenario | undefined, p
   if (modelParams.qualifyingNoise === 0) {
     delete (modelParams as Partial<OddsParams>).qualifyingNoise;
   }
+  // finishStages only feeds the second pass of a race forecast: it never changes the seed of the first pass (nor of a
+  // season simulation), so win and podium are the same numbers with or without it
+  delete (modelParams as Partial<OddsParams>).finishStages;
   return hashSeed(String(state.season), String(state.asOfRound), canonicalJson(scenario?.locks ?? {}), canonicalJson(modelParams));
 }
 
@@ -489,44 +504,25 @@ export function simulateSeason(
   };
 }
 
-export interface RaceForecast {
-  nSims: number;
-  seed: number;
-  /** chance of winning the race, by driver code */
-  win: Record<string, number>;
-  /** chance of a classified finish in the top three, by driver code */
-  podium: Record<string, number>;
-  /** chance of a classified finish in the points (the top ten), by driver code; a retirement is not in the points */
-  top10: Record<string, number>;
-  /** the average finishing place, by driver code; a retirement counts as last place (the field size) */
-  meanPosition: Record<string, number>;
+/** The seed of the second pass of a race forecast (the one with `finishStages`): derived from the first pass's seed. */
+export function finishSeed(seed: number): number {
+  return hashSeed("finish", String(seed));
 }
 
 /**
- * What the model expects of one open race: for each driver in `field`, the chance to win it, to finish on the
- * podium and to finish in the points (a retirement is none of them), and the average finishing place (a retirement
- * counts as last). It fits on `state` as it stands and draws the race exactly as `simulateSeason`
- * draws an open session. `field` defaults to the drivers still racing; pass the entry list to forecast a past race
- * (the backtest does). Throws RangeError for nonsense parameters.
- *
- * `grid` (driver code -> starting place) is optional. With `params.gridWeight` above 0, each driver's strength for the
- * race gets `gridWeight * (-ln(place))` added (see `gridTerm`; a driver missing from `grid` starts last). Without a
- * grid, or with `gridWeight` 0, the grid is ignored and the numbers are exactly those of the model without it.
+ * `params.nSims` simulated races for the drivers in `codes`, from one fit: how often each won, was on the podium and
+ * in the points, and the sum of the places (a retirement counts as last). The grid term is fixed for the whole race.
  */
-export function forecastRace(
-  state: SeasonState,
-  partial: Partial<OddsParams> = {},
-  field: readonly string[] = state.drivers.filter((d) => d.active).map((d) => d.code),
-  grid?: Readonly<Record<string, number>>,
-): RaceForecast {
-  const params: OddsParams = { ...defaultOddsParams, ...partial };
-  checkParams(params);
-  const seed = params.seed ?? deriveSeed(state, undefined, params);
+function drawRaces(
+  params: OddsParams,
+  fit: StrengthFit,
+  codes: readonly string[],
+  grid: Readonly<Record<string, number>> | undefined,
+  seed: number,
+) {
   const { nSims } = params;
-
-  const codes = [...field];
   const n = codes.length;
-  const { form, sigma, raceRetire } = modelInputs(fitStrengths(state, params), codes, params);
+  const { form, sigma, raceRetire } = modelInputs(fit, codes, params);
 
   // the grid term, fixed for the whole race: all zeros when the grid is ignored, so the draws are unchanged
   const gridOffset = new Float64Array(n);
@@ -563,6 +559,58 @@ export function forecastRace(
       if (place === 0) wins[d]! += 1;
     }
   }
+  return { wins, podiums, points, placeSums };
+}
+
+export interface RaceForecast {
+  nSims: number;
+  seed: number;
+  /** chance of winning the race, by driver code */
+  win: Record<string, number>;
+  /** chance of a classified finish in the top three, by driver code */
+  podium: Record<string, number>;
+  /** chance of a classified finish in the points (the top ten), by driver code; a retirement is not in the points */
+  top10: Record<string, number>;
+  /** the average finishing place, by driver code; a retirement counts as last place (the field size) */
+  meanPosition: Record<string, number>;
+}
+
+/**
+ * What the model expects of one open race: for each driver in `field`, the chance to win it, to finish on the
+ * podium and to finish in the points (a retirement is none of them), and the average finishing place (a retirement
+ * counts as last). It fits on `state` as it stands and draws the race exactly as `simulateSeason`
+ * draws an open session. `field` defaults to the drivers still racing; pass the entry list to forecast a past race
+ * (the backtest does). Throws RangeError for nonsense parameters.
+ *
+ * `grid` (driver code -> starting place) is optional. With `params.gridWeight` above 0, each driver's strength for the
+ * race gets `gridWeight * (-ln(place))` added (see `gridTerm`; a driver missing from `grid` starts last). Without a
+ * grid, or with `gridWeight` 0, the grid is ignored and the numbers are exactly those of the model without it.
+ *
+ * `params.finishStages` (Phase 9, Step 3): 0, or equal to `paceStages`, changes nothing. Otherwise a second set of
+ * strengths is fitted with that many stages and a second pass (same `nSims`, grid and field, its own seed from
+ * `finishSeed`) gives `top10` and `meanPosition`; `win`, `podium` and `seed` are those of the first pass.
+ */
+export function forecastRace(
+  state: SeasonState,
+  partial: Partial<OddsParams> = {},
+  field: readonly string[] = state.drivers.filter((d) => d.active).map((d) => d.code),
+  grid?: Readonly<Record<string, number>>,
+): RaceForecast {
+  const params: OddsParams = { ...defaultOddsParams, ...partial };
+  checkParams(params);
+  const seed = params.seed ?? deriveSeed(state, undefined, params);
+  const { nSims } = params;
+
+  const codes = [...field];
+  const first = drawRaces(params, fitStrengths(state, params), codes, grid, seed);
+  // The finish part comes from a second pass only when it has a pace fit of its own (Phase 9, Step 3); win and
+  // podium always come from the first pass, so they are the numbers they were.
+  const second =
+    params.finishStages !== 0 && params.finishStages !== params.paceStages
+      ? drawRaces(params, fitStrengths(state, { ...params, paceStages: params.finishStages }), codes, grid, finishSeed(seed))
+      : first;
+  const { wins, podiums } = first;
+  const { points, placeSums } = second;
 
   const win: Record<string, number> = {};
   const podium: Record<string, number> = {};

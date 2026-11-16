@@ -42,7 +42,7 @@ Set results for the remaining sessions and watch the table, the title status and
 | `bun scripts/addClassified.ts <db> <fixture.json>` | Add each result's `classified` flag (DNF or not) to an older fixture |
 | `bun run seed-grid` | Dev only. Copies the F1GStats database to `./test-grid.sqlite` and adds an invented starting grid for the next race, so the Race tab, grid tags and the notice can be tried before qualifying. The original is never changed. Start the app on the copy with `F1GSTATS_DB=./test-grid.sqlite bun run dev` (PowerShell: `$env:F1GSTATS_DB="./test-grid.sqlite"; bun run dev`). Options: `-- --from <db>`, `-- --out <file>`, `-- --source openf1\|qualifying` |
 | `bun run backtest` | Walk-forward test of the odds model against past races, with the settings grid and baselines (about 3 s). See `docs/MODEL.md` |
-| `bun run calibrate` | The multi-season protocol (D30), the grid signal and the qualifying noise; needs the history files in `../F1GStats/history`. `-- --grid-signal` or `-- --qualifying-noise` runs one part. See `docs/MODEL.md` |
+| `bun run calibrate` | The multi-season protocol (D30), the grid signal and the qualifying noise; needs the history files in `../F1GStats/history`. `-- --grid-signal`, `-- --qualifying-noise` or `-- --points` (the points chance and expected finish, D53) runs one part. See `docs/MODEL.md` |
 | `bun run title-check` | What-if sensitivity table and, with the history files, the title odds against the real champions. See `docs/MODEL.md` |
 
 Tests run from the fixtures in `tests/fixtures/` and databases they build themselves; none needs the real F1GStats file. One optional smoke test uses it when `../F1GStats/f1gstats.sqlite` exists and is skipped otherwise.
@@ -93,7 +93,7 @@ The *Race* tab is for the race you are about to watch.
 
 **When OpenF1 catches up.** If you saved a grid and OpenF1 later publishes a different one, a notice says so. It never switches by itself: *Use OpenF1 grid* removes yours, *Keep mine* hides the notice until OpenF1's grid changes.
 
-**The race forecast** (under the grid) shows, for the grid in use: the chance to win, to finish on the podium and in the points (the top ten), and the expected finish. It says "Model estimate", the round it is based on and the grid source. It uses this season's form and the grid, not weather, tyres or strategy, and a retirement is a chance, not a prediction. The chances at the back of the grid are the least reliable part (see `docs/MODEL.md`). *Likely?* and the title odds use the same grid.
+**The race forecast** (under the grid) shows, for the grid in use: the chance to win, to finish on the podium and in the points (the top ten), and the expected finish. It says "Model estimate", the round it is based on and the grid source. It uses this season's form and the grid, not weather, tyres or strategy, and a retirement is a chance, not a prediction. The points chance and the expected finish are marked "Indicative": the model is fitted for the front of the field, and the fixes tried in Phase 9 did not pass the adoption rule, so the chances at the back of the grid remain the least reliable part (see `docs/MODEL.md`, "Model v3"). *Likely?* and the title odds use the same grid.
 
 **Try it before qualifying.** The data file has no grid until qualifying has run. `bun run seed-grid` makes a copy of it with an invented grid so you can try the tab (see Commands).
 

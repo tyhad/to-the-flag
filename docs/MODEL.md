@@ -49,6 +49,7 @@ A Monte Carlo simulation of the rest of the season, built only from this season'
 | `paceStages` | 5 | finishing stages used in the pace fit; 0 means all places (v1 behavior) |
 | `gridWeight` | 1 | weight of the starting grid in a race: the finishing key gets `gridWeight * (-ln(grid place))` added; 0 ignores the grid (v2). Used by `forecastRace` when it is given a grid, and by the season simulation for races that have a grid (a real one, or a simulated one) |
 | `qualifyingNoise` | 2 | Gumbel scale of the simulated qualifying for a race with no real grid: qualifying key = strength + `qualifyingNoise` * Gumbel, and the order of the keys is the grid. 0 simulates no grid, so later races ignore the grid. Only used when `gridWeight` is above 0 |
+| `finishStages` | 0 | Phase 9: finishing stages of a separate pace fit for the finish part of the race forecast (`top10` and `meanPosition`). 0 means the same as `paceStages` (the v2 behavior, no second fit). Any other value that differs from `paceStages` makes `forecastRace` fit a second set of strengths and run a second pass (same `nSims`, grid and field, its own seed) for those two fields; `win`, `podium` and the seed stay those of the first pass. A value of at least the field size is the all-places fit, so for that use a large number such as 99 (0 is taken: it means "same as `paceStages`"); 99 is safe while a race has fewer than 99 drivers. Not used by the season simulation (the title odds), and not part of the default seed |
 
 v1 is reproducible by passing `{ recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0 }`. `MODEL_VERSION` is `"v2"`.
 
@@ -384,6 +385,215 @@ pace fit is a candidate for the next declared evaluation. On the same races, `pa
 default) gives a points Brier of 0.1357 against 0.1434 now, and separates HUL and PER (0.93 instead of 0.11); every
 finishing place gives 0.1411, and no grid at the current default gives 0.1594.
 
+### Model v3: points chance and expected finish (Phase 9, protocol D53)
+
+**Result: rejected. v2 stays, and the "indicative" note stays.** No candidate passed D53. This section records what was
+tried and the numbers; the full output of the run is at the end.
+
+**Question.** Phase 8 found that the points chance and the expected finish read too well for the middle and the back of
+the grid, and put the blame on the pace fit (`paceStages` 5 sees only the top five places). A 2026-only look
+(`paceStages` 8: points Brier 0.1357 against 0.1434) suggested a fix, but 2026 is the confirmation season and cannot
+choose a setting. Phase 9 asked it properly, on 2022 to 2025, against the current defaults.
+
+**What was run.** `bun run calibrate -- --points --sims 2000 --live ../F1GStats/f1gstats.sqlite`: 20 candidates, scored
+race by race on the points Brier ("classified in the top ten", per driver-race pair) and, for information, on the
+finish MAE (a retirement counts as last place), with the actual grid of every race and walk-forward forecasts from
+round 6 (rounds 3 to 5 for the early-season check). The 2026 numbers are the live data of the run.
+
+- **A, a larger global `paceStages`:** 5, 8, 10, all places (99), with `priorStrength` 0.5, 1, 3 (11 candidates, the
+  default itself left out). It changes win and podium too, so it must also pass rule 5.
+- **B, a separate finish fit (`finishStages`):** 8, 10, all places (99), with the same priors (9 candidates). At the
+  default prior win and podium are exactly today's numbers. At another prior they are not (the prior is shared by both
+  passes), so rule 5 applies there too.
+
+**D53**, all of these, on the points Brier per race (difference from the default, candidate minus default):
+
+1. 2025 beats the default by more than 2 SE and by at least 0.004.
+2. Better on at least 3 of the 4 seasons 2022 to 2025.
+3. 2026 not worse by more than 1 SE.
+4. Rounds 3 to 5 not worse by more than 1 SE in any season.
+5. For a candidate that can move them, win and podium log loss not worse by more than 1 SE in any season.
+6. In the pooled 2022 to 2025 reliability table, no band off by more than 5 points. A band is judged only with at
+   least 30 pairs (`MIN_BAND_PAIRS`; the rule as first written did not say, and a band of 6 pairs says nothing).
+
+Each family's candidate was chosen on 2022 to 2024 alone; validation, history, early season and 2026 only judged it.
+The finish MAE is shown but is not one of the rules.
+
+**What came out.**
+
+| | Choice on 2022-2024 | 2025 (rule 1) | Early season (rule 4) | Win and podium (rule 5) | Reliability bands over 5 points (rule 6) |
+|---|---|---|---|---|---|
+| A | `paceStages` 8, prior 3 | -0.0013 (±0.0027): fails | worse in 2023 and 2025 | worse in 2022 and 2026 | 5 of 9 judged bands |
+| B | `finishStages` 10, prior 3 | -0.0022 (±0.0027): fails | worse in 2023 and 2025 | worse in 2022 and 2026 | 5 of 10 judged bands |
+
+- **No candidate passes rule 1.** The best of all 20 on 2025 is B with all places and prior 3: -0.0059 (±0.0030), just
+  short of two standard errors (0.0060), and it fails the early-season rule as well.
+- **Rule 4 fails for every one of the 20 candidates.** On rounds 3 to 5 every candidate is worse than the default in at
+  least one season.
+- **The training result is not distinguishable from nothing.** The best pooled 2022-2024 difference is -0.0033 (±0.0019)
+  against a default points Brier of 0.1491 (±0.0076); the finish MAE changes by -0.04 to +0.05 places (±0.01 to ±0.04).
+- **The closest to a result is B at the default prior,** the one that leaves win and podium as they are:
+  `finishStages` 8 and 10 bring the worst pooled reliability band down from 9.1 points (the default) to 5.0 and 4.7.
+  But on 2025 they are +0.0019 (±0.0028) and +0.0018 (±0.0035), worse than the default, and they fail the early season.
+- **The 2026 hint does not replicate.** On 2026 alone (printed last, not used to choose) B at `finishStages` 8 and 10
+  gives -0.0079 (±0.0052) and -0.0059 (±0.0050) on the points Brier and -0.14 and -0.13 places on the finish MAE, in line
+  with the Phase 8 look at 2026. On 2022 to 2025 the same settings do not show it: that is the reason for the protocol.
+
+**The current defaults fail rule 6 themselves.** Five of the nine judged bands are off by more than 5 points: 10-20%
+(forecast 15.8%, happened 9.6%), 30-40% (+5.1), 40-50% (+6.2), 50-60% (+9.1) and 60-70% (+5.2). So the rule cannot
+separate a candidate from the default, and with 49 to 291 pairs a band's own sampling error is about 1 to 7 points (a band of
+49 pairs near 55% has about 7), which is as large as the tolerance. It did not decide this verdict: rules 1 and 4 fail
+for every candidate before it matters. It is recorded here as a weakness of the rule for the next time.
+
+**Decision.** `MODEL_VERSION` stays `"v2"`, no default changes, and the note under the race forecast ("Indicative; the
+model is fitted for the front of the field.") stays. The setting `finishStages` stays in the engine with default 0 (the
+v2 behavior), and `bun run calibrate -- --points` stays as the way to re-run this when the data or the model changes.
+
+**What this points to.** Varying the pace fit moves the points chance very little, so the gap is probably not the pace
+fit alone. In the pooled 2022 to 2025 table the default over-forecasts the 10-20% band by 6 points and under-forecasts
+the 30-70% bands by 5 to 9 points, and no candidate changes that much (the 10-20% gap is 5.8 and 6.9 points for the two
+chosen ones). A separate retirement-rate check is the next candidate, as `docs/PHASE_9.md` says; it is not part of this
+phase.
+
+Full output of the run:
+
+```
+Loading calibration data (seasons 2022-2025 history + 2026 live)...
+Running evaluation with 2000 simulations per forecast...
+
+=== Points Chance and Expected Finish (Phase 9, protocol D53) ===
+The outcome is "classified in the top ten" (points Brier, lower is better); a retirement counts as last place
+for the finish. Candidates are compared with the current defaults on the same races; differences are per race,
+candidate minus default (negative = better). Finish MAE is shown for information: D53 judges the points Brier.
+Rule 6 judges a reliability band only with at least 30 pairs. Each family's candidate is chosen on 2022-2024 only.
+
+--- Current defaults ---
+  Season  Role   Races      Points Brier    Finish MAE
+  2022    Train     17  0.1598 (±0.0115)  3.71 (±0.18)
+  2023    Train     17  0.1510 (±0.0146)  3.48 (±0.20)
+  2024    Train     19  0.1377 (±0.0133)  3.11 (±0.20)
+  2025    Valid     19  0.1715 (±0.0116)  3.57 (±0.17)
+  22-24   Train     53  0.1491 (±0.0076)  3.42 (±0.12)
+
+--- Candidates: training and validation ---
+  candidate                                      Train (22-24)       Valid (2025)  Hist Imp  Early  Win/podium  Band gap      MAE Train      MAE Valid
+  A paceStages=5, prior=0.5                  +0.0011 (±0.0009)  +0.0056 (±0.0016)       0/4  worse       worse   10.8 pt  -0.01 (±0.01)  +0.04 (±0.02)
+  A paceStages=5, prior=3                    +0.0014 (±0.0015)  -0.0036 (±0.0024)       2/4  worse       worse   13.5 pt  +0.05 (±0.02)  -0.01 (±0.02)
+  A paceStages=8, prior=0.5                  +0.0009 (±0.0032)  +0.0053 (±0.0029)       2/4  worse       worse    7.6 pt  -0.03 (±0.04)  +0.01 (±0.05)
+  A paceStages=8, prior=1                    -0.0016 (±0.0026)  +0.0026 (±0.0027)       3/4  worse       worse    6.2 pt  -0.04 (±0.03)  -0.01 (±0.04)
+  A paceStages=8, prior=3                    -0.0033 (±0.0019)  -0.0013 (±0.0027)       4/4  worse       worse    9.2 pt  -0.02 (±0.02)  -0.02 (±0.04)
+  A paceStages=10, prior=0.5                 -0.0012 (±0.0024)  +0.0043 (±0.0038)       2/4  worse       worse    5.9 pt  -0.04 (±0.03)  -0.01 (±0.06)
+  A paceStages=10, prior=1                   -0.0023 (±0.0021)  +0.0023 (±0.0034)       3/4  worse       worse    6.4 pt  -0.04 (±0.03)  -0.02 (±0.05)
+  A paceStages=10, prior=3                   -0.0033 (±0.0020)  -0.0014 (±0.0027)       4/4  worse       worse   11.2 pt  -0.02 (±0.02)  -0.03 (±0.04)
+  A paceStages=all places (99), prior=0.5    -0.0025 (±0.0022)  -0.0028 (±0.0032)       3/4  worse       worse   11.2 pt  -0.02 (±0.02)  -0.05 (±0.06)
+  A paceStages=all places (99), prior=1      -0.0026 (±0.0021)  -0.0036 (±0.0032)       3/4  worse       worse   10.0 pt  -0.02 (±0.02)  -0.05 (±0.05)
+  A paceStages=all places (99), prior=3      -0.0023 (±0.0023)  -0.0053 (±0.0031)       3/4  worse       worse   15.5 pt  +0.00 (±0.02)  -0.05 (±0.05)
+  B finishStages=8, prior=0.5                +0.0008 (±0.0032)  +0.0048 (±0.0030)       2/4  worse       worse    5.7 pt  -0.02 (±0.04)  +0.01 (±0.05)
+  B finishStages=8, prior=1                  -0.0017 (±0.0026)  +0.0019 (±0.0028)       2/4  worse        same    5.0 pt  -0.03 (±0.03)  -0.01 (±0.04)
+  B finishStages=8, prior=3                  -0.0031 (±0.0020)  -0.0023 (±0.0027)       4/4  worse       worse    7.9 pt  -0.01 (±0.02)  -0.02 (±0.03)
+  B finishStages=10, prior=0.5               -0.0009 (±0.0023)  +0.0040 (±0.0040)       2/4  worse       worse    4.6 pt  -0.03 (±0.03)  -0.01 (±0.05)
+  B finishStages=10, prior=1                 -0.0021 (±0.0021)  +0.0018 (±0.0035)       3/4  worse        same    4.7 pt  -0.03 (±0.03)  -0.02 (±0.05)
+  B finishStages=10, prior=3                 -0.0032 (±0.0020)  -0.0022 (±0.0027)       4/4  worse       worse   10.1 pt  -0.01 (±0.02)  -0.03 (±0.04)
+  B finishStages=all places (99), prior=0.5  -0.0023 (±0.0022)  -0.0033 (±0.0032)       3/4  worse       worse   13.9 pt  -0.02 (±0.02)  -0.05 (±0.05)
+  B finishStages=all places (99), prior=1    -0.0024 (±0.0021)  -0.0041 (±0.0031)       3/4  worse        same   13.1 pt  -0.01 (±0.02)  -0.05 (±0.05)
+  B finishStages=all places (99), prior=3    -0.0021 (±0.0023)  -0.0059 (±0.0030)       3/4  worse       worse   12.8 pt  +0.01 (±0.02)  -0.05 (±0.05)
+  Win/podium: "same" = cannot move them (finishStages at the default prior); otherwise not worse than 1 SE in any season.
+
+--- Chosen on training (2022-2024 only) ---
+  A paceStages=8, prior=3
+  B finishStages=10, prior=3
+
+--- Reliability, pooled 2022-2025, finishing in the points ---
+Current defaults
+  forecast  pairs  forecast mean  happened   gap
+  0-10%         6           9.4%      0.0%  -9.4  thin, not judged
+  10-20%      291          15.8%      9.6%  -6.2
+  20-30%      281          24.2%     27.0%  +2.8
+  30-40%      179          34.6%     39.7%  +5.1
+  40-50%       77          44.5%     50.6%  +6.2
+  50-60%       49          54.2%     63.3%  +9.1
+  60-70%       51          65.4%     70.6%  +5.2
+  70-80%       74          75.6%     79.7%  +4.2
+  80-90%      163          85.9%     84.7%  -1.2
+  90-100%     268          94.6%     90.3%  -4.3
+
+A paceStages=8, prior=3
+  forecast  pairs  forecast mean  happened   gap
+  0-10%        11           9.5%      0.0%  -9.5  thin, not judged
+  10-20%      269          15.5%      8.6%  -6.9
+  20-30%      264          24.4%     24.2%  -0.2
+  30-40%      175          34.4%     37.1%  +2.7
+  40-50%       96          44.4%     52.1%  +7.7
+  50-60%       68          54.6%     60.3%  +5.7
+  60-70%       72          64.4%     73.6%  +9.2
+  70-80%       81          75.4%     84.0%  +8.6
+  80-90%      172          85.8%     84.3%  -1.5
+  90-100%     231          94.3%     91.3%  -3.0
+
+B finishStages=10, prior=3
+  forecast  pairs  forecast mean  happened    gap
+  0-10%        34           8.7%      2.9%   -5.7
+  10-20%      244          15.2%      9.4%   -5.8
+  20-30%      264          24.7%     22.3%   -2.4
+  30-40%      164          34.6%     39.0%   +4.4
+  40-50%      106          44.6%     50.9%   +6.4
+  50-60%       70          54.9%     57.1%   +2.3
+  60-70%       76          64.9%     75.0%  +10.1
+  70-80%       86          75.4%     84.9%   +9.5
+  80-90%      165          85.6%     83.0%   -2.6
+  90-100%     230          94.2%     92.2%   -2.1
+
+=== Confirmation (2026, printed last) ===
+Not used to choose. It only decides whether the choice may be adopted (rule 3), together with the other rules.
+  candidate                                    2026 Brier diff  2026 MAE diff         Early 2026  Hist Imp  D53
+  A paceStages=5, prior=0.5                  -0.0011 (±0.0009)  -0.01 (±0.01)  +0.0024 (±0.0022)       0/4   no
+  A paceStages=5, prior=3                    +0.0035 (±0.0017)  +0.05 (±0.02)  +0.0001 (±0.0020)       2/4   no
+  A paceStages=8, prior=0.5                  -0.0075 (±0.0060)  -0.17 (±0.06)  -0.0028 (±0.0295)       2/4   no
+  A paceStages=8, prior=1                    -0.0081 (±0.0051)  -0.15 (±0.05)  -0.0049 (±0.0212)       3/4   no
+  A paceStages=8, prior=3                    -0.0055 (±0.0038)  -0.08 (±0.04)  -0.0046 (±0.0114)       4/4   no
+  A paceStages=10, prior=0.5                 -0.0058 (±0.0052)  -0.15 (±0.06)  -0.0112 (±0.0312)       2/4   no
+  A paceStages=10, prior=1                   -0.0060 (±0.0049)  -0.14 (±0.06)  -0.0114 (±0.0250)       3/4   no
+  A paceStages=10, prior=3                   -0.0045 (±0.0042)  -0.08 (±0.05)  -0.0092 (±0.0145)       4/4   no
+  A paceStages=all places (99), prior=0.5    -0.0029 (±0.0049)  -0.15 (±0.06)  -0.0012 (±0.0307)       3/4   no
+  A paceStages=all places (99), prior=1      -0.0029 (±0.0048)  -0.14 (±0.06)  -0.0044 (±0.0254)       3/4   no
+  A paceStages=all places (99), prior=3      -0.0014 (±0.0047)  -0.09 (±0.06)  -0.0060 (±0.0170)       3/4   no
+  B finishStages=8, prior=0.5                -0.0075 (±0.0061)  -0.16 (±0.06)  -0.0029 (±0.0320)       2/4   no
+  B finishStages=8, prior=1                  -0.0079 (±0.0052)  -0.14 (±0.05)  -0.0046 (±0.0240)       2/4   no
+  B finishStages=8, prior=3                  -0.0053 (±0.0039)  -0.07 (±0.04)  -0.0035 (±0.0137)       4/4   no
+  B finishStages=10, prior=0.5               -0.0054 (±0.0054)  -0.14 (±0.06)  -0.0106 (±0.0333)       2/4   no
+  B finishStages=10, prior=1                 -0.0059 (±0.0050)  -0.13 (±0.06)  -0.0109 (±0.0268)       3/4   no
+  B finishStages=10, prior=3                 -0.0043 (±0.0044)  -0.07 (±0.05)  -0.0077 (±0.0167)       4/4   no
+  B finishStages=all places (99), prior=0.5  -0.0023 (±0.0050)  -0.14 (±0.06)  -0.0006 (±0.0330)       3/4   no
+  B finishStages=all places (99), prior=1    -0.0021 (±0.0048)  -0.13 (±0.06)  -0.0038 (±0.0277)       3/4   no
+  B finishStages=all places (99), prior=3    -0.0006 (±0.0049)  -0.08 (±0.06)  -0.0041 (±0.0201)       3/4   no
+
+Verdict A: paceStages=8, prior=3 does NOT pass D53. Reasons:
+  - 2025 diff -0.0013 does not beat the default by > 2 SE (-0.0054)
+  - 2025 diff -0.0013 is less than the threshold -0.004
+  - Early season (rounds 3-5) of 2023 worse by > 1 SE (diff 0.0093 > SE 0.0019)
+  - Early season (rounds 3-5) of 2025 worse by > 1 SE (diff 0.0063 > SE 0.0035)
+  - Win and podium of 2022 worse by > 1 SE (diff 0.0242 > SE 0.0071)
+  - Win and podium of 2026 worse by > 1 SE (diff 0.0108 > SE 0.0062)
+  - Band 10-20% of the pooled reliability table is off by 6.9 points (limit 5)
+  - Band 40-50% of the pooled reliability table is off by 7.7 points (limit 5)
+  - Band 50-60% of the pooled reliability table is off by 5.7 points (limit 5)
+  - Band 60-70% of the pooled reliability table is off by 9.2 points (limit 5)
+  - Band 70-80% of the pooled reliability table is off by 8.6 points (limit 5)
+Verdict B: finishStages=10, prior=3 does NOT pass D53. Reasons:
+  - 2025 diff -0.0022 does not beat the default by > 2 SE (-0.0054)
+  - 2025 diff -0.0022 is less than the threshold -0.004
+  - Early season (rounds 3-5) of 2023 worse by > 1 SE (diff 0.0199 > SE 0.0123)
+  - Early season (rounds 3-5) of 2025 worse by > 1 SE (diff 0.0108 > SE 0.0048)
+  - Win and podium of 2022 worse by > 1 SE (diff 0.0138 > SE 0.0037)
+  - Win and podium of 2026 worse by > 1 SE (diff 0.0093 > SE 0.0025)
+  - Band 0-10% of the pooled reliability table is off by 5.7 points (limit 5)
+  - Band 10-20% of the pooled reliability table is off by 5.8 points (limit 5)
+  - Band 40-50% of the pooled reliability table is off by 6.4 points (limit 5)
+  - Band 60-70% of the pooled reliability table is off by 10.1 points (limit 5)
+  - Band 70-80% of the pooled reliability table is off by 9.5 points (limit 5)
+Recommendation: change nothing; no chosen candidate passes D53 (D52: B is preferred when it passes, then A).
+```
+
 ## Limits
 
 - **One season of data.** The model fits only the current season; history is used to choose the settings, not as a prior (Phase 7), so early-season odds are wide and are flagged `low
@@ -399,8 +609,9 @@ finishing place gives 0.1411, and no grid at the current default gives 0.1594.
   podium only, so the middle and the back of the field are held to a fit made for the front: `paceStages` 5 cannot
   separate drivers who never finish in the top five. On 2026 the 10-20% points band was overpredicted (15.7% forecast
   against 5.1% happened), and the slowest cars were given a points chance they did not have (PER, BOT and STR 13% to
-  16% a race against none in the 15 races checked). The section above has the numbers; a points-specific pace fit is a
-  candidate for the next model version.
+  16% a race against none in the 15 races checked). The sections above have the numbers. Phase 9 tested a
+  points-specific pace fit on 2022 to 2025 and rejected it (20 candidates, none passed D53); the next candidate is the
+  retirement rate.
 - **What the model does not know:** upgrades, tracks, weather, penalties, grid positions beyond the next race (those are only simulated), reliability beyond a driver's
   own record, who is injured or about to leave. It sees only where drivers finished and whether they retired.
 - **Strength uncertainty is a heuristic**, not a full Bayesian posterior: one noise size, shrinking with the number of
@@ -421,6 +632,9 @@ finishing place gives 0.1411, and no grid at the current default gives 0.1594.
 | `recencyHalfLife` | none | 8 rounds | Best on 2022 to 2024 with top-5 stages; passes validation, history, 2026 and early season |
 | `gridWeight` | 0 (no grid) | 1 | Beat v2 without the grid on 4 of 4 history seasons, validation (-0.073 per race, 3.2 SE) and 2026 (-0.084, 3.8 SE) (Phase 4, Step 7). The top of the grid tried |
 | `qualifyingNoise` | 0 (no grid) | 2 | Maximizes the likelihood of the real grids of 2022 to 2024 (Phase 4, Step 8); used only for races with no real grid |
+
+Phase 9 (the points chance and the expected finish) changed no default: 20 candidates were evaluated and none passed
+D53 (see "Model v3" above). It added the setting `finishStages` with default 0, which is the v2 behavior.
 
 `MODEL_VERSION` is `"v2"` and is shown in the odds result, in the feed (`model_version`) and in the panel's "How this works" note.
 

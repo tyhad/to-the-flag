@@ -9,6 +9,7 @@ import { answerForecastRequest, initialForecastState, type ForecastData, type Fo
 import {
   FORECAST_COLUMNS,
   FORECAST_NOTE,
+  INDICATIVE_NOTE,
   buildRaceForecastView,
   forecastDisplay,
   forecastGridWord,
@@ -109,6 +110,28 @@ describe("the note and the columns", () => {
   test("the note is this sentence, word for word", () => {
     expect(FORECAST_NOTE).toBe("The forecast follows the grid above. Retirements and weather are not known.");
     expect(buildRaceForecastView(data(), teams).note).toBe(FORECAST_NOTE);
+  });
+
+  test("the indicative note is this sentence, word for word, and is part of the view", () => {
+    expect(INDICATIVE_NOTE).toBe("Indicative; the model is fitted for the front of the field.");
+    expect(buildRaceForecastView(data(), teams).indicative).toBe(INDICATIVE_NOTE);
+  });
+
+  test("the indicative note does not change a number: the rows are the same with or without reading it", () => {
+    const view = buildRaceForecastView(data(), teams);
+    expect(view.rows.map((r) => [r.code, r.win, r.podium, r.points, r.finish])).toEqual([
+      ["AAA", "50%", "90%", ">99%", "1.8"],
+      ["BBB", "30%", "80%", "99%", "2.5"],
+      ["CCC", "3.4%", "47%", "95%", "3.0"],
+      ["DDD", "<1%", "2.0%", "60%", "4.4"],
+    ]);
+  });
+
+  test("docs/FEED.md marks the points chance and the expected finish as indicative", () => {
+    const feed = readFileSync(join(import.meta.dir, "..", "docs", "FEED.md"), "utf8");
+    const section = feed.slice(feed.indexOf("### 9. `GET /api/feed/race-forecast`"));
+    expect(section).toContain("`points_display` and `mean_position` are indicative");
+    expect(section).toContain(INDICATIVE_NOTE);
   });
 
   test("the columns, in order, each with its full words", () => {

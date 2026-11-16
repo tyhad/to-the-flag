@@ -38,6 +38,21 @@ describe("RaceForecast", () => {
     expect(html).toContain(FORECAST_NOTE);
   });
 
+  test("the points and expected-finish columns carry the indicative note, under the table", () => {
+    const html = render(ready());
+    expect(html).toContain("Indicative; the model is fitted for the front of the field.");
+    expect(html.indexOf("Indicative;")).toBeGreaterThan(html.indexOf("</table>"));
+  });
+
+  test("the indicative note is balanced, so a last word never sits alone on a line", () => {
+    expect(render(ready())).toMatch(/<p class="[^"]*text-balance[^"]*">Indicative;/);
+  });
+
+  test("no indicative note while there is no table", () => {
+    expect(render({ kind: "calculating" })).not.toContain("Indicative");
+    expect(render({ kind: "failed", message: "boom" })).not.toContain("Indicative");
+  });
+
   test("a real table: column headings with their full words, and the driver as the row heading", () => {
     const html = render(ready());
     for (const label of ["Driver", "Grid", "Win", "Podium", "Points", "Exp. finish"]) expect(html).toContain(`>${label}</th>`);
