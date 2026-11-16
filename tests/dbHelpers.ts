@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gpPoints, sprintPoints } from "../engine/points";
 import type { SeasonState } from "../engine/types";
+import { completeSeasonFrom, notStartedFrom } from "./helpers";
 
 export interface SeedResult {
   round: number;
@@ -102,6 +103,11 @@ const FIXTURE_PATH = join(import.meta.dir, "fixtures", "season-2026-r16.json");
  */
 export function fixtureSeed(): Seed {
   const f = JSON.parse(readFileSync(FIXTURE_PATH, "utf8")) as SeasonState;
+  return seedFromState(f);
+}
+
+/** Any `SeasonState` (for example one from `completeSeasonFrom` or `notStartedFrom`) written out as a seed. */
+export function seedFromState(f: SeasonState, standings: Seed["standings"] = null): Seed {
   const driverName = new Map(f.drivers.map((d) => [d.code, d.name]));
   const teamName = new Map(f.teams.map((t) => [t.id, t.name]));
   return {
@@ -122,9 +128,28 @@ export function fixtureSeed(): Seed {
       classified: r.classified ?? true,
     })),
     qualifying: f.qualifying.map((q) => ({ round: q.round, abbr: q.driver, position: q.position })),
-    standings: null,
+    standings,
     health: [{ status: f.health.status, checkedAt: f.health.checkedAt }],
   };
+}
+
+/** The Round 16 season played to the end (see `completeSeasonFrom`), as a database file. Returns the file path. */
+export function buildCompleteDb(): string {
+  return buildDb((seed) => Object.assign(seed, seedFromState(completeSeasonFrom(loadFixtureState()))));
+}
+
+/**
+ * The Round 16 season before its first race, as a database file: no result, every round scheduled. The standings
+ * list every driver at 0 points, as F1GStats does once it knows the entry list (`withStandings` false leaves it empty).
+ */
+export function buildNotStartedDb(withStandings = true): string {
+  const state = notStartedFrom(loadFixtureState());
+  const standings = withStandings ? state.drivers.map((d) => ({ abbr: d.code, name: d.name, points: 0 })) : [];
+  return buildDb((seed) => Object.assign(seed, seedFromState(state, standings)));
+}
+
+function loadFixtureState(): SeasonState {
+  return JSON.parse(readFileSync(FIXTURE_PATH, "utf8")) as SeasonState;
 }
 
 /** Like `buildDb`, but the database holds the Round 16 fixture season. Returns the file path. */

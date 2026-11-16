@@ -15,7 +15,7 @@ import { solveWdc } from "../../engine/solver";
 import { solveWcc } from "../../engine/teamSolver";
 import { teamStatus } from "../../engine/teamStatus";
 import type { ScenarioDatabase } from "../db";
-import { buildForecastFeedPayload, buildGridFeedPayload, feedMeta } from "../gridFeed";
+import { buildForecastFeedPayload, buildGridFeedPayload, feedPhase, unavailableFeed } from "../gridFeed";
 import { OddsCache, buildOddsPayload, oddsCacheKey } from "../oddsFeed";
 import type { SeasonLoader } from "../seasonLoader";
 
@@ -137,6 +137,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
       const baseMeta = {
         updated_at: state.health.checkedAt,
         as_of_round: state.asOfRound,
+        season_phase: feedPhase(state),
         data_status: state.health.status,
         season: state.season,
       };
@@ -178,6 +179,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
       const baseMeta = {
         updated_at: state.health.checkedAt,
         as_of_round: state.asOfRound,
+        season_phase: feedPhase(state),
         data_status: state.health.status,
         season: state.season,
       };
@@ -216,6 +218,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
       const payload = {
         updated_at: state.health.checkedAt,
         as_of_round: state.asOfRound,
+        season_phase: feedPhase(state),
         data_status: state.health.status,
         season: state.season,
         ...pathResult,
@@ -253,6 +256,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
       const payload = {
         updated_at: state.health.checkedAt,
         as_of_round: state.asOfRound,
+        season_phase: feedPhase(state),
         data_status: state.health.status,
         season: state.season,
         scenario: scenario ? { id: scenario.id, name: scenario.name } : null,
@@ -286,6 +290,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
       const payload = {
         updated_at: state.health.checkedAt,
         as_of_round: state.asOfRound,
+        season_phase: feedPhase(state),
         data_status: state.health.status,
         season: state.season,
         scenario: scenario ? { id: scenario.id, name: scenario.name } : null,
@@ -342,7 +347,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
       const payload =
         grid.effective !== null && grid.round !== null
           ? buildGridFeedPayload(state, grid.round, grid.effective)
-          : { ...feedMeta(state), available: false as const };
+          : unavailableFeed(state);
 
       const jsonStr = JSON.stringify(payload);
       set.headers["etag"] = computeEtag(jsonStr);
@@ -359,7 +364,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
 
       // The forecast follows the grid. Without a grid there is nothing to forecast yet.
       if (grid.effective === null || grid.round === null) {
-        const payload = { ...feedMeta(state), available: false as const };
+        const payload = unavailableFeed(state);
         const jsonStr = JSON.stringify(payload);
         set.headers["etag"] = computeEtag(jsonStr);
         return payload;
@@ -430,6 +435,7 @@ export function createFeedRoutes(loader: SeasonLoader, db: ScenarioDatabase, odd
       const payload = {
         updated_at: state.health.checkedAt,
         as_of_round: state.asOfRound,
+        season_phase: feedPhase(state),
         data_status: state.health.status,
         season: state.season,
         scenario: scenarioMeta,

@@ -6,6 +6,7 @@
 import { LOW_CONFIDENCE_ROUNDS, formatProbability, type OddsResult, type OddsRow, type SeasonState } from "../../engine";
 import { FORM_WEIGHT_DEFAULT, FORM_WEIGHT_STEP, ODDS_BANDS, type OddsBands } from "../config";
 import type { OddsErrorKind, OddsState, OddsStatus } from "./oddsRequests";
+import { FINAL_LABEL } from "./seasonPhase";
 
 export type OddsTable = "wdc" | "wcc";
 export type ProbabilityBand = "green" | "yellow" | "orange";
@@ -183,7 +184,9 @@ export function buildOddsView({ result, base, state, table, formPercent, hasLock
 
   const source: OddsRow[] = isDrivers ? result.wdc : result.wcc;
   const baseRows = base ? new Map((isDrivers ? base.wdc : base.wcc).map((r) => [r.id, r.probability])) : null;
-  const listed = isDrivers ? source.filter((r) => r.status === "alive") : source;
+  // With no session left the odds are exact (100% for the champion), so the one decided row is listed, not "alive" ones.
+  const final = result.final === true;
+  const listed = isDrivers && !final ? source.filter((r) => r.status === "alive") : source;
 
   const rows: OddsBarRow[] = listed.map((r) => ({
     id: r.id,
@@ -191,20 +194,20 @@ export function buildOddsView({ result, base, state, table, formPercent, hasLock
     subtitle: isDrivers ? (driverNames.get(r.id) ?? r.id) : null,
     probability: r.probability,
     display: r.display,
-    widthPercent: barWidth(r.probability),
+    widthPercent: final ? Math.round(r.probability * 100) : barWidth(r.probability),
     band: probabilityBand(r.probability, bands),
     delta: hasLocks && baseRows ? probabilityDelta(r.probability, baseRows.get(r.id) ?? 0, result.nSims) : null,
   }));
 
-  const clinched = isDrivers
+  const clinched = isDrivers && !final
     ? source.filter((r) => r.status === "clinched").map((r) => `${driverNames.get(r.id) ?? r.id} has clinched the title.`)
     : [];
-  const out = isDrivers ? state.drivers.length - source.length : 0;
+  const out = isDrivers && !final ? state.drivers.length - source.length : 0;
 
   return {
     table,
-    estimateLabel: "Model estimate",
-    asOf: `as of Round ${result.asOfRound}`,
+    estimateLabel: final ? FINAL_LABEL : "Model estimate",
+    asOf: final ? "Season complete" : `as of Round ${result.asOfRound}`,
     lowConfidence: result.lowConfidence
       ? { tag: "Low confidence", note: `Fewer than ${LOW_CONFIDENCE_ROUNDS} rounds are complete, so these numbers can move a lot.` }
       : null,
@@ -212,15 +215,20 @@ export function buildOddsView({ result, base, state, table, formPercent, hasLock
     rows,
     clinched,
     outLine: out > 0 ? `${plural(out, "driver is", "drivers are")} out of the title fight.` : null,
-    tableNote: isDrivers ? null : "Only teams that won at least one simulated season are listed.",
+    tableNote: final
+      ? "The season is complete, so this is the final result, not an estimate."
+      : isDrivers
+        ? null
+        : "Only teams that won at least one simulated season are listed.",
     scenarioNote: hasLocks
       ? baseRows
         ? "With your locked results. The change is against the odds with nothing locked."
         : "With your locked results."
       : null,
     whatIf: whatIfNote(formPercent),
-    howItWorks:
-      `Model ${result.modelVersion}. ` +
+    howItWorks: final
+      ? "No session is left to run, so nothing is simulated. The odds are the final standings: 100% for the champion."
+      : `Model ${result.modelVersion}. ` +
       "The model uses this season's results: where drivers finish and how often they retire. " +
       ((result.params.gridWeight ?? 0) > 0
         ? "It also uses the starting grid: the real one for the next race once qualifying has run, a simulated one for later races. "

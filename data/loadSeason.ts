@@ -208,10 +208,12 @@ function readSeason(db: Database): SeasonState {
   // Drivers (decision a) and teams
   for (const s of standings) if (s.driver_name) driverNames.set(s.driver_abbr, s.driver_name);
   const activeCodes = new Set(results.filter((r) => r.round === asOfRound).map((r) => r.driver));
+  // Before the first race nobody has a result to be "present" in, so every driver the data lists is racing (D60).
+  const seasonStarted = asOfRound > 0;
   const codes = new Set<string>([...standingPoints.keys(), ...sums.keys()]);
   const drivers = [...codes]
     .sort()
-    .map((code) => ({ code, name: driverNames.get(code) ?? code, active: activeCodes.has(code) }));
+    .map((code) => ({ code, name: driverNames.get(code) ?? code, active: seasonStarted ? activeCodes.has(code) : true }));
   const teams = [...teamNames.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([id, name]) => ({ id, name }));
 
   // Health: latest row

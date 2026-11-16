@@ -211,7 +211,7 @@ describe("GET /api/feed/team-path/:team", () => {
     expect(json.season).toBe(2026);
     expect(json.scenario).toBeNull();
 
-    const { updated_at, as_of_round, data_status, season, scenario, ...result } = json;
+    const { updated_at, as_of_round, season_phase, data_status, season, scenario, ...result } = json;
     expect(result).toEqual(JSON.parse(JSON.stringify(solveWcc(fixture, "ferrari"))));
     expect(json.team).toBe("ferrari");
     expect(json.verdict).toBe("alive");
@@ -258,7 +258,7 @@ describe("GET /api/feed/team-path/:team", () => {
     expect(json.pointsNeeded).toBe(556 - 448 + 1);
     expect(json.easiest.locks["17:race"]).toEqual(ferrariOneTwo.locks["17:race"]);
     expect(after.headers.get("etag")).not.toBe(before.headers.get("etag"));
-    const { updated_at, as_of_round, data_status, season, scenario, ...result } = json;
+    const { updated_at, as_of_round, season_phase, data_status, season, scenario, ...result } = json;
     expect(result).toEqual(JSON.parse(JSON.stringify(solveWcc(fixture, "ferrari", ferrariOneTwo))));
   });
 

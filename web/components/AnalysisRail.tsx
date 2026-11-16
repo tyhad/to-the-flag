@@ -6,6 +6,7 @@ import { useOdds } from "../useOdds";
 import { useRaceForecast } from "../useRaceForecast";
 import type { GridControls } from "../useGrid";
 import { gridNotice, gridTagFor } from "../viewModel/grid";
+import { analysisMessage, seasonPhase } from "../viewModel/seasonPhase";
 import { forecastDisplay } from "../viewModel/raceForecast";
 import type { AccessVerdict } from "../viewModel/access";
 import { combineOddsStates, formWeightFor, type OddsTable } from "../viewModel/odds";
@@ -56,7 +57,9 @@ export function AnalysisRail({ state, workspace, dispatch, onOddsResult, grid }:
   const [table, setTable] = useState<OddsTable>("wdc");
   const [subject, setSubject] = useState<PathSubject>("wdc");
 
-  const likely = tab === "likely";
+  const phaseMessage = analysisMessage(seasonPhase(state));
+  // Before the first race there is nothing to compute for the two title panels (the Race tab still works).
+  const likely = tab === "likely" && !phaseMessage;
   const hasLocks = Object.keys(workspace.scenario.locks).length > 0;
   const params = useMemo(() => ({ formWeight: formWeightFor(formPercent) }), [formPercent]);
 
@@ -93,7 +96,9 @@ export function AnalysisRail({ state, workspace, dispatch, onOddsResult, grid }:
 
   return (
     <AnalysisFrame tab={tab} onTab={setTab}>
-      {likely ? (
+      {phaseMessage && tab !== "race" ? (
+        <EmptyState title={phaseMessage.title}>{phaseMessage.text}</EmptyState>
+      ) : likely ? (
         <OddsPanel
           state={state}
           panel={panel}

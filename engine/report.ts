@@ -4,6 +4,7 @@
  */
 import { bestPositions, driverPositionEntries, teamPositionEntries } from "./positions";
 import { solveWdc, type PathResult } from "./solver";
+import { seasonPhase, type SeasonPhase } from "./phase";
 import { remainingSessions } from "./sessions";
 import { driverStatus, type TitleStatus } from "./status";
 import { solveWcc, type TeamPathResult } from "./teamSolver";
@@ -39,6 +40,8 @@ export interface WccRow {
 export interface CheckReport {
   season: number;
   asOfRound: number;
+  /** complete, not-started or running (Phase 10, D60) */
+  phase: SeasonPhase;
   /** rounds in the calendar */
   rounds: number;
   health: SeasonState["health"];
@@ -113,6 +116,7 @@ export function buildCheckReport(state: SeasonState, driver?: string, team?: str
   return {
     season: state.season,
     asOfRound: state.asOfRound,
+    phase: seasonPhase(state),
     rounds: state.rounds.length,
     health: state.health,
     remaining: { sessions, races, sprints: sessions.length - races },
@@ -151,6 +155,8 @@ export function formatCheckReport(report: CheckReport, dbPath: string): string {
   lines.push(`Data health: ${health.status} (checked ${health.checkedAt})`);
   if (health.status !== "ok") lines.push(`WARNING: data health is "${health.status}"; numbers may be unreliable.`);
   lines.push(`Season ${report.season}, as of round ${report.asOfRound} of ${report.rounds}`);
+  if (report.phase === "complete") lines.push("Season complete: no session is left, so the standings are final.");
+  if (report.phase === "not-started") lines.push("Season not started: no round has a result yet, so every table is at zero.");
   lines.push(
     `Remaining: ${plural(remaining.races, "race")} + ${plural(remaining.sprints, "sprint")} ` +
       `(${plural(remaining.sessions.length, "session")})`,

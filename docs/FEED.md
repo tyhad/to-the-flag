@@ -11,6 +11,8 @@ To the Flag serves flat JSON feeds for LiveOverlay Studio (port 3000) or streami
   - `as_of_round`: Current completed round number.
   - `data_status`: `"ok"`, `"warn"`, or `"fail"`.
   - `season`: Season year (e.g. `2026`).
+  - `season_phase`: `"running"`, `"complete"` (no session is left to run) or `"not_started"` (no round has a result). Use it
+    to show your own "Season complete" or "Season not started" line.
 
 ---
 
@@ -241,7 +243,9 @@ not a fact: show `label` next to the numbers. The odds are for the active scenar
 
 **Fields**
 
-- `available`, `model`, `label`: always `true`, `"estimate"` and `"Model estimate"`.
+- `available`: always `true`. `model` and `label` are `"estimate"` and `"Model estimate"` while the season runs. When the
+  season is complete (`season_phase` is `"complete"`) they are `"final"` and `"Final"`: nothing is simulated, the champion
+  is `"100%"` and nobody else is listed. Show `label` as it is.
 - `low_confidence`: `true` while fewer than 5 rounds are complete. Show a warning next to the numbers.
 - `model_version`: which model made the numbers, `"v2"` today (`MODEL_VERSION`; v1 stays reproducible with parameters,
   see `docs/MODEL.md`). The "How this works" note in the panel says the same.
@@ -502,8 +506,8 @@ starts).
 - Flattened fields for places 1 to 22: `p1_*` to `p22_*`, one per row field (for example `p1_driver`, `p2_team`,
   `p3_pit`, `p22_position`). A place with no driver is empty (`""`, `0`, `false`) rather than missing.
 
-**No grid:** HTTP 200 with the usual metadata and `{ "available": false }`; no `rows`, `source` or `p*_` fields. There is
-nothing to show yet (qualifying has not run and no manual grid was saved), or the season is over.
+**No grid:** HTTP 200 with the usual metadata, `{ "available": false }` and a `reason`: `"no_next_race"` (the season is
+over) or `"no_grid"` (qualifying has not run and no manual grid was saved); no `rows`, `source` or `p*_` fields.
 
 **Errors:** HTTP 503 with `error` and `message` when the season data is missing or invalid, like the other routes.
 
@@ -587,8 +591,8 @@ scenario.
 parameters, so polling does not simulate again. The response header `X-Forecast-Cache` is `hit` when nothing had to be
 simulated and `miss` otherwise.
 
-**No grid:** HTTP 200 with the usual metadata and `{ "available": false }`; no `rows`, `label` or `top*_` fields. There is
-nothing to forecast until a grid is known.
+**No grid:** HTTP 200 with the usual metadata, `{ "available": false }` and the same `reason` as the grid feed
+(`"no_next_race"` or `"no_grid"`); no `rows`, `label` or `top*_` fields. There is nothing to forecast until a grid is known.
 
 **Errors:** HTTP 503 with `error` and `message` when the season data is missing or invalid, like the other routes.
 

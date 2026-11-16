@@ -8,6 +8,7 @@ import { compareOptions } from "../viewModel/compare";
 import { MAX_NAME_LENGTH, buildChips, isDirty } from "../viewModel/scenarios";
 import type { Workspace } from "../viewModel/workspace";
 import { buildCardView } from "../viewModel/cardView";
+import { seasonPhase } from "../viewModel/seasonPhase";
 import type { CardRowsChoice } from "../viewModel/card";
 import type { TowerTab } from "../viewModel/tower";
 import type { TitleInfoMode } from "../viewModel/titleInfo";
@@ -86,7 +87,7 @@ function ScenarioStripView({
 
   const lockCount = Object.keys(workspace.scenario.locks).length;
   const selected = store.scenarios.find((s) => s.id === strip.selectedId);
-  const chips = buildChips(state.asOfRound, store.scenarios, strip.selectedId, store.activeId);
+  const chips = buildChips(state.asOfRound, store.scenarios, strip.selectedId, store.activeId, seasonPhase(state) === "complete");
   const selectedChip = chips.find((c) => c.selected && c.kind === "saved");
   // An invalid scenario cannot be loaded, so there is nothing for the sandbox to differ from.
   const dirty = selected?.valid ? isDirty(workspace.scenario, workspace.contenders, selected) : false;

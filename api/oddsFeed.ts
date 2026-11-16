@@ -5,6 +5,7 @@
 import { formatProbability, type OddsResult, type OddsRow } from "../engine/odds";
 import type { OddsParams } from "../engine/simulate";
 import type { SeasonState } from "../engine/types";
+import { feedPhase } from "./gridFeed";
 
 export interface FeedOddsRow {
   rank: number;
@@ -27,11 +28,14 @@ export type FlatFields = Record<string, string | number>;
 export interface OddsFeedFields {
   updated_at: string;
   as_of_round: number;
+  /** "running", "complete" (no session left) or "not_started" (no result yet) */
+  season_phase: string;
   data_status: string;
   season: number;
   available: true;
-  model: "estimate";
-  label: "Model estimate";
+  /** "estimate" while the season runs; "final" once no session is left (the odds are then exact, 100% and 0%) */
+  model: "estimate" | "final";
+  label: "Model estimate" | "Final";
   low_confidence: boolean;
   /** which model made the numbers (`MODEL_VERSION`, "v1" or "v2") */
   model_version: string;
@@ -129,11 +133,12 @@ export function buildOddsPayload(
   return {
     updated_at: state.health.checkedAt,
     as_of_round: state.asOfRound,
+    season_phase: feedPhase(state),
     data_status: state.health.status,
     season: state.season,
     available: true,
-    model: "estimate",
-    label: "Model estimate",
+    model: odds.final ? "final" : "estimate",
+    label: odds.final ? "Final" : "Model estimate",
     low_confidence: odds.lowConfidence,
     model_version: odds.modelVersion,
     grid_known_round: odds.gridKnownRound,

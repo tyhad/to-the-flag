@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Scenario } from "../../engine";
 import { loadMessage, type SeasonLoad } from "../viewModel/season";
+import { seasonPhase as phaseOf, standingsHint, standingsMessage, type SeasonPhase } from "../viewModel/seasonPhase";
 import { buildCompareRows, type CompareSide } from "../viewModel/compare";
 import { buildTowerRows, type TowerTab } from "../viewModel/tower";
 import { DEFAULT_TITLE_INFO, titleInfoVisible, type TitleInfoMode } from "../viewModel/titleInfo";
@@ -23,6 +24,8 @@ interface StandingsPanelProps {
   season: SeasonLoad;
   /** The owner's locked results. Undefined means the table as it stands. */
   scenario?: Scenario;
+  /** Where the season stands. Defaults to the state's own phase. */
+  phase?: SeasonPhase;
   /** When set, the panel compares two scenarios instead of showing the projected table. */
   compare?: CompareView | null;
   /** The drivers drawn in the finish lane. */
@@ -38,6 +41,7 @@ interface StandingsPanelProps {
 export function StandingsPanel({
   season,
   scenario,
+  phase: propPhase,
   compare,
   contenders,
   titleInfo,
@@ -50,6 +54,9 @@ export function StandingsPanel({
   const state = season.status === "ready" ? season.state : undefined;
   const rows = useMemo(() => (state ? buildTowerRows(state, scenario, tab) : []), [state, scenario, tab]);
   const hasLocks = Object.keys(scenario?.locks ?? {}).length > 0;
+  const phase = propPhase ?? (state ? phaseOf(state) : "running");
+  const notStarted = standingsMessage(phase);
+  const hint = standingsHint(phase, hasLocks);
   // The WDC and the WCC decide separately: Auto looks at the rows of the table being viewed.
   const showTitleInfo = titleInfoVisible(titleInfo?.mode ?? DEFAULT_TITLE_INFO, rows);
   const compareRows = useMemo(
@@ -84,9 +91,11 @@ export function StandingsPanel({
           ) : (
             <EmptyState title="Pick two scenarios to compare">{compare.message}</EmptyState>
           )
+        ) : season.status === "ready" && notStarted ? (
+          <EmptyState title={notStarted.title}>{notStarted.text}</EmptyState>
         ) : season.status === "ready" ? (
           <div className="flex flex-col gap-3">
-            {hasLocks ? null : <p className="type-body text-text-2">Lock a result to see the table change.</p>}
+            {hint ? <p className="type-body text-text-2">{hint}</p> : null}
             {titleInfo ? <TitleInfoSwitch mode={titleInfo.mode} onChange={titleInfo.onChange} /> : null}
             <Tower
               rows={rows}

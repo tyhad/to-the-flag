@@ -8,6 +8,7 @@ import { activeDrivers } from "../../engine/sessions";
 import { teamCars } from "../../engine/teams";
 import type { SeasonState } from "../../engine/types";
 import type { AccessVerdict } from "./access";
+import { NO_RACE_LEFT } from "./seasonPhase";
 import { gridWriteDisabledReason, type GridInfo, type GridState } from "./grid";
 
 /** The grid being edited: the start order (pole first) and the pit-lane starters, who start behind everyone. */
@@ -52,7 +53,7 @@ export function prefillEditor(state: SeasonState, info: GridInfo | null): { grid
 export function emptyGridMessage(grid: Pick<GridState, "status" | "info">): { title: string; text: string | null } | null {
   if (grid.status === "loading") return { title: "Loading the grid…", text: null };
   if (grid.status === "error" || !grid.info) return { title: "The grid could not be loaded", text: "Reload the page to try again." };
-  if (grid.info.round === null) return { title: "No race left", text: "The season is over, so there is no grid to set." };
+  if (grid.info.round === null) return NO_RACE_LEFT;
   if (!grid.info.effective) {
     return { title: "The grid is known after qualifying.", text: "Once qualifying has run, the grid appears here and you can correct it." };
   }
