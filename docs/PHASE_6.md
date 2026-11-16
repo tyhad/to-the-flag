@@ -59,6 +59,7 @@ Steps 5 to 8 do not depend on Steps 1 to 4. If a second device is not needed yet
 
 **Change (`api/guard.ts`, an Elysia plugin used by `createScenarioRoutes`):** for `POST`, `PUT` and `DELETE`:
 - `401` with `{ error: "token_required" }` when the token is missing or wrong; `403` with `{ error: "local_only" }` for a remote client when no token is configured.
+- `403` with `{ error: "forbidden_host" }` when the `Host` is not `localhost`, an IP literal or a name in `TTF_ALLOWED_HOSTS` (added in Phase 10, D57); it is checked first, so a refused host does not count as a failed attempt.
 - `415` unless the body is JSON.
 - `403` when an `Origin` header is present and does not match the server's own origin (stops a web page on another site from writing).
 - After 5 failed attempts from one address within a minute: `429` with a plain message for the next minute (in memory).

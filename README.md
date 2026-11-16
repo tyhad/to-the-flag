@@ -57,12 +57,15 @@ Copy `.env.example` to `.env` and adjust. All values are optional.
 | `PORT` | `3100` | Server port (LiveOverlay Studio uses 3000) |
 | `HOST` | `127.0.0.1` | Server host. Keep it local: there is no login |
 | `TTF_WRITE_TOKEN` | *(empty)* | Secret write token. Required when `HOST` is not loopback (min 16 characters) |
+| `TTF_ALLOWED_HOSTS` | *(empty)* | Host names that may write, comma-separated, no scheme, port or path (for example `mypc.local`). `localhost` and IP addresses always may. An invalid entry stops the server at start |
 
 ## LAN mode
 To access the app from a phone or a second computer on your home network:
 1. In `.env`, set `HOST=0.0.0.0` and `TTF_WRITE_TOKEN` to a long random string (at least 16 characters).
 2. Start the server (`bun run dev`). Allow the port in the Windows firewall if prompted.
 3. Open `http://<this PC's address>:3100` on the other device (the startup banner lists your LAN addresses).
+
+If you open the app by a name (such as `http://mypc.local:3100`) instead of an IP address, add that name to `TTF_ALLOWED_HOSTS`; otherwise writes are refused with `forbidden_host`. This stops a web page that points its own name at your PC (DNS rebinding) from writing. Opening the app by IP address needs no setup.
 
 Reading the UI, season data, health, and overlay feeds is open without a token. Writing (saving, updating, deleting scenarios, or setting the active overlay scenario) requires entering the token in the web interface.
 

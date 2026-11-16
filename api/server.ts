@@ -32,13 +32,19 @@ export interface ServerOptions {
   token?: string | null;
   /** Injectable client IP resolver for tests; defaults to reading server.requestIP(request). */
   clientIp?: (request: Request) => string | null;
+  /** Extra host names allowed to send writes (TTF_ALLOWED_HOSTS); defaults to the config. */
+  allowedHosts?: readonly string[];
 }
 
 /**
  * Validates whether the server can safely start with the given host and token.
  * Returns null on success or an error message if startup checks fail.
  */
-export function validateServerStartup(options: { host: string; token?: string | null }): string | null {
+export function validateServerStartup(options: {
+  host: string;
+  token?: string | null;
+  allowedHosts?: readonly string[];
+}): string | null {
   return checkStartup(options);
 }
 
@@ -51,6 +57,7 @@ export function createApp(options?: ServerOptions) {
   loader.setGridOverrides(scenarioDb);
   const token = options?.token !== undefined ? options.token : config.writeToken;
   const clientIp = options?.clientIp;
+  const allowedHosts = options?.allowedHosts ?? config.allowedHosts;
 
   const app = new Elysia();
 
@@ -106,8 +113,8 @@ export function createApp(options?: ServerOptions) {
     return state;
   });
 
-  app.use(createScenarioRoutes(loader, scenarioDb, { token, clientIp }));
-  app.use(createGridRoutes(loader, scenarioDb, { token, clientIp }));
+  app.use(createScenarioRoutes(loader, scenarioDb, { token, clientIp, allowedHosts }));
+  app.use(createGridRoutes(loader, scenarioDb, { token, clientIp, allowedHosts }));
   app.use(createFeedRoutes(loader, scenarioDb, options?.oddsParams));
 
   return app;
@@ -116,7 +123,7 @@ export function createApp(options?: ServerOptions) {
 export const app = createApp();
 
 if (import.meta.main) {
-  const startupError = checkStartup({ host: config.host, token: config.writeToken });
+  const startupError = checkStartup({ host: config.host, token: config.writeToken, allowedHosts: config.allowedHosts });
   if (startupError) {
     console.error(`Startup error: ${startupError}`);
     process.exit(1);

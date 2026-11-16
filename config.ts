@@ -2,6 +2,7 @@
  * Runtime configuration, read from environment variables.
  * Bun loads `.env` automatically. This file is outside `engine/`, so it may touch process.env.
  */
+import { splitAllowedHosts } from "./api/hosts";
 
 export interface Config {
   /** Path to the read-only F1GStats database. */
@@ -12,6 +13,11 @@ export interface Config {
   host: string;
   /** Secret token required for write routes when host is not loopback. */
   writeToken: string;
+  /**
+   * Extra host names (lower-case, no port) that may send writes, from TTF_ALLOWED_HOSTS. `localhost` and IP literals
+   * are always allowed. Entries are checked at start (`validateAllowedHosts`), not here.
+   */
+  allowedHosts: string[];
 }
 
 export const DEFAULTS = {
@@ -20,6 +26,7 @@ export const DEFAULTS = {
   port: 3100,
   host: "127.0.0.1",
   writeToken: "",
+  allowedHosts: [] as string[],
 } as const;
 
 function parsePort(raw: string | undefined): number {
@@ -42,6 +49,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port: parsePort(env.PORT),
     host: nonEmpty(env.HOST, DEFAULTS.host),
     writeToken: nonEmpty(env.TTF_WRITE_TOKEN, DEFAULTS.writeToken),
+    allowedHosts: splitAllowedHosts(env.TTF_ALLOWED_HOSTS),
   };
 }
 
