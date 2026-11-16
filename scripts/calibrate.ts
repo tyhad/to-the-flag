@@ -1,8 +1,8 @@
 /**
- * Usage: bun scripts/calibrate.ts [--sims N] [--history <dir>] [--live <path>] [--grid-signal]
+ * Usage: bun scripts/calibrate.ts [--sims N] [--history <dir>] [--live <path>] [--grid-signal] [--points]
  *
  * `--grid-signal` runs only the Step 7 section (the grid term); `--qualifying-noise` only the Step 8 estimate of the
- * qualifying noise. Without a flag, Step 6 (the settings grid) runs first, then Step 7, then Step 8.
+ * qualifying noise; `--points` only the Phase 9 section (the points chance and the expected finish, protocol D53). Without a flag, Step 6 (the settings grid) runs first, then Step 7, then Step 8.
  *
  * Evaluation harness for Model calibration across multiple seasons (Phase 4, Step 4).
  * Evaluates candidate settings against current defaults under protocol D30:
@@ -19,16 +19,24 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadSeasons } from "../data/loadHistory";
 import { loadSeason } from "../data/loadSeason";
-import { fitStrengths, type OddsParams, type SeasonState } from "../engine";
+import { defaultOddsParams, fitStrengths, type OddsParams, type SeasonState } from "../engine";
 import {
   compareCells,
+  compareLosses,
   MATERIAL_DIFFERENCE,
+  POINTS_EDGES,
   gridOf,
+  outcomeOf,
+  pairsOf,
+  raceFinishMae,
+  racePointsBrier,
+  reliability,
   scoreMethod,
   stateBefore,
   walkForward,
   type CellComparison,
   type RaceRecord,
+  type ReliabilityBin,
   type Scores,
 } from "./backtest";
 
@@ -420,9 +428,9 @@ export function fitQualifyingNoise(seasons: CalibrationSeasons, noises: readonly
 
 const fmt = (x: number, digits = 3) => x.toFixed(digits);
 
-function formatDiff(c: CellComparison): string {
+function formatDiff(c: CellComparison, digits = 3): string {
   const sign = c.meanDiff > 0 ? "+" : "";
-  return `${sign}${c.meanDiff.toFixed(3)} (±${c.se.toFixed(3)})`;
+  return `${sign}${c.meanDiff.toFixed(digits)} (±${c.se.toFixed(digits)})`;
 }
 
 function table(rows: string[][], rightFrom = 1): string[] {
@@ -448,6 +456,10 @@ export function runCalibrationCli(args: string[] = []): void {
   }
   if (args.includes("--qualifying-noise")) {
     printQualifyingNoise(seasons);
+    return;
+  }
+  if (args.includes("--points")) {
+    printPoints(seasons, nSims);
     return;
   }
 
@@ -615,6 +627,406 @@ export function printGridSignal(seasons: CalibrationSeasons, nSims: number): voi
     console.log(`Verdict: gridWeight ${result.selected} NOT adopted. Skip Step 8. Reasons:`);
     for (const reason of result.verdict.reasons) console.log(`  - ${reason}`);
   }
+}
+
+// ---------- Phase 9, Step 4: the points chance and the expected finish (protocol D53) ----------
+
+/**
+ * "All places" as a number of finishing stages, named once. `paceStages` 0 already means all places, but
+ * `finishStages` 0 means "same as `paceStages`", so both candidate families use this number. Any value of at least the
+ * field size is the all-places fit; `checkAllPlaces` refuses a field larger than it.
+ */
+export const ALL_PLACES = 99;
+/** D53 rule 1: the least improvement on 2025, per race (the mean over the pairs of a race), for the points Brier. */
+export const POINTS_MATERIAL_DIFFERENCE = 0.004;
+/** D53 rule 6: a band of the pooled reliability table may be off by this much (5 points). */
+export const RELIABILITY_TOLERANCE = 0.05;
+/** D53 rule 6: a band with fewer pairs than this is shown but not judged; a handful of pairs says nothing. */
+export const MIN_BAND_PAIRS = 30;
+export const POINTS_PACE_STAGES = [5, 8, 10, ALL_PLACES] as const;
+export const POINTS_FINISH_STAGES = [8, 10, ALL_PLACES] as const;
+export const POINTS_PRIORS = [0.5, 1, 3] as const;
+
+export interface PointsCandidate {
+  /** A: a larger global `paceStages`; B: a separate `finishStages` (win and podium keep today's fit) */
+  family: "A" | "B";
+  label: string;
+  params: Partial<OddsParams>;
+}
+
+const stagesLabel = (n: number) => (n === ALL_PLACES ? `all places (${ALL_PLACES})` : String(n));
+
+/** The candidates of D52, without the current default itself (A with the default stages and prior). */
+export function pointsCandidates(): PointsCandidate[] {
+  const out: PointsCandidate[] = [];
+  for (const paceStages of POINTS_PACE_STAGES) {
+    for (const priorStrength of POINTS_PRIORS) {
+      if (paceStages === defaultOddsParams.paceStages && priorStrength === defaultOddsParams.priorStrength) continue;
+      out.push({ family: "A", label: `A paceStages=${stagesLabel(paceStages)}, prior=${priorStrength}`, params: { paceStages, priorStrength } });
+    }
+  }
+  for (const finishStages of POINTS_FINISH_STAGES) {
+    for (const priorStrength of POINTS_PRIORS) {
+      out.push({ family: "B", label: `B finishStages=${stagesLabel(finishStages)}, prior=${priorStrength}`, params: { finishStages, priorStrength } });
+    }
+  }
+  return out;
+}
+
+/**
+ * Whether a candidate can change the win and podium numbers: any setting of the first pass that differs from the
+ * default. A `finishStages` at the default prior cannot (the second pass only feeds `top10` and `meanPosition`); the
+ * same `finishStages` with another prior can, because the prior is shared by both passes.
+ */
+export function affectsWinPodium(params: Partial<OddsParams>): boolean {
+  return (Object.keys(params) as (keyof OddsParams)[]).some((k) => k !== "finishStages" && params[k] !== defaultOddsParams[k]);
+}
+
+/** `ALL_PLACES` is "all places" only while no race has more starters than it: refuse a field that is larger. */
+export function checkAllPlaces(seasons: CalibrationSeasons, allPlaces = ALL_PLACES): void {
+  for (const season of seasons.all) {
+    for (let round = 1; round <= season.asOfRound; round++) {
+      const size = outcomeOf(season, round)?.field.length ?? 0;
+      if (size > allPlaces) {
+        throw new RangeError(`${season.season} round ${round} has ${size} drivers, more than ALL_PLACES (${allPlaces})`);
+      }
+    }
+  }
+}
+
+/** From the pooled training differences (candidate minus default, negative = better): the best label, or null. */
+export function selectPointsCandidate(trainingDiffs: ReadonlyMap<string, number>): string | null {
+  let best: string | null = null;
+  let bestDiff = 0;
+  for (const [label, diff] of trainingDiffs) {
+    if (diff < bestDiff) {
+      best = label;
+      bestDiff = diff;
+    }
+  }
+  return best;
+}
+
+export interface PointsAdoptionInput {
+  /** points Brier per race, candidate minus default, on 2025 */
+  validationComp: CellComparison;
+  /** the same on 2026 */
+  confirmationComp: CellComparison;
+  /** the same, per season (the history years 2022-2025 are counted) */
+  perSeasonComp: ReadonlyMap<number, CellComparison>;
+  /** the same on rounds 3 to 5, per season, 2026 included */
+  earlyComp: ReadonlyMap<number, CellComparison>;
+  /** win + podium log loss per race, candidate minus default, per season; null for a candidate that cannot move them */
+  winPodiumComp: ReadonlyMap<number, CellComparison> | null;
+  /** the points chance by bands of ten points, pooled over 2022-2025 */
+  reliability: readonly ReliabilityBin[];
+}
+
+export interface PointsVerdict {
+  adopt: boolean;
+  validationBeats2SE: boolean;
+  validationMargin: boolean;
+  historySeasonsImproved: number;
+  historySeasonsCount: number;
+  confirmationPass: boolean;
+  earlyPass: boolean;
+  /** null when the candidate cannot move win and podium, so there is nothing to check */
+  winPodiumPass: boolean | null;
+  reliabilityPass: boolean;
+  /** the band judged with the largest gap between the forecast mean and what happened, in points of probability */
+  worstBandGap: number | null;
+  reasons: string[];
+}
+
+/**
+ * D53, on the points Brier per race (a candidate must pass all of them):
+ *  1. 2025 beats the default by more than 2 SE and by at least `POINTS_MATERIAL_DIFFERENCE`.
+ *  2. Improves at least 3 of the 4 history seasons (2022-2025).
+ *  3. 2026 is not worse by more than 1 SE.
+ *  4. Rounds 3 to 5 are not worse by more than 1 SE in any season.
+ *  5. For a candidate that can move win and podium: their log loss is not worse by more than 1 SE in any season.
+ *  6. In the pooled 2022-2025 reliability table no judged band is off by more than `RELIABILITY_TOLERANCE`.
+ */
+export function checkPointsAdoption(input: PointsAdoptionInput, historyYears: readonly number[] = HISTORY_SEASONS): PointsVerdict {
+  const reasons: string[] = [];
+  const val = input.validationComp;
+  const validationBeats2SE = val.meanDiff < -2 * val.se;
+  const validationMargin = val.meanDiff <= -POINTS_MATERIAL_DIFFERENCE;
+  if (!validationBeats2SE) reasons.push(`2025 diff ${val.meanDiff.toFixed(4)} does not beat the default by > 2 SE (${(-2 * val.se).toFixed(4)})`);
+  if (!validationMargin) reasons.push(`2025 diff ${val.meanDiff.toFixed(4)} is less than the threshold -${POINTS_MATERIAL_DIFFERENCE}`);
+
+  let historySeasonsImproved = 0;
+  for (const year of historyYears) {
+    const comp = input.perSeasonComp.get(year);
+    if (comp && comp.meanDiff < 0) historySeasonsImproved++;
+  }
+  if (historySeasonsImproved < 3) reasons.push(`Improves only ${historySeasonsImproved} of ${historyYears.length} history seasons (needs >= 3)`);
+
+  const conf = input.confirmationComp;
+  const confirmationPass = conf.meanDiff <= conf.se;
+  if (!confirmationPass) reasons.push(`2026 worse by > 1 SE (diff ${conf.meanDiff.toFixed(4)} > SE ${conf.se.toFixed(4)})`);
+
+  let earlyPass = true;
+  for (const [year, comp] of input.earlyComp) {
+    if (comp.meanDiff > comp.se) {
+      earlyPass = false;
+      reasons.push(`Early season (rounds 3-5) of ${year} worse by > 1 SE (diff ${comp.meanDiff.toFixed(4)} > SE ${comp.se.toFixed(4)})`);
+    }
+  }
+
+  let winPodiumPass: boolean | null = null;
+  if (input.winPodiumComp !== null) {
+    winPodiumPass = true;
+    for (const [year, comp] of input.winPodiumComp) {
+      if (comp.meanDiff > comp.se) {
+        winPodiumPass = false;
+        reasons.push(`Win and podium of ${year} worse by > 1 SE (diff ${comp.meanDiff.toFixed(4)} > SE ${comp.se.toFixed(4)})`);
+      }
+    }
+  }
+
+  let reliabilityPass = true;
+  let worstBandGap: number | null = null;
+  for (const b of input.reliability) {
+    if (b.n < MIN_BAND_PAIRS || b.meanPredicted === null || b.observed === null) continue;
+    const gap = Math.abs(b.meanPredicted - b.observed);
+    if (worstBandGap === null || gap > worstBandGap) worstBandGap = gap;
+    // a hair of slack, so that a gap of exactly 5 points is not lost to floating point
+    if (gap > RELIABILITY_TOLERANCE + 1e-9) {
+      reliabilityPass = false;
+      reasons.push(`Band ${Math.round(b.from * 100)}-${Math.round(b.to * 100)}% of the pooled reliability table is off by ${(gap * 100).toFixed(1)} points (limit ${RELIABILITY_TOLERANCE * 100})`);
+    }
+  }
+
+  const adopt = validationBeats2SE && validationMargin && historySeasonsImproved >= 3 && confirmationPass && earlyPass && winPodiumPass !== false && reliabilityPass;
+  return {
+    adopt,
+    validationBeats2SE,
+    validationMargin,
+    historySeasonsImproved,
+    historySeasonsCount: historyYears.length,
+    confirmationPass,
+    earlyPass,
+    winPodiumPass,
+    reliabilityPass,
+    worstBandGap,
+    reasons,
+  };
+}
+
+export interface PointsComparison {
+  trainingComp: CellComparison;
+  validationComp: CellComparison;
+  confirmationComp: CellComparison;
+  perSeasonComp: Map<number, CellComparison>;
+  earlyComp: Map<number, CellComparison>;
+  winPodiumComp: Map<number, CellComparison> | null;
+  /** the expected finish (mean absolute error per race), for information: D53 as written judges the points Brier */
+  finishMae: { training: CellComparison; validation: CellComparison; confirmation: CellComparison };
+  /** the candidate's points chance by bands of ten points, pooled over 2022-2025 */
+  reliability: ReliabilityBin[];
+  verdict: PointsVerdict;
+}
+
+function perRace(records: readonly RaceRecord[], f: (r: readonly RaceRecord[]) => number[]): number[] {
+  return f(records);
+}
+
+/** A candidate against the baseline: the same races, race by race, on the points Brier. */
+export function comparePointsCandidate(candidate: SettingEval, baseline: SettingEval, params: Partial<OddsParams>): PointsComparison {
+  const brier = (c: readonly RaceRecord[], b: readonly RaceRecord[]) =>
+    compareLosses(perRace(c, (r) => racePointsBrier(r, "model")), perRace(b, (r) => racePointsBrier(r, "model")));
+  const mae = (c: readonly RaceRecord[], b: readonly RaceRecord[]) =>
+    compareLosses(perRace(c, (r) => raceFinishMae(r, "model")), perRace(b, (r) => raceFinishMae(r, "model")));
+
+  const perSeasonComp = new Map<number, CellComparison>();
+  const earlyComp = new Map<number, CellComparison>();
+  const winPodiumComp = affectsWinPodium(params) ? new Map<number, CellComparison>() : null;
+  for (const [year, cand] of candidate.bySeason) {
+    const base = baseline.bySeason.get(year)!;
+    perSeasonComp.set(year, brier(cand.mainRecords, base.mainRecords));
+    earlyComp.set(year, brier(cand.earlyRecords, base.earlyRecords));
+    winPodiumComp?.set(year, compareCells(cand.mainRecords, base.mainRecords));
+  }
+
+  const pooled = HISTORY_SEASONS.flatMap((y) => candidate.bySeason.get(y)!.mainRecords);
+  const bands = reliability(pairsOf(pooled, "model", "top10"), POINTS_EDGES);
+  const validationComp = brier(candidate.validationRecords, baseline.validationRecords);
+  const confirmationComp = brier(candidate.confirmationRecords, baseline.confirmationRecords);
+  return {
+    trainingComp: brier(candidate.trainingRecords, baseline.trainingRecords),
+    validationComp,
+    confirmationComp,
+    perSeasonComp,
+    earlyComp,
+    winPodiumComp,
+    finishMae: {
+      training: mae(candidate.trainingRecords, baseline.trainingRecords),
+      validation: mae(candidate.validationRecords, baseline.validationRecords),
+      confirmation: mae(candidate.confirmationRecords, baseline.confirmationRecords),
+    },
+    reliability: bands,
+    verdict: checkPointsAdoption({ validationComp, confirmationComp, perSeasonComp, earlyComp, winPodiumComp, reliability: bands }),
+  };
+}
+
+export interface PointsResult {
+  /** the current defaults, which every candidate is compared with */
+  baseline: SettingEval;
+  baselineReliability: ReliabilityBin[];
+  candidates: { candidate: PointsCandidate; comparison: PointsComparison }[];
+  /** per family, the candidate with the best pooled training result, or null if none beats the default there */
+  selected: { A: PointsCandidate | null; B: PointsCandidate | null };
+  /** B if its chosen candidate passes D53 (D52 prefers B), else A if its chosen one does, else nothing */
+  recommendation: PointsCandidate | null;
+}
+
+/**
+ * Every candidate is scored on all seasons, but each family's choice is made from the training seasons alone;
+ * validation, the history, the early season and 2026 only judge that choice.
+ */
+export function evaluatePoints(seasons: CalibrationSeasons, nSims = CALIBRATE_SIMS): PointsResult {
+  checkAllPlaces(seasons);
+  const baseline = evaluateSetting(seasons, {}, "current defaults", nSims);
+  const pooled = HISTORY_SEASONS.flatMap((y) => baseline.bySeason.get(y)!.mainRecords);
+  const baselineReliability = reliability(pairsOf(pooled, "model", "top10"), POINTS_EDGES);
+  const candidates = pointsCandidates().map((candidate) => ({
+    candidate,
+    comparison: comparePointsCandidate(evaluateSetting(seasons, candidate.params, candidate.label, nSims), baseline, candidate.params),
+  }));
+  const pick = (family: "A" | "B"): PointsCandidate | null => {
+    const inFamily = candidates.filter((c) => c.candidate.family === family);
+    const label = selectPointsCandidate(new Map(inFamily.map((c) => [c.candidate.label, c.comparison.trainingComp.meanDiff])));
+    return inFamily.find((c) => c.candidate.label === label)?.candidate ?? null;
+  };
+  const selected = { A: pick("A"), B: pick("B") };
+  const passes = (c: PointsCandidate | null) => c !== null && candidates.find((x) => x.candidate === c)!.comparison.verdict.adopt;
+  const recommendation = passes(selected.B) ? selected.B : passes(selected.A) ? selected.A : null;
+  return { baseline, baselineReliability, candidates, selected, recommendation };
+}
+
+const pctOf = (x: number | null, digits = 1) => (x === null ? "-" : `${(x * 100).toFixed(digits)}%`);
+
+function reliabilityRows(bins: readonly ReliabilityBin[]): string[][] {
+  return [
+    ["forecast", "pairs", "forecast mean", "happened", "gap", ""],
+    ...bins
+      .filter((b) => b.n > 0)
+      .map((b) => {
+        const gap = b.meanPredicted === null || b.observed === null ? null : b.observed - b.meanPredicted;
+        const gapText = gap === null ? "-" : `${gap > 0 ? "+" : ""}${(gap * 100).toFixed(1)}`;
+        return [`${Math.round(b.from * 100)}-${Math.round(b.to * 100)}%`, String(b.n), pctOf(b.meanPredicted), pctOf(b.observed), gapText, b.n < MIN_BAND_PAIRS ? "thin, not judged" : ""];
+      }),
+  ];
+}
+
+/** The report of `--points`: training and validation first, the 2026 confirmation and the verdicts last. */
+export function formatPoints(result: PointsResult): string {
+  const lines: string[] = [];
+  const { baseline } = result;
+  const diff = (c: CellComparison) => formatDiff(c, 4);
+
+  lines.push("=== Points Chance and Expected Finish (Phase 9, protocol D53) ===");
+  lines.push("The outcome is \"classified in the top ten\" (points Brier, lower is better); a retirement counts as last place");
+  lines.push("for the finish. Candidates are compared with the current defaults on the same races; differences are per race,");
+  lines.push("candidate minus default (negative = better). Finish MAE is shown for information: D53 judges the points Brier.");
+  lines.push(`Rule 6 judges a reliability band only with at least ${MIN_BAND_PAIRS} pairs. Each family's candidate is chosen on 2022-2024 only.\n`);
+
+  lines.push("--- Current defaults ---");
+  const roleOf = (y: number) => (y <= 2024 ? "Train" : "Valid");
+  const baseRows: string[][] = [["Season", "Role", "Races", "Points Brier", "Finish MAE"]];
+  for (const y of HISTORY_SEASONS) {
+    const rs = baseline.bySeason.get(y)!.mainRecords;
+    const b = cell(racePointsBrier(rs, "model"));
+    const m = cell(raceFinishMae(rs, "model"));
+    baseRows.push([String(y), roleOf(y), String(b.n), `${b.mean.toFixed(4)} (±${b.se.toFixed(4)})`, `${m.mean.toFixed(2)} (±${m.se.toFixed(2)})`]);
+  }
+  const tb = cell(racePointsBrier(baseline.trainingRecords, "model"));
+  const tm = cell(raceFinishMae(baseline.trainingRecords, "model"));
+  baseRows.push(["22-24", "Train", String(tb.n), `${tb.mean.toFixed(4)} (±${tb.se.toFixed(4)})`, `${tm.mean.toFixed(2)} (±${tm.se.toFixed(2)})`]);
+  lines.push(...table(baseRows, 2));
+  lines.push("");
+
+  lines.push("--- Candidates: training and validation ---");
+  const rows: string[][] = [["candidate", "Train (22-24)", "Valid (2025)", "Hist Imp", "Early", "Win/podium", "Band gap", "MAE Train", "MAE Valid"]];
+  for (const { candidate, comparison: c } of result.candidates) {
+    rows.push([
+      candidate.label,
+      diff(c.trainingComp),
+      diff(c.validationComp),
+      `${c.verdict.historySeasonsImproved}/${c.verdict.historySeasonsCount}`,
+      c.verdict.earlyPass ? "ok" : "worse",
+      c.verdict.winPodiumPass === null ? "same" : c.verdict.winPodiumPass ? "ok" : "worse",
+      c.verdict.worstBandGap === null ? "-" : `${(c.verdict.worstBandGap * 100).toFixed(1)} pt`,
+      formatDiff(c.finishMae.training, 2),
+      formatDiff(c.finishMae.validation, 2),
+    ]);
+  }
+  lines.push(...table(rows));
+  lines.push("  Win/podium: \"same\" = cannot move them (finishStages at the default prior); otherwise not worse than 1 SE in any season.");
+  lines.push("");
+
+  lines.push("--- Chosen on training (2022-2024 only) ---");
+  for (const family of ["A", "B"] as const) {
+    const chosen = result.selected[family];
+    lines.push(`  ${chosen ? chosen.label : `${family} none (no candidate beats the default on the training seasons)`}`);
+  }
+  lines.push("");
+
+  lines.push("--- Reliability, pooled 2022-2025, finishing in the points ---");
+  lines.push("Current defaults");
+  lines.push(...table(reliabilityRows(result.baselineReliability)));
+  for (const family of ["A", "B"] as const) {
+    const chosen = result.selected[family];
+    if (!chosen) continue;
+    const c = result.candidates.find((x) => x.candidate === chosen)!.comparison;
+    lines.push("");
+    lines.push(chosen.label);
+    lines.push(...table(reliabilityRows(c.reliability)));
+  }
+  lines.push("");
+
+  lines.push("=== Confirmation (2026, printed last) ===");
+  lines.push("Not used to choose. It only decides whether the choice may be adopted (rule 3), together with the other rules.");
+  const confRows: string[][] = [["candidate", "2026 Brier diff", "2026 MAE diff", "Early 2026", "Hist Imp", "D53"]];
+  for (const { candidate, comparison: c } of result.candidates) {
+    confRows.push([
+      candidate.label,
+      diff(c.confirmationComp),
+      formatDiff(c.finishMae.confirmation, 2),
+      diff(c.earlyComp.get(2026)!),
+      `${c.verdict.historySeasonsImproved}/${c.verdict.historySeasonsCount}`,
+      c.verdict.adopt ? "ADOPT" : "no",
+    ]);
+  }
+  lines.push(...table(confRows));
+  lines.push("");
+
+  const alsoPassing = result.candidates.filter((c) => c.comparison.verdict.adopt && c.candidate !== result.selected.A && c.candidate !== result.selected.B);
+  for (const family of ["A", "B"] as const) {
+    const chosen = result.selected[family];
+    if (!chosen) {
+      lines.push(`Verdict ${family}: no candidate beat the default on the training seasons, so nothing to adopt.`);
+      continue;
+    }
+    const v = result.candidates.find((x) => x.candidate === chosen)!.comparison.verdict;
+    lines.push(`Verdict ${family}: ${chosen.label.slice(2)} ${v.adopt ? "passes D53." : "does NOT pass D53. Reasons:"}`);
+    for (const reason of v.reasons) lines.push(`  - ${reason}`);
+  }
+  if (alsoPassing.length > 0) {
+    lines.push(`Also passing D53 but not chosen on training (information only): ${alsoPassing.map((c) => c.candidate.label).join("; ")}`);
+  }
+  lines.push(
+    result.recommendation
+      ? `Recommendation: adopt ${result.recommendation.label} (D52: B is preferred when its chosen candidate passes, because win and podium keep today's numbers).`
+      : "Recommendation: change nothing; no chosen candidate passes D53 (D52: B is preferred when it passes, then A).",
+  );
+  return lines.join("\n");
+}
+
+/** Phase 9, Step 4. */
+export function printPoints(seasons: CalibrationSeasons, nSims: number): void {
+  console.log(formatPoints(evaluatePoints(seasons, nSims)));
 }
 
 if (import.meta.main) {

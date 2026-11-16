@@ -248,6 +248,16 @@ export function pairsOf(records: readonly RaceRecord[], method: Method, event: E
   return pairs;
 }
 
+/** One number per race: the Brier score of its points chances, over the pairs of that race. Lower is better. */
+export function racePointsBrier(records: readonly RaceRecord[], method: Method): number[] {
+  return records.map((r) => brierScore(pairsOf([r], method, "top10")));
+}
+
+/** One number per race: the mean absolute error of its expected finishes, over the drivers of that race. */
+export function raceFinishMae(records: readonly RaceRecord[], method: Method): number[] {
+  return records.map((r) => finishMae([r], method));
+}
+
 /** Mean absolute difference between the expected finishing place and the place that happened. Lower is better. */
 export function finishMae(records: readonly RaceRecord[], method: Method): number {
   let total = 0;
@@ -351,7 +361,7 @@ export interface CellComparison {
   clear: boolean;
 }
 
-function compareLosses(la: readonly number[], lb: readonly number[]): CellComparison {
+export function compareLosses(la: readonly number[], lb: readonly number[]): CellComparison {
   const diffs = la.map((x, i) => x - lb[i]!);
   const n = diffs.length;
   const mean = diffs.reduce((s, d) => s + d, 0) / n;
