@@ -3,6 +3,7 @@
 Branch: `phase-9-points-model` (to-the-flag only). One commit per step. Tests first wherever there is logic. Read `docs/MODEL.md` (especially "The race forecast's points chance and expected finish"), `docs/PHASE_4.md` (the D30 protocol) and `docs/PHASE_8.md` before anything else.
 
 **Goal:** make the race forecast's points chance (`top10`) and expected finish (`meanPosition`) as trustworthy as its win and podium numbers, using the D30 protocol, and never adopt a change on 2026 numbers alone.
+**Result:** done. Both candidate fixes (A and B, 20 candidates) were evaluated and none passed D53, so the model stays v2 and the "indicative" note stays. The numbers and the full output are in `docs/MODEL.md` ("Model v3: points chance and expected finish"). The tools stay: the points scores in `bun run backtest`, the setting `finishStages` (default 0) and `bun run calibrate -- --points`.
 **Not in Phase 9:** the multi-season prior (moved to Phase 11, after V1.0), weather, tyres, track types, any change to the title odds.
 
 ## The finding this phase answers

@@ -166,8 +166,8 @@ Then open pull requests `phase-8-race-weekend` → `main` in `to-the-flag` and `
 - The forecast uses the grid and this season's form, not weather, tyres or strategy. A retirement is a chance, not a prediction.
 - The forecast's points chance and expected finish are new and outside the backtest: the pace fit is built for the
   front (top-5 stages), so the middle and the back of the grid read too well (2026 check in `docs/MODEL.md`, "The race
-  forecast's points chance and expected finish"). Recorded as input for the next model version; no default is changed
-  on 2026 numbers.
+  forecast's points chance and expected finish"). Phase 9 evaluated two fixes on 2022 to 2025 and rejected both
+  (`docs/MODEL.md`, "Model v3"); the model stays v2 and the Race tab says "Indicative" under the table.
 - A manual grid is only as good as what the owner types; the app checks that every active driver appears once, not that the grid matches the stewards' decision.
 - The grid term was fitted on qualifying orders and real grids from 2022 to 2025 (`docs/MODEL.md`); it is a statistical average, not a rule.
 
@@ -212,7 +212,7 @@ Steps 1 to 7 and 9 are in `to-the-flag` (`phase-8-race-weekend`); Step 8 is in F
 
 **Known weaknesses found while checking:**
 - The list has three Tab stops per driver (66 for a full grid). It works with the keyboard, but a big change is easier with *Paste a list*.
-- The forecast's points chance and expected finish at the back of the grid are the least reliable numbers (`docs/MODEL.md`).
+- The forecast's points chance and expected finish at the back of the grid are the least reliable numbers; Phase 9 tried to fix that and could not (`docs/MODEL.md`, "Model v3").
 - A dev build (`bun run dev`) asks for some data twice and shows two aborted requests in the browser tools. That is React's development double run (`StrictMode`), not a bug.
 
 **Phase 8 is done when (result):**

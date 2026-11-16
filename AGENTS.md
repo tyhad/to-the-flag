@@ -13,7 +13,7 @@ Phase 5 (WCC Path Solver) is done (`docs/PHASE_5.md`): team status and path in t
 Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG export) is done (`docs/PHASE_6.md`).
 Phase 7 (standings and positions: the `✕ No title` marker, the Best column, the "Title info" switch (Auto, On, Off), best places in the CLI and feed, F1GStats V5 and V6 hardening) is done (`docs/PHASE_7.md`); its optional Step 8 (position probabilities) was not built.
 Phase 8 (race weekend: a manual starting grid that overrides the data grid for the next race, grid source tags and an OpenF1 notice, the "Race" tab with the race forecast, the starting-grid PNG, CSV and JSON export, `/api/feed/grid` and `/api/feed/race-forecast`, and F1GStats saying "no grid yet" as `[INFO]`) is done (`docs/PHASE_8.md`; the PNG cards are in `docs/EXPORT.md`).
-Phase 9 (model v3 for the points chance and expected finish) has a task list in `docs/PHASE_9.md`; Phase 10 (release V1.0) and Phase 11 (multi-season prior) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
+Phase 9 (model v3 for the points chance and expected finish) is done (`docs/PHASE_9.md`): two candidate fixes were evaluated and rejected, so the model stays v2 and the race forecast keeps its "indicative" note (`docs/MODEL.md`, "Model v3"). Phase 10 (release V1.0) and Phase 11 (multi-season prior) are planned in `SPEC.md` and have no task lists yet. Known weaknesses of the model are in `docs/MODEL.md`.
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.

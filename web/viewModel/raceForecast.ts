@@ -10,8 +10,9 @@ import type { ForecastData, ForecastState } from "./forecastRequests";
 export const FORECAST_NOTE = "The forecast follows the grid above. Retirements and weather are not known.";
 
 /**
- * Phase 9, Step 1: said under the table until Phase 9 decides on the points part. The points chance and the expected
- * finish are newer than the win and podium numbers and read too well for the middle and the back of the grid.
+ * Phase 9, Step 1: said under the table until a model change passes D53 (Phase 9 tested two and rejected both, see
+ * docs/MODEL.md). The points chance and the expected finish are newer than the win and podium numbers and read too
+ * well for the middle and the back of the grid.
  */
 export const INDICATIVE_NOTE = "Indicative; the model is fitted for the front of the field.";
 
