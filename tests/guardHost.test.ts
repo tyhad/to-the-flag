@@ -88,7 +88,7 @@ describe("rejected hosts", () => {
       expect(reply.split("\r\n")[0]).toContain("403");
       expect(reply).toContain("forbidden_host");
     } finally {
-      await app.stop();
+      await app.stop(true);
     }
   });
 });

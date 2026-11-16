@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { scenarioApi, type ApiResult, type ScenarioInput } from "./scenarioApi";
+import type { ImportSummary } from "./viewModel/scenarioFile";
 import type { SavedScenario } from "./viewModel/scenarios";
 
 export interface ScenarioStore {
@@ -18,6 +19,8 @@ export interface ScenarioStore {
   ): Promise<ApiResult<SavedScenario>>;
   remove(id: string): Promise<ApiResult<null>>;
   setActive(id: string | null): Promise<ApiResult<string | null>>;
+  /** Sends a scenario file, then reloads the list so the new scenarios appear. */
+  importFile(text: string): Promise<ApiResult<ImportSummary>>;
 }
 
 /** Saved scenarios and the overlay's active scenario, loaded once and kept in step with every change. */
@@ -100,5 +103,18 @@ export function useScenarioStore(): ScenarioStore {
     [track],
   );
 
-  return { status, loadMessage, scenarios, activeId, busy: pending > 0, create, update, remove, setActive };
+  const importFile = useCallback(
+    (text: string) =>
+      track(async () => {
+        const r = await scenarioApi.importFile(text);
+        if (r.ok) {
+          const list = await scenarioApi.list();
+          if (list.ok) setScenarios(list.data);
+        }
+        return r;
+      }),
+    [track],
+  );
+
+  return { status, loadMessage, scenarios, activeId, busy: pending > 0, create, update, remove, setActive, importFile };
 }

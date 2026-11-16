@@ -80,6 +80,20 @@ The same pipeline as the standings card, with its own data and layout: `buildGri
 
 To add something to this card, follow "Adding new exportable content" above, with `GridCardView` / `GridCardRow` as the data, `layoutGridCard` and `buildGridCard` as the layout, and `GridExport.tsx` as the controls.
 
+## Scenario file (Phase 10)
+
+*Export scenarios* saves every saved scenario of the current season in one JSON file, and *Import scenarios* reads such a file back. It is a backup and a way to move scenarios to another computer. To share one scenario, use *Copy link* (the share link is unchanged).
+
+- **File name:** `to-the-flag-scenarios-{season}-r{round}.json`, for example `to-the-flag-scenarios-2026-r16.json`. `GET /api/scenarios/export` is a read route, so it needs no token.
+- **Shape:** `{ "format": "to-the-flag-scenarios", "version": 1, "scenarios": [ ... ] }`. Each scenario has `name`, `season`, `asOfRound`, `locks` and (when it has any) `contenders`. Nothing else: **no id, timestamp, token, server address, file path or starting grid.** `tests/scenarioFile.test.ts` and `tests/scenarioFileApi.test.ts` check this.
+- **Import** is `POST /api/scenarios/import`, a write route: in LAN mode it needs the token, and the Host allowlist applies. The file is read as text and never trusted:
+  - The whole file is refused (nothing is saved) when it is over 1 MB (413), is not JSON, has another `format`, has a `version` other than 1, has no list of scenarios, or has more than 200.
+  - A single scenario is skipped, with a reason, when it is for another season, was made after the data's round, has no name or a name over 40 characters, has a lock that is not in the expected shape or that fails the ordinary save checks (unknown driver, a session that already has results, a position outside the points zone, and so on), has an unknown contender, or contains a `__proto__`, `constructor` or `prototype` key. One bad scenario never stops the others.
+  - New ids are made on import; ids and times in the file are ignored. A scenario made at an earlier round of this season is kept (it shows as stale, like any saved scenario).
+  - A name that is already saved, or repeated in the file, gets a number: "Name (2)", "Name (3)". An import never overwrites or merges with an existing scenario, and never changes the active overlay scenario.
+- **What the page shows:** "Imported N, skipped M." and one line for each skipped or renamed scenario (the first eight, then a count). A refused file shows its reason in words. The page checks the 1 MB limit before sending.
+- **Not covered by tests (check by eye):** the file picker and the browser's download of the file.
+
 ## Not covered by tests (check by eye)
 
 The canvas drawing itself (`exportCard.ts`), the real font rendering, the clipboard and download (`exportText.ts`), and the controls. Say in the commit or the phase notes what was and was not checked in a browser.
