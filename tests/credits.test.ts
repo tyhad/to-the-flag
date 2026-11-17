@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { UNOFFICIAL_NOTICE } from "../web/viewModel/credits";
 
 const root = join(import.meta.dir, "..");
-const read = (file: string) => readFileSync(join(root, file), "utf8");
+// Line endings are not content: a Windows checkout (autocrlf) or a package installed with CRLF must give the same text.
+const read = (file: string) => readFileSync(join(root, file), "utf8").replace(/\r\n/g, "\n");
 const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
 
 describe("THIRD_PARTY.md", () => {

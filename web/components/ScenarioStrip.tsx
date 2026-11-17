@@ -96,7 +96,7 @@ function ScenarioStripView({
 
   const lockCount = Object.keys(workspace.scenario.locks).length;
   const selected = store.scenarios.find((s) => s.id === strip.selectedId);
-  const chips = buildChips(state.asOfRound, store.scenarios, strip.selectedId, store.activeId, seasonPhase(state) === "complete");
+  const chips = buildChips(state.asOfRound, store.scenarios, strip.selectedId, store.activeId, seasonPhase(state) === "complete", state.season);
   const selectedChip = chips.find((c) => c.selected && c.kind === "saved");
   // An invalid scenario cannot be loaded, so there is nothing for the sandbox to differ from.
   const dirty = selected?.valid ? isDirty(workspace.scenario, workspace.contenders, selected) : false;

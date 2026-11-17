@@ -129,6 +129,9 @@ The *Race* tab has an *Export* section for the starting grid of the next race:
 | "Data check warning" | The latest import flagged something to review. The standings are shown as loaded. |
 | "The display stopped working" | Reload. If it repeats, run the F1GStats data check and make sure the app and the data are up to date. |
 
+## Between seasons
+When the last race has a result the app says **Season complete**; before the first race of a new season it says **Season not started**. What to run, what to check each year and what happens to saved scenarios is in [`docs/SEASON_ROLLOVER.md`](docs/SEASON_ROLLOVER.md).
+
 ## Data and credits
 
 To the Flag is an unofficial fan project. It is not affiliated with, endorsed or sponsored by Formula 1, the FIA, Formula One Licensing B.V. or any team. F1, FORMULA 1 and related marks belong to their owners.
