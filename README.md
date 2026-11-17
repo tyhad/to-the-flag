@@ -25,6 +25,20 @@ Set results for the remaining sessions and watch the table, the title status and
 
 *Possible?* is exact arithmetic and *Likely?* is a model; the two are never mixed into one figure.
 
+## Screenshots
+
+![The projected standings with the title status, the Best column, the finish lane and the path to the title](docs/img/standings.png)
+
+Round 16 of 2026: each contender's status tag and *Best* place, the finish lane, and *Possible?* with what a rival needs.
+
+![Model odds for the title](docs/img/likely.png)
+
+*Likely?*: the model's title odds, always labelled *Model estimate*.
+
+![The starting grid of the next race and its editor](docs/img/race.png)
+
+The *Race* tab: the grid of the next race, where it comes from, and the editor. This grid is the invented one from `bun run seed-grid` (see Commands).
+
 ## Commands
 | Command | What it does |
 |---|---|
