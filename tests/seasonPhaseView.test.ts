@@ -9,6 +9,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { computeOdds, type SeasonState } from "../engine";
 import { Header } from "../web/components/Header";
+import { OddsPanel } from "../web/components/OddsPanel";
 import { SessionsRail } from "../web/components/SessionsRail";
 import { StandingsPanel } from "../web/components/StandingsPanel";
 import { buildCard, type DrawCommand } from "../web/viewModel/card";
@@ -147,6 +148,44 @@ describe("Likely?: the final odds", () => {
     });
     expect(running.estimateLabel).toBe("Model estimate");
     expect(running.asOf).toBe("as of Round 16");
+  });
+});
+
+describe("Likely? panel heading", () => {
+  const panel = (state: SeasonState) => ({
+    status: "ready" as const,
+    result: computeOdds(state, undefined, { nSims: 100 }),
+    base: null,
+    errorKind: null,
+  });
+  const render = (state: SeasonState) =>
+    renderToStaticMarkup(
+      createElement(OddsPanel, {
+        state,
+        panel: panel(state),
+        hasLocks: false,
+        table: "wdc",
+        onTable: () => {},
+        formPercent: 100,
+        onFormPercent: () => {},
+        gridTag: null,
+        gridNotice: null,
+      }),
+    );
+
+  test("a complete season says Final, not Model estimate", () => {
+    const html = render(complete);
+    expect(html).toContain('<h2 class="type-heading text-text">Final</h2>');
+    expect(html).not.toContain("Model estimate");
+    expect(html).toContain("Season complete");
+  });
+
+  test("a running season still says Model estimate", () => {
+    expect(render(real)).toContain('<h2 class="type-heading text-text">Model estimate</h2>');
+  });
+
+  test("the unofficial-project line is in the How this works note, in both", () => {
+    for (const state of [real, complete]) expect(render(state)).toContain("To the Flag is an unofficial fan project.");
   });
 });
 

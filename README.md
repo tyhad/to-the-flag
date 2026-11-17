@@ -128,3 +128,18 @@ The *Race* tab has an *Export* section for the starting grid of the next race:
 | "Data check failed. Showing last valid data from Round N." | The latest F1GStats import did not pass its checks. Run the F1GStats data check to see why, then reload. The numbers shown are the last valid ones. |
 | "Data check warning" | The latest import flagged something to review. The standings are shown as loaded. |
 | "The display stopped working" | Reload. If it repeats, run the F1GStats data check and make sure the app and the data are up to date. |
+
+## Data and credits
+
+To the Flag is an unofficial fan project. It is not affiliated with, endorsed or sponsored by Formula 1, the FIA, Formula One Licensing B.V. or any team. F1, FORMULA 1 and related marks belong to their owners.
+
+The data comes from third-party sources, each under its own terms:
+- Jolpica F1 API (api.jolpi.ca), the community successor to the Ergast API: schedules, results and standings.
+- FastF1, a Python library: session data.
+- OpenF1: starting-grid information.
+
+Check each source's terms before reusing its data. What the owner checked is recorded in [`docs/DATA_TERMS.md`](docs/DATA_TERMS.md). The software and the fonts this app is built on, with their licenses, are listed in [`THIRD_PARTY.md`](THIRD_PARTY.md).
+
+## License
+
+No license is granted. The source is public for reference; all rights are reserved.

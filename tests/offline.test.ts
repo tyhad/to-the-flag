@@ -7,6 +7,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildWeb } from "../scripts/build";
+import { UNOFFICIAL_NOTICE } from "../web/viewModel/credits";
 
 let out = "";
 const files = (ext: string) => readdirSync(out).filter((f) => f.endsWith(ext));
@@ -85,6 +86,32 @@ describe("build output has no outside references", () => {
       const text = readFileSync(file, "utf8");
       expect(text).not.toMatch(/\bfetch\(\s*["'`]https?:/);
       expect(text).not.toMatch(/<(?:script|link|img|iframe)\b[^>]*(?:src|href)\s*=\s*["'](?:https?:)?\/\//);
+    }
+  });
+
+  test("the credits line is in the built page", () => {
+    const all = files(".js").map(read).join("\n");
+    expect(all).toContain(UNOFFICIAL_NOTICE);
+  });
+
+  test("the PNG cards use no picture, logo or outside request: they are text and shapes", () => {
+    const sources = [
+      "web/exportCard.ts",
+      "web/exportText.ts",
+      "web/viewModel/card.ts",
+      "web/viewModel/cardView.ts",
+      "web/viewModel/gridCard.ts",
+      "web/viewModel/gridExport.ts",
+    ];
+    for (const file of sources) {
+      const text = readFileSync(join(import.meta.dir, "..", file), "utf8");
+      expect(text, file).not.toMatch(/\bnew\s+Image\(|\bdrawImage\(|createImageBitmap|\bImageData\b|new\s+Path2D\(\s*["']M/);
+      // no picture file is imported or referenced (a ".png" file name for the download is fine)
+      expect(text, file).not.toMatch(/\bimport\b[^;\n]*["'][^"']+\.(?:svg|png|jpe?g|gif|webp|ico)["']/i);
+      expect(text, file).not.toMatch(/\burl\(/);
+      expect(text, file).not.toMatch(/\blogo\b/i);
+      expect(text, file).not.toMatch(/https?:\/\//);
+      expect(text, file).not.toMatch(/\bfetch\(|XMLHttpRequest|new\s+FontFace\(/);
     }
   });
 });
