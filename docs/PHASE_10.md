@@ -149,3 +149,4 @@ Update `SPEC.md` (Phase 10 done, Phase 11 next), `AGENTS.md`, and this file's "W
 - It does not make the app safe for the public internet. There is no login, no HTTPS and no per-user data; the write token and the host allowlist protect a trusted LAN, nothing more.
 - It does not change any number the model produces. The points chance and expected finish keep their "indicative" note (Phase 9, rejected).
 - It does not give legal advice. Leaving the repositories without a license, the credits and the trademark wording are the owner's choices; the data terms are checked and recorded by the owner.
+- The rehearsal (docs/REHEARSAL.md) did not cover LiveOverlay Studio, a real phone, or a non-Windows clone; the release rests on the checks listed there.
