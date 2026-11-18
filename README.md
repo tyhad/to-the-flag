@@ -39,6 +39,10 @@ Round 16 of 2026: each contender's status tag and *Best* place, the finish lane,
 
 The *Race* tab: the grid of the next race, where it comes from, and the editor. This grid is the invented one from `bun run seed-grid` (see Commands).
 
+![The exported standings card as a PNG](docs/img/card.png)
+
+The picture the *Export picture* button downloads: the square size, with the odds when *Likely?* has run.
+
 ## Commands
 | Command | What it does |
 |---|---|
@@ -67,6 +71,7 @@ Copy `.env.example` to `.env` and adjust. All values are optional.
 | Variable | Default | Meaning |
 |---|---|---|
 | `F1GSTATS_DB` | `../F1GStats/f1gstats.sqlite` | Path to the read-only F1GStats database |
+| `F1GSTATS_PY` | `py` on Windows, `python3` elsewhere | Python for `bun run refresh`. It must be the one with FastF1 installed: use the F1GStats virtual environment (`../F1GStats/venv/Scripts/python.exe` on Windows), because activating it in another terminal does not reach the command |
 | `TTF_DB` | `./to-the-flag.sqlite` | Where saved scenarios and the active overlay scenario are kept |
 | `PORT` | `3100` | Server port (LiveOverlay Studio uses 3000) |
 | `HOST` | `127.0.0.1` | Server host. Keep it local: there is no login |
