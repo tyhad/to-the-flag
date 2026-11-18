@@ -111,11 +111,14 @@ export class ScenarioDatabase {
   }
 
   private rowToStored(row: ScenarioRow, state: SeasonState): StoredScenario {
-    let valid = true;
+    // A scenario belongs to the season it was saved in. Its session keys ("17:race") are only round numbers, so
+    // they could pass the checks of another season's calendar by chance: another season is never valid (Phase 10).
+    const sameSeason = row.season === state.season;
+    let valid = sameSeason;
     let locks: Record<SessionKey, SessionLock> = {};
     try {
       locks = JSON.parse(row.locks_json);
-      validateScenario(state, { locks });
+      if (sameSeason) validateScenario(state, { locks });
     } catch {
       valid = false;
     }
@@ -128,7 +131,7 @@ export class ScenarioDatabase {
       locks,
       contenders,
       valid,
-      stale: row.as_of_round < state.asOfRound,
+      stale: !sameSeason || row.as_of_round < state.asOfRound,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

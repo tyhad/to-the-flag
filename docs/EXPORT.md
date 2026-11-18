@@ -21,7 +21,7 @@ page state ──▶ buildCardView()  ──▶ CardView ──▶ buildCard(vie
 ## What the card contains today
 
 - **Sizes:** square 1080×1080 (margin 36) and wide 1920×1080 (margin 48). Every command must stay inside the canvas.
-- **Header:** "Formula 1"; "Season N · Round N"; the table title (WDC or WCC); and, only when needed, a yellow line: "Simulation to Round N" when the scenario has locks, plus the scenario name when it is not "Base". "Model estimate" sits at the top right when odds are shown.
+- **Header:** "Formula 1"; "Season N · Round N"; the table title (WDC or WCC); and, only when needed, a yellow line: "Simulation to Round N" when the scenario has locks, plus the scenario name when it is not "Base". "Model estimate" sits at the top right when odds are shown. When the season is complete, the line says "Season N · Final" instead of the round, there is no simulation line, and the top-right label is "Final" (the odds are exact, not an estimate).
 - **Table:** whichever tab is open (WDC or WCC). Columns: `#`, driver or constructor (with the team strip), `POINTS` (current → projected), `+/-`, then `BEST` and `STATUS` only when the Title info choice shows them, then `ODDS` only when odds exist.
 - **Rows:** Top 10, Top 12, All, or a custom range (from P to P). A custom range wins over the row choice. The row height scales to fill the card (minimum 28px) and the fonts scale with it.
 - **Names:** drivers are "CODE · Given SURNAME" (`formatCardDriverName`); constructors use the team name; both are truncated, never allowed to overflow.
@@ -34,7 +34,7 @@ page state ──▶ buildCardView()  ──▶ CardView ──▶ buildCard(vie
 2. **Colors are tokens.** Write `var(--color-…)` in commands; `exportCard.ts` resolves them. No raw hex. Team colors come only from `teamColor()`.
 3. **Same numbers as the table.** Never recompute standings, status or Best for the card; take them from the table view-model (`buildTowerRows`), so the UI, the card, `bun run check` and the feed agree.
 4. **No strike-through** (the design-token test checks `web/`). "No title" is the text `✕ No title` in `text-3`, never red.
-5. **Simulated numbers are labeled.** Odds always come with "Model estimate" and the as-of round. A scenario with locks is labeled as a simulation.
+5. **Simulated numbers are labeled.** Odds always come with "Model estimate" and the as-of round. A scenario with locks is labeled as a simulation. The one exception is a complete season (no session left): the card says "Final" in both places and draws no simulation line.
 6. **The Title info choice is followed.** When it hides the info, the Best and status columns are not drawn and nothing else moves in a way that leaves a gap.
 7. **English UI text,** sentence case, plain words, like the rest of the app.
 8. **Privacy and offline.** No token, server address, file path or external request ever appears in the image or the export code. Fonts are the bundled ones.
@@ -79,6 +79,20 @@ The same pipeline as the standings card, with its own data and layout: `buildGri
 - **Rows scale to fit:** the box size follows the number of rows (with a limit, so a few places do not look lost), and nothing leaves the card at either size. The tests check 1, 3, 12, 20, 21 and 22 cars, the pit-lane block with up to eight starters, and ranges.
 
 To add something to this card, follow "Adding new exportable content" above, with `GridCardView` / `GridCardRow` as the data, `layoutGridCard` and `buildGridCard` as the layout, and `GridExport.tsx` as the controls.
+
+## Scenario file (Phase 10)
+
+*Export scenarios* saves every saved scenario of the current season in one JSON file, and *Import scenarios* reads such a file back. It is a backup and a way to move scenarios to another computer. To share one scenario, use *Copy link* (the share link is unchanged).
+
+- **File name:** `to-the-flag-scenarios-{season}-r{round}.json`, for example `to-the-flag-scenarios-2026-r16.json`. `GET /api/scenarios/export` is a read route, so it needs no token.
+- **Shape:** `{ "format": "to-the-flag-scenarios", "version": 1, "scenarios": [ ... ] }`. Each scenario has `name`, `season`, `asOfRound`, `locks` and (when it has any) `contenders`. Nothing else: **no id, timestamp, token, server address, file path or starting grid.** `tests/scenarioFile.test.ts` and `tests/scenarioFileApi.test.ts` check this.
+- **Import** is `POST /api/scenarios/import`, a write route: in LAN mode it needs the token, and the Host allowlist applies. The file is read as text and never trusted:
+  - The whole file is refused (nothing is saved) when it is over 1 MB (413), is not JSON, has another `format`, has a `version` other than 1, has no list of scenarios, or has more than 200.
+  - A single scenario is skipped, with a reason, when it is for another season, was made after the data's round, has no name or a name over 40 characters, has a lock that is not in the expected shape or that fails the ordinary save checks (unknown driver, a session that already has results, a position outside the points zone, and so on), has an unknown contender, or contains a `__proto__`, `constructor` or `prototype` key. One bad scenario never stops the others.
+  - New ids are made on import; ids and times in the file are ignored. A scenario made at an earlier round of this season is kept (it shows as stale, like any saved scenario).
+  - A name that is already saved, or repeated in the file, gets a number: "Name (2)", "Name (3)". An import never overwrites or merges with an existing scenario, and never changes the active overlay scenario.
+- **What the page shows:** "Imported N, skipped M." and one line for each skipped or renamed scenario (the first eight, then a count). A refused file shows its reason in words. The page checks the 1 MB limit before sending.
+- **Not covered by tests (check by eye):** the file picker and the browser's download of the file.
 
 ## Not covered by tests (check by eye)
 

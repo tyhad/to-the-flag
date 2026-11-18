@@ -5,9 +5,17 @@ import type { ScenarioStore } from "../useScenarioStore";
 import type { Strip } from "../useStrip";
 import { useAccess, type AccessInfo } from "../useAccess";
 import { compareOptions } from "../viewModel/compare";
+import {
+  IMPORT_HINT,
+  describeImport,
+  exportDisabledReason,
+  importFileProblem,
+  type ImportReport,
+} from "../viewModel/scenarioFile";
 import { MAX_NAME_LENGTH, buildChips, isDirty } from "../viewModel/scenarios";
 import type { Workspace } from "../viewModel/workspace";
 import { buildCardView } from "../viewModel/cardView";
+import { seasonPhase } from "../viewModel/seasonPhase";
 import type { CardRowsChoice } from "../viewModel/card";
 import type { TowerTab } from "../viewModel/tower";
 import type { TitleInfoMode } from "../viewModel/titleInfo";
@@ -74,7 +82,9 @@ function ScenarioStripView({
   const [customFrom, setCustomFrom] = useState<number>(1);
   const [customTo, setCustomTo] = useState<number>(12);
   const [exporting, setExporting] = useState(false);
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const footerRef = useRef<HTMLElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   /** The `data-focus-id` of the control that opened a form, so closing the form can put focus back on it. */
   const openerRef = useRef<string | null>(null);
 
@@ -86,7 +96,7 @@ function ScenarioStripView({
 
   const lockCount = Object.keys(workspace.scenario.locks).length;
   const selected = store.scenarios.find((s) => s.id === strip.selectedId);
-  const chips = buildChips(state.asOfRound, store.scenarios, strip.selectedId, store.activeId);
+  const chips = buildChips(state.asOfRound, store.scenarios, strip.selectedId, store.activeId, seasonPhase(state) === "complete", state.season);
   const selectedChip = chips.find((c) => c.selected && c.kind === "saved");
   // An invalid scenario cannot be loaded, so there is nothing for the sandbox to differ from.
   const dirty = selected?.valid ? isDirty(workspace.scenario, workspace.contenders, selected) : false;
@@ -179,6 +189,37 @@ function ScenarioStripView({
     }
   }
 
+  const exportReason = exportDisabledReason(store.scenarios.length);
+
+  /** The server sends the file with a name and "attachment", so the browser saves it. A plain link does the work. */
+  function handleExportFile() {
+    if (exportReason) return;
+    const link = document.createElement("a");
+    link.href = "/api/scenarios/export";
+    link.download = "";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  async function handleImportFile(file: File | undefined) {
+    if (!file) return;
+    const problem = importFileProblem(file);
+    if (problem) {
+      setImportReport({ headline: problem, details: [], tone: "error" });
+      return;
+    }
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      setImportReport({ headline: "That file could not be read.", details: [], tone: "error" });
+      return;
+    }
+    const result = await store.importFile(text);
+    setImportReport(result.ok ? describeImport(result.data) : { headline: result.message, details: [], tone: "error" });
+  }
+
   const nameForm = (label: string, action: (name: string) => Promise<string | null>, submitLabel: string) => (
     <form onSubmit={(e) => void submit(e, action)} className="flex flex-wrap items-center gap-2">
       <label htmlFor="scenario-name" className="type-label text-text-2">
@@ -261,6 +302,41 @@ function ScenarioStripView({
           >
             Copy link
           </button>
+          <button
+            type="button"
+            data-focus-id="export-scenarios"
+            aria-disabled={exportReason !== null}
+            title={exportReason ?? "Saves every scenario of this season in one file."}
+            onClick={handleExportFile}
+            className={BTN_PLAIN}
+          >
+            Export scenarios
+          </button>
+          <button
+            type="button"
+            data-focus-id="import-scenarios"
+            aria-disabled={!canWrite || store.busy || store.status !== "ready"}
+            title={!canWrite ? readOnlyNotice : IMPORT_HINT}
+            onClick={() => {
+              if (canWrite && !store.busy && store.status === "ready") fileInputRef.current?.click();
+            }}
+            className={BTN_PLAIN}
+          >
+            Import scenarios
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            aria-label="Scenario file to import"
+            className="hidden"
+            onChange={(e) => {
+              const input = e.currentTarget;
+              const file = input.files?.[0];
+              input.value = "";
+              void handleImportFile(file);
+            }}
+          />
           <button
             type="button"
             aria-pressed={isLive}
@@ -508,6 +584,36 @@ function ScenarioStripView({
           >
             Dismiss
           </button>
+        </div>
+      ) : null}
+      {importReport ? (
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <p
+              role={importReport.tone === "error" ? "alert" : "status"}
+              className={`type-note inline-flex items-center gap-1 ${BANNER_TONE[importReport.tone]}`}
+            >
+              {importReport.tone !== "info" ? <AlertIcon /> : null}
+              {importReport.headline}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setImportReport(null);
+                settleFocus("import-scenarios");
+              }}
+              className="type-note text-text-2 underline hover:text-text"
+            >
+              Dismiss
+            </button>
+          </div>
+          {importReport.details.length > 0 ? (
+            <ul aria-label="Import details" className="type-note m-0 flex list-none flex-col gap-0.5 p-0 text-text-2">
+              {importReport.details.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
       {stripNotice ? (

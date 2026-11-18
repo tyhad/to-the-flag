@@ -3,6 +3,7 @@ export * from "./points";
 export * from "./types";
 export * from "./countback";
 export * from "./sessions";
+export * from "./phase";
 export * from "./scenario";
 export * from "./standings";
 export * from "./status";

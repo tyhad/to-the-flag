@@ -3,6 +3,7 @@
  * No I/O or network calls.
  */
 import { timingSafeEqual } from "node:crypto";
+import { validateAllowedHosts } from "./hosts";
 
 function isValidIpv4Octet(part: string): boolean {
   if (!/^\d+$/.test(part)) return false;
@@ -46,6 +47,8 @@ export function isLoopbackHost(host: string | null | undefined): boolean {
 export interface StartupConfig {
   host?: string | null;
   token?: string | null;
+  /** TTF_ALLOWED_HOSTS entries; checked whatever HOST is. */
+  allowedHosts?: readonly string[];
 }
 
 /**
@@ -53,7 +56,9 @@ export interface StartupConfig {
  * Returns an error message if host is non-loopback and token is missing or shorter than 16 chars;
  * returns null otherwise.
  */
-export function checkStartup({ host, token }: StartupConfig): string | null {
+export function checkStartup({ host, token, allowedHosts }: StartupConfig): string | null {
+  const hostsError = validateAllowedHosts(allowedHosts ?? []);
+  if (hostsError) return hostsError;
   if (isLoopbackHost(host)) {
     return null;
   }

@@ -43,6 +43,8 @@ export interface CardView {
   positionRange?: CardPositionRange;
   isSimulation?: boolean;
   simulationRound?: number;
+  /** The season is complete (Phase 10, D60): "Final" replaces "Round N", there is no simulation line, and odds are exact. */
+  isFinal?: boolean;
 }
 
 /** One piece of a text line that has its own color (and, optionally, its own font). */
@@ -220,7 +222,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   // Title: Line 2 - Season ... · Round ...
   commands.push({
     type: "text",
-    text: `Season ${view.season} · Round ${view.asOfRound}`,
+    text: view.isFinal ? `Season ${view.season} · Final` : `Season ${view.season} · Round ${view.asOfRound}`,
     x: leftX,
     y: isWide ? 128 : 102,
     font: isWide ? "500 18px var(--font-ui)" : "500 15px var(--font-ui)",
@@ -245,8 +247,8 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   });
 
   // Title: Line 4 - Simulation / Scenario if active
-  const isSim = Boolean(view.isSimulation || view.simulationRound);
-  const hasCustomScenario = Boolean(view.scenarioName && view.scenarioName !== "Base");
+  const isSim = !view.isFinal && Boolean(view.isSimulation || view.simulationRound);
+  const hasCustomScenario = !view.isFinal && Boolean(view.scenarioName && view.scenarioName !== "Base");
   if (isSim || hasCustomScenario) {
     const simText = isSim
       ? `Simulation to Round ${view.simulationRound ?? view.asOfRound}${hasCustomScenario ? ` · ${truncate(view.scenarioName, isWide ? 50 : 35)}` : ""}`
@@ -267,7 +269,7 @@ export function buildCard(view: CardView, size: CardSize): DrawCommand[] {
   if (view.hasOdds) {
     commands.push({
       type: "text",
-      text: "Model estimate",
+      text: view.isFinal ? "Final" : "Model estimate",
       x: rightX,
       y: isWide ? 90 : 72,
       font: isWide ? "600 20px var(--font-display)" : "600 16px var(--font-display)",

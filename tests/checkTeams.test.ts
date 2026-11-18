@@ -88,7 +88,7 @@ describe("buildCheckReport: constructors", () => {
     expect(wcc.length).toBeGreaterThan(0);
     expect(teamPaths.length).toBeGreaterThan(0);
     expect(Object.keys(rest).sort()).toEqual(
-      ["asOfRound", "drivers", "health", "paths", "remaining", "rounds", "season", "upcomingGrid", "wdc"],
+      ["asOfRound", "drivers", "health", "paths", "phase", "remaining", "rounds", "season", "upcomingGrid", "wdc"],
     );
   });
 

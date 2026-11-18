@@ -10,6 +10,8 @@
 import type { GridSourceKind } from "../engine/grid";
 import { formatProbability } from "../engine/odds";
 import type { RaceForecast } from "../engine/simulate";
+import { nextScheduledRound } from "../engine/grid";
+import { seasonPhase } from "../engine/phase";
 import { teamCars } from "../engine/teams";
 import type { SeasonState } from "../engine/types";
 
@@ -46,6 +48,8 @@ export type FlatFields = Record<string, string | number | boolean>;
 export interface GridFeedFields {
   updated_at: string;
   as_of_round: number;
+  /** "running", "complete" (no session left) or "not_started" (no result yet) */
+  season_phase: string;
   data_status: string;
   season: number;
   available: true;
@@ -58,6 +62,8 @@ export interface GridFeedFields {
 export interface ForecastFeedFields {
   updated_at: string;
   as_of_round: number;
+  /** "running", "complete" (no session left) or "not_started" (no result yet) */
+  season_phase: string;
   data_status: string;
   season: number;
   available: true;
@@ -80,8 +86,27 @@ export function feedMeta(state: SeasonState) {
   return {
     updated_at: state.health.checkedAt,
     as_of_round: state.asOfRound,
+    season_phase: feedPhase(state),
     data_status: state.health.status,
     season: state.season,
+  };
+}
+
+/** The season phase as the feeds name it: `seasonPhase` with an underscore, so it is one word in an overlay field. */
+export function feedPhase(state: SeasonState): "running" | "complete" | "not_started" {
+  const phase = seasonPhase(state);
+  return phase === "not-started" ? "not_started" : phase;
+}
+
+/**
+ * The answer of a feed that has nothing to show: the usual metadata, `available: false`, and why.
+ * `no_next_race`: the season is over. `no_grid`: there is a next race but no starting grid for it yet.
+ */
+export function unavailableFeed(state: SeasonState) {
+  return {
+    ...feedMeta(state),
+    available: false as const,
+    reason: nextScheduledRound(state) === null ? ("no_next_race" as const) : ("no_grid" as const),
   };
 }
 

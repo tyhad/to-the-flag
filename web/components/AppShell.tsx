@@ -19,6 +19,7 @@ import { NewDataNotice } from "./NewDataNotice";
 import { AnalysisPlaceholder, AnalysisRail } from "./AnalysisRail";
 import { Header } from "./Header";
 import { resolveSide } from "../viewModel/compare";
+import { seasonPhase, type SeasonPhase } from "../viewModel/seasonPhase";
 import { ScenarioStrip, ScenarioStripPlaceholder } from "./ScenarioStrip";
 import { SessionsPlaceholder, SessionsRail } from "./SessionsRail";
 import { StandingsPanel, type CompareView } from "./StandingsPanel";
@@ -32,8 +33,10 @@ function Frame({
   strip,
   notice,
   newDataNotice,
+  phase = "running",
 }: {
   health: HealthState;
+  phase?: SeasonPhase;
   sessions: ReactNode;
   standings: ReactNode;
   analysis: ReactNode;
@@ -56,7 +59,7 @@ function Frame({
           hasNotice ? "grid-rows-[auto_auto_minmax(0,1fr)_auto]" : "grid-rows-[auto_minmax(0,1fr)_auto]"
         }`}
       >
-        <Header health={health} />
+        <Header health={health} phase={phase} />
         {hasNotice ? (
           <div className="col-span-3 flex flex-col gap-2">
             {notice ? <DataNoticeBanner notice={notice} /> : null}
@@ -119,10 +122,12 @@ function Loaded({
   return (
     <Frame
       health={health}
+      phase={seasonPhase(state)}
       sessions={<SessionsRail state={state} workspace={workspace} dispatch={dispatch} />}
       standings={<StandingsPanel
           season={season}
           scenario={workspace.scenario}
+          phase={seasonPhase(state)}
           compare={compareView}
           contenders={workspace.contenders}
           titleInfo={{ mode: titleInfo, onChange: setTitleInfo }}

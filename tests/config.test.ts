@@ -9,6 +9,7 @@ describe("loadConfig", () => {
       port: 3100,
       host: "127.0.0.1",
       writeToken: "",
+      allowedHosts: [],
     });
   });
 
@@ -33,6 +34,7 @@ describe("loadConfig", () => {
       port: 4000,
       host: "0.0.0.0",
       writeToken: "secret1234567890",
+      allowedHosts: [],
     });
   });
 
@@ -42,6 +44,16 @@ describe("loadConfig", () => {
     expect(cfg.port).toBe(DEFAULTS.port);
     expect(cfg.host).toBe(DEFAULTS.host);
     expect(cfg.writeToken).toBe(DEFAULTS.writeToken);
+    expect(cfg.allowedHosts).toEqual([]);
+  });
+
+  test("TTF_ALLOWED_HOSTS is split, trimmed and lower-cased; empty entries are dropped", () => {
+    expect(loadConfig({ TTF_ALLOWED_HOSTS: " MyPC.local, laptop ,,  " }).allowedHosts).toEqual(["mypc.local", "laptop"]);
+    expect(loadConfig({ TTF_ALLOWED_HOSTS: "" }).allowedHosts).toEqual([]);
+  });
+
+  test("an invalid TTF_ALLOWED_HOSTS entry does not throw here: it is refused at start", () => {
+    expect(loadConfig({ TTF_ALLOWED_HOSTS: "http://x.local" }).allowedHosts).toEqual(["http://x.local"]);
   });
 
   test("invalid PORT throws RangeError", () => {

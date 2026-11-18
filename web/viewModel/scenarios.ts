@@ -92,6 +92,8 @@ export function buildChips(
   saved: readonly SavedScenario[],
   selectedId: string | null,
   activeId: string | null,
+  seasonComplete = false,
+  currentSeason?: number,
 ): ScenarioChip[] {
   const known = selectedId !== null && saved.some((s) => s.id === selectedId);
   const chips: ScenarioChip[] = [
@@ -109,7 +111,11 @@ export function buildChips(
   ];
   for (const s of saved) {
     let note: string | null = null;
-    if (!s.valid) {
+    if (!s.valid && currentSeason !== undefined && s.season !== currentSeason) {
+      note = `This scenario is from season ${s.season}, and this is season ${currentSeason}. It is kept, but it cannot be loaded. You can rename or delete it.`;
+    } else if (!s.valid && seasonComplete) {
+      note = "The season is complete, so this scenario is kept as it was saved and cannot be loaded. You can rename or delete it.";
+    } else if (!s.valid) {
       note =
         "This scenario no longer fits the current data, for example because a locked session has since run. It is kept so you can rename or delete it.";
     } else if (s.stale) {

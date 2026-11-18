@@ -9,6 +9,7 @@ import type { CardPositionRange, CardRow, CardRowsChoice, CardView } from "./car
 import type { Workspace } from "./workspace";
 import type { SavedScenario } from "./scenarios";
 import type { SeasonState } from "../../engine";
+import { isFinal } from "./seasonPhase";
 
 /**
  * Builds the CardView from the current page state.
@@ -57,8 +58,9 @@ export function buildCardView(
   const selected = selectedId !== null ? scenarios.find((s) => s.id === selectedId) : undefined;
   const scenarioName = selected?.name ?? "Base";
 
+  const final = isFinal(state);
   const lockedKeys = Object.keys(workspace.scenario.locks);
-  const isSimulation = lockedKeys.length > 0;
+  const isSimulation = !final && lockedKeys.length > 0;
   let simulationRound: number | undefined;
   if (isSimulation) {
     const roundNums = lockedKeys.map((k) => Number(k.split(":")[0])).filter((n) => !isNaN(n));
@@ -77,6 +79,7 @@ export function buildCardView(
     positionRange,
     isSimulation,
     simulationRound,
+    ...(final ? { isFinal: true } : {}),
   };
 }
 

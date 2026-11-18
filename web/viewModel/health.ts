@@ -1,3 +1,5 @@
+import type { SeasonPhase } from "../../engine";
+import { phaseHeaderLabel } from "./seasonPhase";
 import { explainServerError } from "./serverError";
 
 /** Header data-status view-model. Pure: no DOM, no fetch. */
@@ -38,12 +40,12 @@ export function parseHealthResponse(httpOk: boolean, body: unknown): HealthState
 }
 
 /** The line shown at the right of the header. "as of Round N" is always shown when data is loaded. */
-export function headerLabel(state: HealthState): string {
+export function headerLabel(state: HealthState, phase: SeasonPhase = "running"): string {
   switch (state.status) {
     case "loading":
       return "Loading season data";
     case "ready":
-      return `Season ${state.season} · as of Round ${state.asOfRound}`;
+      return phaseHeaderLabel(state.season, phase) ?? `Season ${state.season} · as of Round ${state.asOfRound}`;
     case "error":
       // Short on purpose: the standings panel carries the full explanation.
       return "Season data not loaded.";

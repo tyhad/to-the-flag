@@ -1,5 +1,6 @@
 import { useMemo, type Dispatch } from "react";
 import { activeDrivers, type SeasonState } from "../../engine";
+import { lockDisabledReason, seasonPhase, sessionsMessage } from "../viewModel/seasonPhase";
 import { buildSessionCards } from "../viewModel/sessions";
 import { presetTargets, type Workspace, type WorkspaceMessage } from "../viewModel/workspace";
 import { ContenderBar } from "./ContenderBar";
@@ -18,6 +19,9 @@ export function SessionsRail({ state, workspace, dispatch }: SessionsRailProps) 
   const cards = useMemo(() => buildSessionCards(state, workspace.scenario), [state, workspace.scenario]);
   const targets = presetTargets(state, workspace);
   const hasLocks = Object.keys(workspace.scenario.locks).length > 0;
+  const phase = seasonPhase(state);
+  const phaseMessage = sessionsMessage(phase);
+  const disabledReason = lockDisabledReason(phase);
 
   return (
     <aside aria-labelledby="sessions-title" className={RAIL}>
@@ -28,6 +32,7 @@ export function SessionsRail({ state, workspace, dispatch }: SessionsRailProps) 
         <button
           type="button"
           aria-disabled={!hasLocks}
+          title={disabledReason ?? undefined}
           onClick={() => {
             if (hasLocks) dispatch({ type: "reset" });
           }}
@@ -37,8 +42,10 @@ export function SessionsRail({ state, workspace, dispatch }: SessionsRailProps) 
         </button>
       </div>
 
-      {cards.length === 0 ? (
-        <EmptyState title="No sessions left">The season is over, so the standings are final.</EmptyState>
+      {phaseMessage ? (
+        <EmptyState title={phaseMessage.title}>{phaseMessage.text}</EmptyState>
+      ) : cards.length === 0 ? (
+        <EmptyState title="No sessions left">Every session has a result.</EmptyState>
       ) : (
         <>
           <ContenderBar

@@ -3,6 +3,7 @@
  * Runs the season simulation, adds the exact title status, and formats probabilities so that a sample never claims
  * a certainty it cannot have. Pure.
  */
+import { isSeasonComplete } from "./phase";
 import { simulateSeason, type OddsParams } from "./simulate";
 import { driverStatus, type TitleStatus } from "./status";
 import type { Scenario, SeasonState } from "./types";
@@ -47,6 +48,11 @@ export interface OddsResult {
   wcc: OddsRow[];
   /** largest sqrt(p (1 - p) / nSims) over all drivers and teams */
   maxStdError: number;
+  /**
+   * Set (to true) only when no session is left to run (Phase 10, D60): the champion is decided, so the odds are
+   * exact, not an estimate. The champion shows "100%" and nobody else is listed. Absent while the season runs.
+   */
+  final?: true;
 }
 
 /**
@@ -71,6 +77,7 @@ function table(
   nSims: number,
   keep: (id: string) => boolean,
   statusOf?: (id: string) => TitleStatus | undefined,
+  exact = false,
 ): OddsRow[] {
   const rows: OddsRow[] = [];
   for (const [id, w] of Object.entries(wins)) {
@@ -80,7 +87,8 @@ function table(
       id,
       wins: w,
       probability,
-      display: formatProbability(probability),
+      // With no session left the result is a fact, not a sample, so it may say 100% (formatProbability never does).
+      display: exact ? (probability >= 1 ? "100%" : "0%") : formatProbability(probability),
       avgPoints: (pointSums[id] ?? 0) / nSims,
     };
     const status = statusOf?.(id);
@@ -95,6 +103,7 @@ export function computeOdds(state: SeasonState, scenario?: Scenario, params: Par
   const sim = simulateSeason(state, scenario, params);
   const status = new Map(driverStatus(state, scenario).map((r) => [r.driver, r.status]));
   const { nSims } = sim;
+  const final = isSeasonComplete(state);
 
   const wdc = table(
     sim.driverWins,
@@ -102,8 +111,9 @@ export function computeOdds(state: SeasonState, scenario?: Scenario, params: Par
     nSims,
     (id) => status.get(id) !== undefined && status.get(id) !== "eliminated",
     (id) => status.get(id),
+    final,
   );
-  const wcc = table(sim.teamWins, sim.teamPointSums, nSims, () => false);
+  const wcc = table(sim.teamWins, sim.teamPointSums, nSims, () => false, undefined, final);
 
   const everyone = [...Object.values(sim.driverWins), ...Object.values(sim.teamWins)];
   const maxStdError = Math.max(0, ...everyone.map((w) => Math.sqrt(((w / nSims) * (1 - w / nSims)) / nSims)));
@@ -121,5 +131,6 @@ export function computeOdds(state: SeasonState, scenario?: Scenario, params: Par
     wdc,
     wcc,
     maxStdError,
+    ...(final ? { final: true as const } : {}),
   };
 }

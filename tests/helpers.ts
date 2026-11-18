@@ -147,3 +147,69 @@ export function makeState(opts: MakeStateOptions): SeasonState {
     schemaVersion: opts.schemaVersion ?? 2,
   };
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// Season edge states (Phase 10, Step 1 / D60), built from a real snapshot. Never edit the fixture itself.
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * The same season with every remaining session finished: each one gets a result for every active driver,
+ * ordered by a rotation of the driver list so that no two sessions end alike (deterministic, no randomness).
+ * Rounds become "completed" and `asOfRound` is the last round. Does not modify its input.
+ */
+export function completeSeasonFrom(state: SeasonState): SeasonState {
+  const have = new Set(state.results.map((r) => `${r.round}:${r.kind}`));
+  const lastDone = state.results.filter((r) => r.kind === "race").map((r) => r.round);
+  const lastRound = Math.max(0, ...lastDone);
+  const lineup = state.results.filter((r) => r.round === lastRound && r.kind === "race");
+  const teamOf = new Map(lineup.map((r) => [r.driver, r.team]));
+  const active = state.drivers.filter((d) => d.active).map((d) => d.code);
+  const rows: ResultRow[] = [...state.results];
+  let n = 0;
+  for (const round of [...state.rounds].sort((a, b) => a.round - b.round)) {
+    const kinds: ("sprint" | "race")[] = round.hasSprint ? ["sprint", "race"] : ["race"];
+    for (const kind of kinds) {
+      if (have.has(`${round.round}:${kind}`)) continue;
+      const shift = n++ % active.length;
+      const order = [...active.slice(shift), ...active.slice(0, shift)];
+      order.forEach((driver, i) => {
+        rows.push({
+          round: round.round,
+          kind,
+          driver,
+          team: teamOf.get(driver) ?? "unknown",
+          position: i + 1,
+          grid: i + 1,
+          points: kind === "race" ? gpPoints(i + 1) : sprintPoints(i + 1),
+          classified: true,
+        });
+      });
+    }
+  }
+  rows.sort((a, b) => a.round - b.round || (a.kind === b.kind ? 0 : a.kind === "race" ? -1 : 1) || a.position - b.position);
+  const { upcomingGrid: _drop, ...rest } = state;
+  return {
+    ...rest,
+    asOfRound: lastRound > 0 ? state.rounds.length : 0,
+    rounds: state.rounds.map((r) => ({ ...r, status: "completed" as const })),
+    results: rows,
+  };
+}
+
+/**
+ * The same season before its first race: no results, no qualifying, every round scheduled, `asOfRound` 0.
+ * As the data loader does when no round is complete: every driver counts as active, and there are no teams (the
+ * loader reads teams from result rows, so with no result there is no driver-to-team link at all).
+ */
+export function notStartedFrom(state: SeasonState): SeasonState {
+  const { upcomingGrid: _drop, ...rest } = state;
+  return {
+    ...rest,
+    asOfRound: 0,
+    rounds: state.rounds.map((r) => ({ ...r, status: "scheduled" as const })),
+    results: [],
+    qualifying: [],
+    drivers: state.drivers.map((d) => ({ ...d, active: true })),
+    teams: [],
+  };
+}

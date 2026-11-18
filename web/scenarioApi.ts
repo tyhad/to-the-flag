@@ -8,6 +8,7 @@ import {
 } from "./viewModel/scenarios";
 import type { AccessPayload } from "./viewModel/access";
 import { gridErrorMessage, parseGridResponse, type GridInfo } from "./viewModel/grid";
+import { importErrorMessage, parseImportSummary, type ImportSummary } from "./viewModel/scenarioFile";
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; message: string };
 
@@ -28,10 +29,10 @@ export function setOnUnauthorized(handler: (() => void) | null): void {
   unauthorizedHandler = handler;
 }
 
-async function call(method: string, url: string, payload?: unknown): Promise<{ status: number | null; ok: boolean; body: unknown }> {
+async function call(method: string, url: string, payload?: unknown, rawBody?: string): Promise<{ status: number | null; ok: boolean; body: unknown }> {
   try {
     const headers: Record<string, string> = {};
-    if (payload !== undefined) {
+    if (payload !== undefined || rawBody !== undefined) {
       headers["Content-Type"] = "application/json";
     }
     if (apiToken) {
@@ -40,7 +41,7 @@ async function call(method: string, url: string, payload?: unknown): Promise<{ s
     const res = await fetch(url, {
       method,
       headers,
-      ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+      ...(rawBody !== undefined ? { body: rawBody } : payload !== undefined ? { body: JSON.stringify(payload) } : {}),
     });
     if (res.status === 401 && unauthorizedHandler) {
       unauthorizedHandler();
@@ -116,6 +117,17 @@ export const scenarioApi = {
   async remove(id: string): Promise<ApiResult<null>> {
     const r = await call("DELETE", `/api/scenarios/${encodeURIComponent(id)}`);
     return r.ok ? { ok: true, data: null } : fail(r);
+  },
+
+  /**
+   * Sends the text of a scenario file. The server checks everything; the answer says how many came in, how many
+   * were skipped and why. The text is sent as it is, so the server sees exactly what the file holds.
+   */
+  async importFile(text: string): Promise<ApiResult<ImportSummary>> {
+    const r = await call("POST", "/api/scenarios/import", undefined, text);
+    if (!r.ok) return { ok: false, message: importErrorMessage(r.status, r.body) };
+    const summary = parseImportSummary(r.body);
+    return summary ? { ok: true, data: summary } : { ok: false, message: UNEXPECTED };
   },
 
   async getActive(): Promise<ApiResult<string | null>> {

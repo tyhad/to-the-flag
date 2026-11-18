@@ -6,6 +6,28 @@ import { InvalidScenarioError } from "../../engine/scenario";
 import type { ScenarioDatabase } from "../db";
 import type { SeasonLoader } from "../seasonLoader";
 import { writeGuard, type GuardOptions } from "../guard";
+import { buildScenarioFile, exportFileName, MAX_FILE_BYTES, parseScenarioFile } from "../scenarioFile";
+
+/** The body as text, read in pieces and abandoned as soon as it is larger than `max` bytes. Null when too large. */
+async function readTextCapped(request: Request, max: number): Promise<string | null> {
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > max) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
 
 export function createScenarioRoutes(
   loader: SeasonLoader,
@@ -22,6 +44,66 @@ export function createScenarioRoutes(
       }
       return db.getScenarios(seasonRes.data.state);
     })
+
+    // Registered before "/api/scenarios/:id" so "export" is never read as an id. A read route: no token needed.
+    .get("/api/scenarios/export", ({ set }) => {
+      const seasonRes = loader.getSeason();
+      if (!seasonRes.ok) {
+        set.status = seasonRes.statusCode;
+        return { error: seasonRes.error, message: seasonRes.message };
+      }
+      const { state } = seasonRes.data;
+      set.headers["content-disposition"] = `attachment; filename="${exportFileName(state)}"`;
+      return buildScenarioFile(db.getScenarios(state), state);
+    })
+
+    .post(
+      "/api/scenarios/import",
+      async ({ request, set }) => {
+        const seasonRes = loader.getSeason();
+        if (!seasonRes.ok) {
+          set.status = seasonRes.statusCode;
+          return { error: seasonRes.error, message: seasonRes.message };
+        }
+        const { state } = seasonRes.data;
+
+        const text = await readTextCapped(request, MAX_FILE_BYTES);
+        if (text === null) {
+          set.status = 413;
+          return { error: "too_large", message: "The file is larger than 1 MB." };
+        }
+        const parsed = parseScenarioFile(text, state, db.getScenarios(state).map((s) => s.name));
+        if (!parsed.ok) {
+          set.status = 422;
+          return { error: parsed.code, message: parsed.message };
+        }
+
+        // Ids are made here, never read from the file. A scenario that fails at the last check is skipped, not fatal.
+        const imported = [];
+        const skipped = [...parsed.skipped];
+        for (const item of parsed.accepted) {
+          try {
+            imported.push(
+              db.createScenario(
+                { name: item.name, season: item.season, asOfRound: item.asOfRound, locks: item.locks, contenders: item.contenders },
+                state,
+              ),
+            );
+          } catch (err) {
+            if (!(err instanceof InvalidScenarioError)) throw err;
+            skipped.push({ index: 0, name: item.name, reason: `${err.message}.` });
+          }
+        }
+        return {
+          imported: imported.length,
+          skipped: skipped.length,
+          scenarios: imported,
+          skippedItems: skipped,
+          renamed: parsed.accepted.filter((a) => a.requestedName).map((a) => ({ from: a.requestedName, to: a.name })),
+        };
+      },
+      { parse: "none" },
+    )
 
     .post("/api/scenarios", async ({ body, set }) => {
       const seasonRes = loader.getSeason();

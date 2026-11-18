@@ -3,11 +3,15 @@
  * Enforces access policy, Origin checks, Content-Type checks, and in-memory rate limiting.
  */
 import { Elysia } from "elysia";
+import { config } from "../config";
 import { decideWrite } from "./access";
+import { isAllowedHost } from "./hosts";
 
 export interface GuardOptions {
   token?: string | null;
   clientIp?: (request: Request) => string | null;
+  /** Extra host names allowed to send writes (TTF_ALLOWED_HOSTS, lower-case); `localhost` and IP literals always are. */
+  allowedHosts?: readonly string[];
   /** Injectable clock for testing */
   now?: () => number;
 }
@@ -85,6 +89,21 @@ export function resolveClientIp(
   return null;
 }
 
+/**
+ * The `Host` a write came in under. A real request carries the header; a real request without one is refused (null).
+ * A synthetic request (`app.handle`, no `server`) has none, so its URL's host stands in, as for the client address.
+ */
+export function requestHost(request: Request, server: unknown): string | null {
+  const header = request.headers.get("host");
+  if (header !== null) return header;
+  if (server) return null;
+  try {
+    return new URL(request.url).host;
+  } catch {
+    return null;
+  }
+}
+
 export function writeGuard(options?: GuardOptions) {
   const rateLimiter = defaultWriteRateLimiter;
 
@@ -94,6 +113,17 @@ export function writeGuard(options?: GuardOptions) {
       const method = request.method.toUpperCase();
       if (method !== "POST" && method !== "PUT" && method !== "DELETE") {
         return;
+      }
+
+      // 0. Host allowlist (403, D57). First of all: a refused host is not a failed attempt, so it never feeds the limiter.
+      if (!isAllowedHost(requestHost(request, server), options?.allowedHosts ?? config.allowedHosts)) {
+        set.status = 403;
+        return {
+          error: "forbidden_host",
+          message:
+            "This address is not allowed to write. Open the app by its IP address (for example http://192.168.1.20:3100), " +
+            "or add this host name to TTF_ALLOWED_HOSTS.",
+        };
       }
 
       const now = options?.now ? options.now() : Date.now();

@@ -17,13 +17,31 @@ Set results for the remaining sessions and watch the table, the title status and
 - **Read the table.** Projected WDC and WCC with the change in places and points, and, once someone can no longer win the title, a status tag and a *Best* place for each driver and each team (clinched, alive, long shot, or `✕ No title`; a driver who is not racing is tagged *not racing*). A team with no active car has no tag. *Best* is the highest place the driver or team can still reach **on points alone**: it counts the rivals whose points are already above what this entry could still reach. It is a floor, not a promise: it does not check that every rival can be held back at once, and a tie on points is not counted as being above. `P1` means the title is still possible. The *Title info* control above the table has three settings: **Auto** (the default; the tags and *Best* appear once someone in that table is out of the title fight), **On** and **Off** (a plain standings table). The choice is remembered in the browser and the exported picture follows it.
 - **Ask what it takes.** *Possible?* shows what a contender needs to win the title, with a difficulty meter (a share of the remaining points, never a probability) and the easiest path, which you can load into the sandbox. Switch to *Constructors* for the same question about a team: the points it needs, the fewest one-twos (both cars P1 and P2) it needs if every rival scores nothing, and what each rival may still score if the team finishes 1-2 everywhere.
 - **See the gap.** The finish lane shows each contender's projected points, the most they can reach, and the total at which the leader clinches.
-- **Keep scenarios.** Save, rename, delete and compare scenarios, copy a share link, and show one on the overlay.
+- **Keep scenarios.** Save, rename, delete and compare scenarios, copy a share link, export and import them as a file, and show one on the overlay.
 - **Ask what is likely.** *Likely?* shows model odds for the drivers' and the teams' title, from 10,000 simulated seasons. With locked sessions it also shows the change against the odds with nothing locked. The slider sets how much this season's form counts (0% makes all drivers equal). The numbers are always labelled *Model estimate*; clinched and eliminated drivers are stated in words, and a simulation never shows `0%` or `100%`. How the model works, how it was tested and what it cannot do: [`docs/MODEL.md`](docs/MODEL.md).
 
 - **Set the starting grid.** The *Race* tab shows the grid of the next race and where it comes from. Correct it (move a driver, drop places, back of the grid, pit-lane start, or paste a whole list) and *Save grid*; *Likely?* and the race forecast then use your grid.
 - **See the race forecast.** Under the grid, for each driver: the chance to win, to finish on the podium and in the points, and the expected finish. It is a model estimate for the next race only.
 
 *Possible?* is exact arithmetic and *Likely?* is a model; the two are never mixed into one figure.
+
+## Screenshots
+
+![The projected standings with the title status, the Best column, the finish lane and the path to the title](docs/img/standings.png)
+
+Round 16 of 2026: each contender's status tag and *Best* place, the finish lane, and *Possible?* with what a rival needs.
+
+![Model odds for the title](docs/img/likely.png)
+
+*Likely?*: the model's title odds, always labelled *Model estimate*.
+
+![The starting grid of the next race and its editor](docs/img/race.png)
+
+The *Race* tab: the grid of the next race, where it comes from, and the editor. This grid is the invented one from `bun run seed-grid` (see Commands).
+
+![The exported standings card as a PNG](docs/img/card.png)
+
+The picture the *Export picture* button downloads: the square size, with the odds when *Likely?* has run.
 
 ## Commands
 | Command | What it does |
@@ -53,16 +71,20 @@ Copy `.env.example` to `.env` and adjust. All values are optional.
 | Variable | Default | Meaning |
 |---|---|---|
 | `F1GSTATS_DB` | `../F1GStats/f1gstats.sqlite` | Path to the read-only F1GStats database |
+| `F1GSTATS_PY` | `py` on Windows, `python3` elsewhere | Python for `bun run refresh`. It must be the one with FastF1 installed: use the F1GStats virtual environment (`../F1GStats/venv/Scripts/python.exe` on Windows), because activating it in another terminal does not reach the command |
 | `TTF_DB` | `./to-the-flag.sqlite` | Where saved scenarios and the active overlay scenario are kept |
 | `PORT` | `3100` | Server port (LiveOverlay Studio uses 3000) |
 | `HOST` | `127.0.0.1` | Server host. Keep it local: there is no login |
 | `TTF_WRITE_TOKEN` | *(empty)* | Secret write token. Required when `HOST` is not loopback (min 16 characters) |
+| `TTF_ALLOWED_HOSTS` | *(empty)* | Host names that may write, comma-separated, no scheme, port or path (for example `mypc.local`). `localhost` and IP addresses always may. An invalid entry stops the server at start |
 
 ## LAN mode
 To access the app from a phone or a second computer on your home network:
 1. In `.env`, set `HOST=0.0.0.0` and `TTF_WRITE_TOKEN` to a long random string (at least 16 characters).
 2. Start the server (`bun run dev`). Allow the port in the Windows firewall if prompted.
 3. Open `http://<this PC's address>:3100` on the other device (the startup banner lists your LAN addresses).
+
+If you open the app by a name (such as `http://mypc.local:3100`) instead of an IP address, add that name to `TTF_ALLOWED_HOSTS`; otherwise writes are refused with `forbidden_host`. This stops a web page that points its own name at your PC (DNS rebinding) from writing. Opening the app by IP address needs no setup.
 
 Reading the UI, season data, health, and overlay feeds is open without a token. Writing (saving, updating, deleting scenarios, or setting the active overlay scenario) requires entering the token in the web interface.
 
@@ -74,6 +96,9 @@ The server publishes flat JSON feeds under `/api/feed/` for LiveOverlay Studio o
 
 ## Share links
 *Copy link* puts the scenario in the address after a `#`, for example `http://127.0.0.1:3100/#s=v1.…&r=16`. Opening it imports the scenario and checks it against the current data. If it was made at an earlier round, you get a warning that results may differ. Nothing is sent to a server.
+
+## Backup and move scenarios
+*Export scenarios* saves all your scenarios of the season in one file (`to-the-flag-scenarios-2026-r16.json`); *Import scenarios* reads such a file, on this or another computer. Only scenarios of the current season that still fit the data are kept, each one that is skipped comes with its reason, and a name that already exists gets a number ("Name (2)"): an import never overwrites anything. The file holds names, locks and contenders only, no ids, times, token or addresses. It is limited to 1 MB and 200 scenarios. Importing needs the write token in LAN mode. Details: [`docs/EXPORT.md`](docs/EXPORT.md).
 
 ## Race weekend: the starting grid
 
@@ -122,3 +147,21 @@ The *Race* tab has an *Export* section for the starting grid of the next race:
 | "Data check failed. Showing last valid data from Round N." | The latest F1GStats import did not pass its checks. Run the F1GStats data check to see why, then reload. The numbers shown are the last valid ones. |
 | "Data check warning" | The latest import flagged something to review. The standings are shown as loaded. |
 | "The display stopped working" | Reload. If it repeats, run the F1GStats data check and make sure the app and the data are up to date. |
+
+## Between seasons
+When the last race has a result the app says **Season complete**; before the first race of a new season it says **Season not started**. What to run, what to check each year and what happens to saved scenarios is in [`docs/SEASON_ROLLOVER.md`](docs/SEASON_ROLLOVER.md).
+
+## Data and credits
+
+To the Flag is an unofficial fan project. It is not affiliated with, endorsed or sponsored by Formula 1, the FIA, Formula One Licensing B.V. or any team. F1, FORMULA 1 and related marks belong to their owners.
+
+The data comes from third-party sources, each under its own terms:
+- Jolpica F1 API (api.jolpi.ca), the community successor to the Ergast API: schedules, results and standings.
+- FastF1, a Python library: session data.
+- OpenF1: starting-grid information.
+
+Check each source's terms before reusing its data. What the owner checked is recorded in [`docs/DATA_TERMS.md`](docs/DATA_TERMS.md). The software and the fonts this app is built on, with their licenses, are listed in [`THIRD_PARTY.md`](THIRD_PARTY.md).
+
+## License
+
+No license is granted. The source is public for reference; all rights are reserved.

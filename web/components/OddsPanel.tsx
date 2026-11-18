@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import type { SeasonState } from "../../engine";
 import { FORM_WEIGHT_STEP } from "../config";
+import { UNOFFICIAL_NOTICE } from "../viewModel/credits";
 import { buildOddsView, oddsErrorCopy, snapFormPercent, type OddsPanelState, type OddsTable, type OddsView } from "../viewModel/odds";
 import { EmptyState } from "./EmptyState";
 import { ProbabilityBar } from "./ProbabilityBar";
@@ -108,7 +109,7 @@ export function OddsPanel({ state, panel, hasLocks, table, onTable, formPercent,
     <div className="flex flex-col gap-4">
       <header className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="type-heading text-text">Model estimate</h2>
+          <h2 className="type-heading text-text">{view?.estimateLabel ?? "Model estimate"}</h2>
           {view?.lowConfidence ? (
             <span className="type-label chamfer inline-flex h-6 items-center bg-yellow px-2 text-s0">{view.lowConfidence.tag}</span>
           ) : null}
@@ -155,6 +156,7 @@ export function OddsPanel({ state, panel, hasLocks, table, onTable, formPercent,
         <details className="flex flex-col gap-2">
           <summary className="type-label cursor-pointer text-text-2">How this works</summary>
           <p className="type-note mt-2 text-text-2">{view.howItWorks}</p>
+          <p className="type-note text-text-2">{UNOFFICIAL_NOTICE}</p>
         </details>
       ) : null}
     </div>

@@ -64,7 +64,7 @@ Phase 1 must provide these scripts with exactly these names:
 - "Best" is a points-ceiling floor. Label it "on points alone" and never present it as a promise.
 - A starting grid that comes from the qualifying order must always be labeled as such ("may differ from the real grid"); never present it as the official grid.
 - "Possible?" (no model) and "Likely?" (Monte Carlo) stay visually separate.
-- Never show 0% or 100% from simulation; show `<1%` / `>99%`. Label simulated numbers "Model estimate".
+- Never show 0% or 100% from simulation; show `<1%` / `>99%`. Label simulated numbers "Model estimate". The one exception is a complete season (no session left, `OddsResult.final`): the odds are exact, so the champion shows `100%`, labeled "Final", and nothing is simulated.
 - Model changes need evidence: follow the protocol and adoption rule in `docs/PHASE_4.md`, never tune on the 2026 season before the confirmation run, and record every result in `docs/MODEL.md`.
 - Odds code lives in flat files in `engine/`, uses only the seeded `createRng` (never `Math.random`), and formats every probability through `formatProbability`.
 - `PORT` (default 3100) and `HOST` (default 127.0.0.1) come from env. Never hardcode `localhost` in URLs.

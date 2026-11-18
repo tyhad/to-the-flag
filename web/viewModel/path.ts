@@ -14,6 +14,7 @@ import {
   type TitleStatus,
 } from "../../engine";
 import { DIFFICULTY_BANDS, type DifficultyBands } from "../config";
+import { finalHeadline, isFinal } from "./seasonPhase";
 
 export type DifficultyBand = "green" | "yellow" | "orange";
 
@@ -157,7 +158,9 @@ export function buildPathView(
     name,
     verdict: result.verdict,
     isLeader,
-    headline: headlineFor(name, result.verdict, isLeader, toClinch),
+    headline: isFinal(state)
+      ? finalHeadline(name, "driver", (computeDriverStandings(state, scenario).findIndex((r) => r.id === driver) + 1) || 1, result.points)
+      : headlineFor(name, result.verdict, isLeader, toClinch),
     meter,
     conditions,
     rivals,

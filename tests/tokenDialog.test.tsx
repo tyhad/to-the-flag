@@ -39,6 +39,7 @@ function makeMockStore(overrides?: Partial<ScenarioStore>): ScenarioStore {
     update: async () => ({ ok: true as const, data: {} as any }),
     remove: async () => ({ ok: true as const, data: null }),
     setActive: async () => ({ ok: true as const, data: null }),
+    importFile: async () => ({ ok: true as const, data: { imported: 0, skipped: 0, skippedItems: [], renamed: [] } }),
     ...overrides,
   };
 }

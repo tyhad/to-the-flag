@@ -13,6 +13,7 @@ import {
   type TeamPathResult,
   type TitleStatus,
 } from "../../engine";
+import { finalHeadline, isFinal } from "./seasonPhase";
 import { DIFFICULTY_BANDS, type DifficultyBands } from "../config";
 import { MAX_CONTENDERS, contenderPool } from "./contenders";
 import { buildMeter, type DifficultyMeter } from "./path";
@@ -103,7 +104,9 @@ export function buildTeamPathView(
     name,
     verdict: result.verdict,
     isLeader,
-    headline: headlineFor(name, result.verdict, isLeader, toClinch),
+    headline: isFinal(state)
+      ? finalHeadline(name, "team", (computeConstructorStandings(state, scenario).findIndex((r) => r.id === team) + 1) || 1, result.points)
+      : headlineFor(name, result.verdict, isLeader, toClinch),
     meter,
     conditions,
     rivals,
