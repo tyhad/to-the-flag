@@ -7,6 +7,7 @@
 import { buildCard, runsStartX, type CardSize, type CardView, type DrawCommand } from "./viewModel/card";
 import { buildGridCard } from "./viewModel/gridCard";
 import { gridExportFilename, type GridCardView } from "./viewModel/gridExport";
+import { buildPodiumCard, podiumFilename, type PodiumCardView } from "./viewModel/podiumCard";
 
 export type { CardSize };
 
@@ -123,4 +124,10 @@ export async function exportGridCard(view: GridCardView, size: CardSize): Promis
   const { width, height } = dimensions(size);
   const filename = gridExportFilename("png", { season: view.season, round: view.round, size, range: view.range });
   await downloadPng(buildGridCard(view, size), width, height, filename);
+}
+
+/** Draws the podium card (1080×1080) and downloads it as a PNG. */
+export async function exportPodiumCard(view: PodiumCardView): Promise<void> {
+  const { width, height } = dimensions("square");
+  await downloadPng(buildPodiumCard(view), width, height, podiumFilename(view));
 }

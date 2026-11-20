@@ -7,6 +7,7 @@ import { emptyGridMessage, invalidOverrideNote, raceLabel } from "../viewModel/g
 import { EmptyState } from "./EmptyState";
 import { GridEditor } from "./GridEditor";
 import { GridSourceTag } from "./GridSourceTag";
+import { PodiumExport } from "./PodiumExport";
 
 interface RacePanelProps {
   state: SeasonState;
@@ -49,6 +50,8 @@ export function RacePanel({ state, controls, canWrite, verdict, notice, forecast
           {forecast}
         </>
       )}
+
+      <PodiumExport state={state} />
     </div>
   );
 }

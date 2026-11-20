@@ -1,6 +1,6 @@
 # The PNG cards (Export picture)
 
-How the exported cards are built, the rules they follow, and the steps to add something new to them, so that new content looks and behaves like what is already there. There are two cards: the **standings card** (WDC or WCC, from the scenario strip) and the **starting-grid card** (from the Race tab, Phase 8; see the last section). Read this before changing `web/viewModel/card.ts`, `web/viewModel/cardView.ts`, `web/viewModel/gridCard.ts`, `web/viewModel/gridExport.ts`, `web/exportCard.ts`, `web/exportText.ts` or the export controls in `web/components/ScenarioStrip.tsx` and `web/components/GridExport.tsx`.
+How the exported cards are built, the rules they follow, and the steps to add something new to them, so that new content looks and behaves like what is already there. There are three cards: the **standings card** (WDC or WCC, from the scenario strip), the **starting-grid card** (from the Race tab, Phase 8; see its section below) and the **podium card** (also from the Race tab; see its section below). Read this before changing `web/viewModel/card.ts`, `web/viewModel/cardView.ts`, `web/viewModel/gridCard.ts`, `web/viewModel/gridExport.ts`, `web/viewModel/podiumCard.ts`, `web/exportCard.ts`, `web/exportText.ts` or the export controls in `web/components/ScenarioStrip.tsx`, `web/components/GridExport.tsx` and `web/components/PodiumExport.tsx`.
 
 The standings card started in Phase 6 (`docs/PHASE_6.md`, Step 7, D40). Later work (WCC mode, row choice, custom range, simulation note, the Best and status columns of Phase 7) is described here as it is now.
 
@@ -79,6 +79,23 @@ The same pipeline as the standings card, with its own data and layout: `buildGri
 - **Rows scale to fit:** the box size follows the number of rows (with a limit, so a few places do not look lost), and nothing leaves the card at either size. The tests check 1, 3, 12, 20, 21 and 22 cars, the pit-lane block with up to eight starters, and ranges.
 
 To add something to this card, follow "Adding new exportable content" above, with `GridCardView` / `GridCardRow` as the data, `layoutGridCard` and `buildGridCard` as the layout, and `GridExport.tsx` as the controls.
+
+## The podium card
+
+A small block at the end of the Race tab: choose *Prediction* or *Race result*, pick P1, P2 and P3 from the season's drivers, and export a 1080×1080 PNG. The picks start empty and are not saved (a reload clears them). Nothing here needs a write token.
+
+| Piece | File | Job | Tested in |
+|---|---|---|---|
+| Data, layout, file name | `web/viewModel/podiumCard.ts` | Which race the picture is about, the pickers' drivers, the three steps and their text. Pure. | `tests/podiumCard.test.ts` |
+| Controls | `web/components/PodiumExport.tsx` | Mode, the three pickers, the button and its note, at the end of `RacePanel.tsx`. | `tests/podiumExportMarkup.test.tsx`; by hand in a browser |
+| Draw | `web/exportCard.ts` | `exportPodiumCard` uses the shared renderer. | by hand, in a browser |
+
+- **Which race:** *Prediction* is the next round (`asOfRound + 1`); *Race result* is the last completed round (`asOfRound`). A finished season has no next round and a season before its first race has no result; that mode then says why and cannot export.
+- **Sprint weekends:** `RoundInfo.hasSprint` adds "Sprint weekend" under the race name. It comes from the data, never a fixed list.
+- **Look:** three steps on one base line: P2 left, P1 centre and tallest, P3 right and lowest. Each step has the team color strip, the place (`P1`), the driver code and the team name when the data has one (shortened if long). The credit line is the shared one.
+- **The prediction is the owner's own**, not the model's, so the picture carries no "Model estimate" label. The top-right label is "Tyhad | F1 Watchalong's Prediction"; a result says "Race result".
+- **File name:** `podium-prediction-2026-r17.png` / `podium-result-2026-r16.png`.
+- **Not in the picture:** points, times, odds, or any other number. One size only, and always the next or the last race; an older race cannot be chosen.
 
 ## Scenario file (Phase 10)
 

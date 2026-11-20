@@ -139,6 +139,9 @@ The *Race* tab has an *Export* section for the starting grid of the next race:
 - **Data:** *Copy as CSV*, *Copy as JSON*, *Download CSV* and *Download JSON* always give every place (`position,driver,name,team,pit,source`).
 - It exports the saved grid. No write token is needed. How the cards are built and how to add to them: [`docs/EXPORT.md`](docs/EXPORT.md).
 
+### The podium
+The *Race* tab has a *Podium picture* block: choose *Prediction* or *Race result*, pick P1, P2 and P3 from the season's drivers, and export a 1080×1080 PNG with three steps, the team colors and the team names. A prediction is of the next race and carries your name (*Tyhad | F1 Watchalong's Prediction*); a result is of the last completed race. A sprint weekend is marked on the picture. Nothing is saved, so a reload clears the picks.
+
 ## If something does not load
 | You see | What to do |
 |---|---|

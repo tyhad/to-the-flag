@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- A podium picture in the Race tab: pick P1, P2 and P3 for a prediction or a race result and export a 1080×1080
+  PNG. Nothing is saved.
+
 ### Changed
 
 - Phase 11: the multi-season prior (the carryover) was evaluated under D64 and rejected; the engine
