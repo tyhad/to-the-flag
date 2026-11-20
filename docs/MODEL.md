@@ -50,6 +50,9 @@ A Monte Carlo simulation of the rest of the season, built only from this season'
 | `gridWeight` | 1 | weight of the starting grid in a race: the finishing key gets `gridWeight * (-ln(grid place))` added; 0 ignores the grid (v2). Used by `forecastRace` when it is given a grid, and by the season simulation for races that have a grid (a real one, or a simulated one) |
 | `qualifyingNoise` | 2 | Gumbel scale of the simulated qualifying for a race with no real grid: qualifying key = strength + `qualifyingNoise` * Gumbel, and the order of the keys is the grid. 0 simulates no grid, so later races ignore the grid. Only used when `gridWeight` is above 0 |
 | `finishStages` | 0 | Phase 9: finishing stages of a separate pace fit for the finish part of the race forecast (`top10` and `meanPosition`). 0 means the same as `paceStages` (the v2 behavior, no second fit). Any other value that differs from `paceStages` makes `forecastRace` fit a second set of strengths and run a second pass (same `nSims`, grid and field, its own seed) for those two fields; `win`, `podium` and the seed stay those of the first pass. A value of at least the field size is the all-places fit, so for that use a large number such as 99 (0 is taken: it means "same as `paceStages`"); 99 is safe while a race has fewer than 99 drivers. Not used by the season simulation (the title odds), and not part of the default seed |
+| `priorCarryover` | 0 | Phase 11 (D62): how much the previous season's sessions count in the strength fit, 0 to 1. 0 ignores the previous season (the v2 behavior). The previous season is attached to the state (`SeasonState.prior`) and must be exactly one season earlier |
+| `priorSeasonGap` | 8 | Phase 11 (D62): a carried session is aged as if it happened this many rounds before round 1, and grows older as the new season runs. Fixed, not tuned |
+| `priorSameTeamOnly` | false | Phase 11 (D62): carry the previous season only for drivers who stayed with the same constructor id. A driver with no race yet in the new season counts as unchanged (his current team is not known) |
 
 v1 is reproducible by passing `{ recencyHalfLife: Infinity, priorStrength: 3, paceStages: 0 }`. `MODEL_VERSION` is `"v2"`.
 
@@ -594,10 +597,104 @@ Verdict B: finishStages=10, prior=3 does NOT pass D53. Reasons:
 Recommendation: change nothing; no chosen candidate passes D53 (D52: B is preferred when it passes, then A).
 ```
 
+### Multi-season prior (Phase 11, protocol D64)
+
+**Result: rejected. v2 stays.** The candidate chosen on the tuning seasons improves the first five races on all three
+seasons and is level on the whole season, but its pooled early-season gain is 1.8 standard errors, short of the two that
+D64 asks for. Steps 4 and 5 of Phase 11 (the previous season at runtime and the UI label) are therefore not built.
+
+**Question.** At the start of a season the model knows nothing about the new season, so the first rounds and the
+"Season not started" state rest on the prior alone (every driver equal). Does letting last season's results count, with
+a discount, forecast the first five races better?
+
+**What was run.** `bun run calibrate -- --carryover`: six candidates (`priorCarryover` 0.25, 0.5 and 1, each with all
+teams or same team only) against v2 (`priorCarryover` 0, which reproduces v2 exactly), on 2023, 2024 and 2025, each with
+the season before it from the history folder, and 2026 with 2025 (informational: 2026 started after a regulation reset,
+so a carryover should be switched off there, D63). Walk-forward forecasts from round 1, scored per race on the win plus
+podium log loss; rounds 1-5 are the early window and the whole season is the second window. The candidate is chosen on
+2023-2024 alone; 2025 judges it and 2026 is printed for information.
+
+**D64**, all of these:
+
+1. 2025, rounds 1-5: better than v2 by more than 1 SE and by at least 0.005 per race.
+2. The pooled rounds 1-5 of 2023 to 2025: better by more than 2 SE.
+3. At least 2 of the 3 seasons improve on rounds 1-5.
+4. The whole season is not worse by more than 1 SE in any of the 3 seasons.
+5. The candidate judged is the best on 2023-2024.
+
+**What came out.**
+
+| Candidate | 2023 r1-5 | 2024 r1-5 | 2025 r1-5 | Train 23-24 | Pooled 23-25 | Whole season 23 / 24 / 25 |
+|---|---|---|---|---|---|---|
+| 0.25, all teams | -0.000 (±0.021) | -0.036 (±0.031) | -0.024 (±0.021) | -0.018 (±0.019) | -0.020 (±0.014) | +0.001 / -0.010 / -0.008 |
+| 0.25, same team (chosen) | -0.010 (±0.013) | -0.034 (±0.032) | -0.026 (±0.021) | **-0.022 (±0.017)** | **-0.023 (±0.013)** | -0.001 / -0.009 / -0.007 |
+| 0.5, all teams | +0.012 (±0.027) | -0.038 (±0.034) | -0.025 (±0.025) | -0.013 (±0.022) | -0.017 (±0.017) | +0.007 / -0.010 / -0.010 |
+| 0.5, same team | -0.005 (±0.015) | -0.036 (±0.035) | -0.027 (±0.025) | -0.020 (±0.018) | -0.022 (±0.014) | +0.003 / -0.009 / -0.009 |
+| 1, all teams | +0.027 (±0.033) | -0.038 (±0.036) | -0.024 (±0.028) | -0.005 (±0.025) | -0.011 (±0.019) | +0.014 / -0.009 / -0.010 |
+| 1, same team | +0.001 (±0.016) | -0.035 (±0.036) | -0.026 (±0.028) | -0.017 (±0.020) | -0.020 (±0.016) | +0.008 / -0.008 / -0.009 |
+
+- **Rules 1, 3 and 4 pass** for the chosen candidate: 2025 rounds 1-5 -0.026 (±0.021), all three seasons better on
+  rounds 1-5, and the whole season -0.001 (±0.004), -0.009 (±0.007), -0.007 (±0.006).
+- **Rule 2 fails, narrowly.** The pooled rounds 1-5 difference is -0.0232 (±0.0127): 1.8 standard errors, where D64
+  asks for more than 2 (-0.0255). It is short by 0.0023 per race.
+- **A larger carryover does not help.** At 0.5 and 1 the early window is about the same in 2024 and 2025, and 2023 gets
+  worse (+0.027 for 1 with all teams): the season before 2023 (2022) says less about it than 2023 says about 2024.
+- **The whole season never suffers.** Rule 4 passes for every candidate, so a carryover would not damage the later part
+  of a season; the gain (and the loss) sits in the first five races, as intended.
+- **2026 does not punish it.** For the chosen candidate the early window is -0.001 (±0.024) and the whole season
+  -0.001 (±0.007); even a carryover of 1 costs only +0.021 (±0.030) on rounds 1-5. The regulation reset of 2026 is
+  recorded here as a small cost, not the large one D63 warns about, so no extra warning goes into the rollover guide
+  beyond "set it to 0 for a reset".
+
+**Decision.** `MODEL_VERSION` stays `"v2"` and `priorCarryover` stays 0 in the defaults. The engine keeps the three
+parameters (`priorCarryover` 0 reproduces v2 exactly, seeds included) and `bun run calibrate -- --carryover` stays as
+the way to re-run this when a season is added. Steps 4 and 5 of Phase 11 are skipped.
+
+**What this points to.** The early-season gain is real in 2024 and 2025 but small and noisy over three seasons, and it
+is the only place it shows. With 2026 in the history folder, the next run (2027 carrying 2026) has four seasons and 20
+pooled races instead of 15; that is the time to look again, not a reason to loosen D64 now.
+
+Full output of the run:
+
+```
+Loading calibration data (seasons 2022-2025 history + 2026 live)...
+Running evaluation with 2000 simulations per forecast...
+
+=== Multi-season prior (Phase 11, protocol D64) ===
+Baseline: v2, with the previous season attached and priorCarryover 0 (the fit is exactly today's).
+Differences are per race (win + podium log loss), candidate minus v2, negative = better. The early window is
+rounds 1-5. 2026 is informational only: it started after a regulation reset, so the carryover should be 0 there (D63).
+
+--- Rounds 1-5 (the early season) ---
+  carryover      teams               2023               2024               2025               2026        Train 23-24       Pooled 23-25
+  0.25             all  -0.0003 (±0.0207)  -0.0357 (±0.0314)  -0.0241 (±0.0213)  -0.0028 (±0.0231)  -0.0180 (±0.0187)  -0.0201 (±0.0139)
+  0.25       same team  -0.0097 (±0.0129)  -0.0339 (±0.0317)  -0.0260 (±0.0214)  -0.0014 (±0.0235)  -0.0218 (±0.0166)  -0.0232 (±0.0127)
+  0.5              all  +0.0123 (±0.0269)  -0.0382 (±0.0339)  -0.0254 (±0.0250)  +0.0092 (±0.0274)  -0.0129 (±0.0221)  -0.0171 (±0.0165)
+  0.5        same team  -0.0046 (±0.0149)  -0.0356 (±0.0345)  -0.0266 (±0.0249)  +0.0102 (±0.0276)  -0.0201 (±0.0184)  -0.0223 (±0.0143)
+  1                all  +0.0272 (±0.0329)  -0.0377 (±0.0359)  -0.0235 (±0.0283)  +0.0210 (±0.0298)  -0.0052 (±0.0254)  -0.0113 (±0.0189)
+  1          same team  +0.0011 (±0.0160)  -0.0351 (±0.0364)  -0.0261 (±0.0276)  +0.0227 (±0.0302)  -0.0170 (±0.0197)  -0.0200 (±0.0155)
+
+--- Whole season (rule 4: not worse than 1 SE in any of 2023-2025) ---
+  carryover      teams               2023               2024               2025               2026
+  0.25             all  +0.0011 (±0.0049)  -0.0097 (±0.0070)  -0.0082 (±0.0055)  -0.0005 (±0.0074)
+  0.25       same team  -0.0006 (±0.0036)  -0.0092 (±0.0070)  -0.0074 (±0.0056)  -0.0005 (±0.0074)
+  0.5              all  +0.0066 (±0.0070)  -0.0101 (±0.0080)  -0.0096 (±0.0073)  +0.0050 (±0.0096)
+  0.5        same team  +0.0027 (±0.0047)  -0.0094 (±0.0081)  -0.0087 (±0.0071)  +0.0047 (±0.0092)
+  1                all  +0.0144 (±0.0093)  -0.0092 (±0.0095)  -0.0103 (±0.0094)  +0.0139 (±0.0117)
+  1          same team  +0.0079 (±0.0062)  -0.0084 (±0.0096)  -0.0093 (±0.0089)  +0.0131 (±0.0112)
+
+--- Chosen on the tuning seasons (2023-2024 only) ---
+  priorCarryover 0.25, same team only
+
+Verdict: NOT adopted. Reasons:
+  - Pooled 2023-2025 rounds 1-5 diff -0.0232 does not beat v2 by > 2 SE (-0.0255)
+
+v2 stays; the carryover is recorded as rejected in docs/MODEL.md, and Steps 4 and 5 are skipped.
+```
+
 ## Limits
 
-- **One season of data.** The model fits only the current season; history is used to choose the settings, not as a prior (Phase 7), so early-season odds are wide and are flagged `low
-  confidence` below 5 completed rounds.
+- **One season of data.** The model fits only the current season; history is used to choose the settings, not as a prior. Phase 11 tested last season's results as a prior and rejected it (the best tuning candidate failed D64 by 0.0023 per race on the pooled first five races; `docs/MODEL.md`), so early-season odds are wide and are flagged `low confidence` below 5 completed rounds.
 - **About 11 test races and 11 winners.** The backtest can tell a model from guessing and a good setting from a bad one
   when the difference is large; it cannot tell a good model from a very good one. The 2026 tables above were not used
   to choose the v2 defaults; the choice rests on 2022 to 2025 (Step 6).

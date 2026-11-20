@@ -16,6 +16,8 @@ import { hashSeed } from "../engine/rng";
 
 /** The first race that is predicted: before round 6 there is too little data to say anything. */
 export const FIRST_TEST_ROUND = 6;
+/** Phase 11 (D64): the early-season window is the first five races. */
+export const EARLY_ROUNDS = 5;
 /** Probabilities are kept this far from 0 and 1 before taking logarithms, for the model and the baselines alike. */
 export const CLIP = 0.001;
 /** Simulated races per forecast. */
@@ -236,6 +238,11 @@ export function walkForward(state: SeasonState, params: Partial<OddsParams> = {}
 }
 
 export type Event = "win" | "podium" | "top10";
+
+/** Phase 11 (D64): the first five races of a season, as a window of their own. */
+export function earlyWindow(records: readonly RaceRecord[]): RaceRecord[] {
+  return records.filter((r) => r.round <= EARLY_ROUNDS);
+}
 
 export function pairsOf(records: readonly RaceRecord[], method: Method, event: Event): Pair[] {
   const pairs: Pair[] = [];

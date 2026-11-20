@@ -14,7 +14,8 @@ Phase 6 (access and ops: LAN mode, write token, refresh, new-data notice, PNG ex
 Phase 7 (standings and positions: the `✕ No title` marker, the Best column, the "Title info" switch (Auto, On, Off), best places in the CLI and feed, F1GStats V5 and V6 hardening) is done (`docs/PHASE_7.md`); its optional Step 8 (position probabilities) was not built.
 Phase 8 (race weekend: a manual starting grid that overrides the data grid for the next race, grid source tags and an OpenF1 notice, the "Race" tab with the race forecast, the starting-grid PNG, CSV and JSON export, `/api/feed/grid` and `/api/feed/race-forecast`, and F1GStats saying "no grid yet" as `[INFO]`) is done (`docs/PHASE_8.md`; the PNG cards are in `docs/EXPORT.md`).
 Phase 9 (model v3 for the points chance and expected finish) is done (`docs/PHASE_9.md`): two candidate fixes were evaluated and rejected, so the model stays v2 and the race forecast keeps its "indicative" note (`docs/MODEL.md`, "Model v3").
-Phase 10 (release V1.0: season edge states, the write-host allowlist, scenario export and import, credits, the rollover guide, screenshots, a rehearsal; see docs/PHASE_10.md and docs/REHEARSAL.md) is done and released as 1.0.0 in both repositories, tagged v1.0.0. Phase 11 (multi-season prior, the last phase on the roadmap) has a task list in docs/PHASE_11.md.
+Phase 10 (release V1.0: season edge states, the write-host allowlist, scenario export and import, credits, the rollover guide, screenshots, a rehearsal; see docs/PHASE_10.md and docs/REHEARSAL.md) is done and released as 1.0.0 in both repositories, tagged v1.0.0.
+Phase 11 (multi-season prior, the last phase on the roadmap) is done (`docs/PHASE_11.md`): the carryover is in the engine and the evaluation ran, but no candidate passed D64, so the model stays v2, the runtime and UI steps were not built, and the project is now in maintenance (`docs/SEASON_ROLLOVER.md`).
 
 ## Read first, in this order
 1. `SPEC.md`: product, domain rules, data contract, phases, decisions.
@@ -27,6 +28,7 @@ Phase 10 (release V1.0: season edge states, the write-host allowlist, scenario e
 8. `docs/PHASE_7.md`: the standings and positions task list, as built.
 9. `docs/PHASE_8.md`: the race weekend task list.
 10. `docs/EXPORT.md`: the PNG card (how it is built, its rules, and the steps to add content). Read it before touching the export.
+11. `docs/PHASE_11.md`: the multi-season prior task list and D61 to D65. Read it (and the Phase 11 section of `docs/MODEL.md`) before touching `priorCarryover` or the carryover evaluation.
 
 If code and documents disagree, follow the documents and ask the owner.
 
@@ -42,7 +44,7 @@ Phase 1 must provide these scripts with exactly these names:
 - `bun run start`: serves the built UI and API
 - `bun run refresh`: runs the F1GStats fetch to update local data
 - `bun run backtest`: walk-forward test of the odds model (`scripts/backtest.ts`); rerun it after any change to the model and update `docs/MODEL.md`. `-- --grid-weight 0` gives the numbers without the grid
-- `bun run calibrate`: the multi-season protocol (D30); needs the history files in `../F1GStats/history`, not in git. `-- --grid-signal` and `-- --qualifying-noise` run only those parts
+- `bun run calibrate`: the multi-season protocol (D30); needs the history files in `../F1GStats/history`, not in git. `-- --grid-signal`, `-- --qualifying-noise` or `-- --carryover` run only those parts
 - `bun run title-check`: the what-if sensitivity table and, with the history files, the title odds against the real champions
 
 ## Planned layout

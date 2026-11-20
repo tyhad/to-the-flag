@@ -69,6 +69,9 @@ describe("simulateSeason: basics", () => {
       gridWeight: 1, // Step 7: adopted by the D30 protocol (0 ignores the grid, the v2 behavior)
       qualifyingNoise: 2, // Step 8: estimated on 2022-2024 (0 simulates no grid for later races)
       finishStages: 0, // Phase 9, Step 3: 0 = the finish part uses paceStages (the v2 behavior)
+      priorCarryover: 0, // Phase 11, D62: the previous season is ignored until a carryover is adopted
+      priorSeasonGap: 8, // Phase 11, D62: a carried session counts as 8 rounds before round 1
+      priorSameTeamOnly: false, // Phase 11, D62: carried results count after a change of team as well
     });
   });
 

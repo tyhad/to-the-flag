@@ -146,6 +146,13 @@ export function deriveSeed(state: SeasonState, scenario: Scenario | undefined, p
   // finishStages only feeds the second pass of a race forecast: it never changes the seed of the first pass (nor of a
   // season simulation), so win and podium are the same numbers with or without it
   delete (modelParams as Partial<OddsParams>).finishStages;
+  // priorCarryover 0 (the v2 model) must hash exactly as before Phase 11, so v2 seeds and snapshots hold; the other two
+  // only mean something while a carryover is on
+  if (modelParams.priorCarryover === 0) {
+    delete (modelParams as Partial<OddsParams>).priorCarryover;
+    delete (modelParams as Partial<OddsParams>).priorSeasonGap;
+    delete (modelParams as Partial<OddsParams>).priorSameTeamOnly;
+  }
   return hashSeed(String(state.season), String(state.asOfRound), canonicalJson(scenario?.locks ?? {}), canonicalJson(modelParams));
 }
 
