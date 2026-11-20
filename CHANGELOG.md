@@ -3,6 +3,13 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- Phase 11: the multi-season prior (the carryover) was evaluated under D64 and rejected; the engine
+  parameters stay with a default of 0, so the app behaves as in 1.0.0 (`docs/MODEL.md`).
+
 ## [1.0.0] - 2026-11-18
 
 First release. A personal, local-first what-if tool for F1 title fights: you set the results of the
