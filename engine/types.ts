@@ -57,6 +57,11 @@ export interface SeasonState {
   schemaVersion?: number;
   /** the real grid of the next race, when known; the season simulation uses it for that race (Step 8) */
   upcomingGrid?: UpcomingGrid;
+  /**
+   * The season before this one (Phase 11, D62): the caller attaches it, the engine reads no files. The strength fit
+   * uses its race sessions when `priorCarryover` is above 0. It must be exactly `season - 1`.
+   */
+  prior?: SeasonState;
 }
 
 export interface SessionLock {

@@ -472,7 +472,16 @@ describe("fitStrengths: general", () => {
   });
 
   test("the default parameters are the documented ones", () => {
-    expect(defaultStrengthParams).toEqual({ recencyHalfLife: 8, sprintWeight: 0.5, priorStrength: 1, dnfPriorSessions: 4, paceStages: 5 });
+    expect(defaultStrengthParams).toEqual({
+      recencyHalfLife: 8,
+      sprintWeight: 0.5,
+      priorStrength: 1,
+      dnfPriorSessions: 4,
+      paceStages: 5,
+      priorCarryover: 0,
+      priorSeasonGap: 8,
+      priorSameTeamOnly: false,
+    });
     expect(fitStrengths(simulated(5, 2))).toEqual(fitStrengths(simulated(5, 2), defaultStrengthParams));
   });
 

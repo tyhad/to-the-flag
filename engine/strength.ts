@@ -23,6 +23,12 @@ export interface StrengthParams {
   dnfPriorSessions: number;
   /** number of finishing stages used in the pace fit (0 = all places, v1 behavior) */
   paceStages: number;
+  /** 0..1: how much the previous season's sessions count (Phase 11, D62); 0 ignores them, as before Phase 11 */
+  priorCarryover: number;
+  /** rounds before round 1 that a previous-season session counts as (D62, fixed at 8) */
+  priorSeasonGap: number;
+  /** carry the previous season only for drivers who stayed with the same constructor id (D62) */
+  priorSameTeamOnly: boolean;
 }
 
 export const defaultStrengthParams: StrengthParams = {
@@ -41,6 +47,10 @@ export const defaultStrengthParams: StrengthParams = {
   // This is the largest structural change: it removes the ~2% floor win-probability that the full-order fit
   // gave to midfield drivers who almost never win. Improves all 4 history seasons (4/4).
   paceStages: 5,
+  // Phase 11 (D62): the previous season is ignored by default; Step 3 of Phase 11 decides whether a carryover is adopted.
+  priorCarryover: 0,
+  priorSeasonGap: 8,
+  priorSameTeamOnly: false,
 };
 
 export interface StrengthFit {
@@ -69,6 +79,12 @@ function checkParams(p: StrengthParams): void {
   if (!Number.isInteger(p.paceStages) || p.paceStages < 0) {
     throw new RangeError(`paceStages must be an integer of 0 or more, got ${p.paceStages}`);
   }
+  if (!(p.priorCarryover >= 0 && p.priorCarryover <= 1)) {
+    throw new RangeError(`priorCarryover must be between 0 and 1, got ${p.priorCarryover}`);
+  }
+  if (!(Number.isFinite(p.priorSeasonGap) && p.priorSeasonGap >= 0)) {
+    throw new RangeError(`priorSeasonGap must be a finite number of 0 or more, got ${p.priorSeasonGap}`);
+  }
 }
 
 interface Ranking {
@@ -88,21 +104,47 @@ export function fitStrengths(state: SeasonState, partial: Partial<StrengthParams
   // A session that is 0 rounds old counts fully; a sprint of the next round (already in) is treated as 0 rounds old too.
   const recency = (round: number) => 0.5 ** (Math.max(0, state.asOfRound - round) / params.recencyHalfLife);
 
-  // ---- group the rows by session
-  const sessions = new Map<string, ResultRow[]>();
-  for (const row of state.results) {
-    const key = `${row.round}:${row.kind}`;
-    const rows = sessions.get(key);
-    if (rows) rows.push(row);
-    else sessions.set(key, [row]);
+  // ---- the previous season (Phase 11, D62): only exactly one season earlier is allowed, so a later season cannot leak
+  const prior = state.prior;
+  if (prior !== undefined && prior.season !== state.season - 1) {
+    throw new RangeError(`previous season must be ${state.season - 1}, got ${prior.season}`);
+  }
+
+  // ---- group the rows by session, with the weight of each session
+  const groups: { rows: ResultRow[]; weight: number }[] = [];
+  const group = (rows: readonly ResultRow[], weightOf: (row: ResultRow) => number) => {
+    const byKey = new Map<string, { rows: ResultRow[]; weight: number }>();
+    for (const row of rows) {
+      const key = `${row.round}:${row.kind}`;
+      const weight = weightOf(row) * (row.kind === "sprint" ? params.sprintWeight : 1);
+      const seen = byKey.get(key);
+      if (seen) seen.rows.push(row);
+      else byKey.set(key, { rows: [row], weight });
+    }
+    groups.push(...byKey.values());
+  };
+  group(state.results, (row) => recency(row.round));
+
+  if (prior !== undefined && params.priorCarryover > 0) {
+    // Each carried session is aged as if it happened `priorSeasonGap` rounds before round 1, and grows older as the
+    // new season runs. A driver with no race yet has no current team, so the same-team rule cannot refuse anything.
+    const currentTeam = new Map<string, { round: number; team: string }>();
+    for (const r of state.results) {
+      const seen = currentTeam.get(r.driver);
+      if (!seen || r.round >= seen.round) currentTeam.set(r.driver, { round: r.round, team: r.team });
+    }
+    const carried = prior.results.filter(
+      (r) =>
+        index.has(r.driver) &&
+        (!params.priorSameTeamOnly || currentTeam.get(r.driver) === undefined || currentTeam.get(r.driver)!.team === r.team),
+    );
+    group(carried, () => params.priorCarryover * 0.5 ** ((params.priorSeasonGap + state.asOfRound) / params.recencyHalfLife));
   }
 
   // ---- pace data: classified finishers in finishing order
   const effective = new Float64Array(n);
   const rankings: Ranking[] = [];
-  for (const rows of sessions.values()) {
-    const first = rows[0]!; // a session only exists because it has a row
-    const weight = recency(first.round) * (first.kind === "sprint" ? params.sprintWeight : 1);
+  for (const { rows, weight } of groups) {
     const finishers = rows.filter((r) => r.classified).sort((a, b) => a.position - b.position);
     for (const r of finishers) effective[index.get(r.driver)!]! += weight;
     if (finishers.length >= 2 && weight > 0) {
@@ -170,7 +212,7 @@ export function fitStrengths(state: SeasonState, partial: Partial<StrengthParams
     for (let i = 0; i < n; i++) if (inFit[i]) theta[codes[i]!] = Math.log(gamma[i]!) - mean;
   }
 
-  // ---- retirement rates: races only
+  // ---- retirement rates: races only, this season only (the carried sessions feed the pace fit, not the DNF rate)
   const starts = new Float64Array(n);
   const retired = new Float64Array(n);
   let fieldStarts = 0;
