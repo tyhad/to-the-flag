@@ -694,8 +694,7 @@ v2 stays; the carryover is recorded as rejected in docs/MODEL.md, and Steps 4 an
 
 ## Limits
 
-- **One season of data.** The model fits only the current season; history is used to choose the settings, not as a prior (Phase 7), so early-season odds are wide and are flagged `low
-  confidence` below 5 completed rounds.
+- **One season of data.** The model fits only the current season; history is used to choose the settings, not as a prior. Phase 11 tested last season's results as a prior and rejected it (the best tuning candidate failed D64 by 0.0023 per race on the pooled first five races; `docs/MODEL.md`), so early-season odds are wide and are flagged `low confidence` below 5 completed rounds.
 - **About 11 test races and 11 winners.** The backtest can tell a model from guessing and a good setting from a bad one
   when the difference is large; it cannot tell a good model from a very good one. The 2026 tables above were not used
   to choose the v2 defaults; the choice rests on 2022 to 2025 (Step 6).

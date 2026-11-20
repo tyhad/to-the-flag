@@ -18,6 +18,7 @@ Commands are for Windows `cmd`; on macOS or Linux use `python3` for `py` and `/`
    py fetch_f1_data.py --season 2026 --output .\history\f1gstats-2026.sqlite
    ```
    Check the exit code on its own line (`echo %ERRORLEVEL%`): `0` is fine. `2` means the data check failed and nothing was written; run it again later. The `history` folder is not in git.
+   Do not upgrade FastF1 with `pip install -U fastf1`: `requirements.txt` pins `fastf1==3.8.3` on purpose, and from 3.9.0 most FastF1 features need an F1TV Access subscription (see `docs/DATA_TERMS.md`).
 3. **Check the file** before you rely on it: `bun run check --db ..\F1GStats\history\f1gstats-2026.sqlite` should say `Season complete` and `Data health: ok` (or `warn` with a reason you understand; `warn` is expected when the fastest-lap point of an old season is not in the table).
 
 ## 2. Start the new season
@@ -47,7 +48,8 @@ These are the places where the app knows something about a particular season. No
 
 - The odds model stays **v2** until a new calibration run under protocol D30 decides otherwise. Nothing changes in it between seasons.
 - The history folder (`F1GStats\history\f1gstats-<season>.sqlite`) is read only by the research scripts (`bun run calibrate`, `bun run backtest`, `bun run title-check`); the running app never reads it. Copying the 2026 file in does nothing by itself.
-- Those scripts are written for the seasons 2022 to 2025 as history and 2026 as the confirmation season (`HISTORY_SEASONS` in `scripts/calibrate.ts`). Adding more seasons to the model is the multi-season prior (Phase 11), not part of a rollover. Rerun `bun run calibrate` only when you mean to ask whether a change to the model is worth adopting.
+- Those scripts are written for the seasons 2022 to 2025 as history and 2026 as the confirmation season (`HISTORY_SEASONS` in `scripts/calibrate.ts`). Rerun `bun run calibrate` only when you mean to ask whether a change to the model is worth adopting.
+- **The previous season as a prior (Phase 11) was evaluated and rejected.** The engine can carry last season's results into the strength fit (`priorCarryover`, default 0, with `priorSeasonGap` 8 and `priorSameTeamOnly`), but the candidate that won the tuning seasons failed D64: its pooled gain over the first five races was 1.8 standard errors against the 2 that the rule asks for (`docs/MODEL.md`, "Multi-season prior"). So there is nothing to switch off for a season that starts with new regulations: the carryover is 0, and the app never reads the history folder. Rerun `bun run calibrate -- --carryover` once the 2026 file is in the history folder: 2027 carrying 2026 gives four seasons and 20 pooled early-season races instead of 15, which is the sample the rule was short of.
 
 ## 5. Saved scenarios and grids of the old season
 
