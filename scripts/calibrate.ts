@@ -1,8 +1,10 @@
 /**
- * Usage: bun scripts/calibrate.ts [--sims N] [--history <dir>] [--live <path>] [--grid-signal] [--points]
+ * Usage: bun scripts/calibrate.ts [--sims N] [--history <dir>] [--live <path>] [--grid-signal] [--points] [--carryover]
  *
  * `--grid-signal` runs only the Step 7 section (the grid term); `--qualifying-noise` only the Step 8 estimate of the
- * qualifying noise; `--points` only the Phase 9 section (the points chance and the expected finish, protocol D53). Without a flag, Step 6 (the settings grid) runs first, then Step 7, then Step 8.
+ * qualifying noise; `--points` only the Phase 9 section (the points chance and the expected finish, protocol D53);
+ * `--carryover` only the Phase 11 section (the multi-season prior, protocol D64). Without a flag, Step 6 (the settings
+ * grid) runs first, then Step 7, then Step 8.
  *
  * Evaluation harness for Model calibration across multiple seasons (Phase 4, Step 4).
  * Evaluates candidate settings against current defaults under protocol D30:
@@ -17,18 +19,20 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadSeasons } from "../data/loadHistory";
+import { loadSeasons, type SkippedSeason } from "../data/loadHistory";
 import { loadSeason } from "../data/loadSeason";
 import { defaultOddsParams, fitStrengths, type OddsParams, type SeasonState } from "../engine";
 import {
   compareCells,
   compareLosses,
+  earlyWindow,
   MATERIAL_DIFFERENCE,
   POINTS_EDGES,
   gridOf,
   outcomeOf,
   pairsOf,
   raceFinishMae,
+  raceLosses,
   racePointsBrier,
   reliability,
   scoreMethod,
@@ -424,6 +428,281 @@ export function fitQualifyingNoise(seasons: CalibrationSeasons, noises: readonly
   return { byNoise, selected };
 }
 
+// ---------- Phase 11, Step 2: the multi-season prior (protocol D64) ----------
+
+/** D64 rule 1: the least improvement on 2025, per race, for the early window. */
+export const CARRYOVER_MATERIAL_DIFFERENCE = 0.005;
+/** The seasons that are evaluated; each needs the season before it (D65: the history folder). */
+export const CARRYOVER_SEASONS = [2023, 2024, 2025, 2026] as const;
+/** D64: the tuning seasons, which choose the candidate. */
+export const CARRYOVER_TRAINING_SEASONS = [2023, 2024] as const;
+/** D64: the validation season. */
+export const CARRYOVER_VALIDATION_SEASON = 2025;
+/** D62: the carryover sizes, crossed with the team rule. */
+export const CARRYOVERS = [0.25, 0.5, 1] as const;
+
+export interface CarryoverCandidate {
+  carryover: number;
+  sameTeamOnly: boolean;
+  label: string;
+}
+
+/** D62: the six candidates against v2. */
+export function carryoverCandidates(): CarryoverCandidate[] {
+  return CARRYOVERS.flatMap((carryover) =>
+    [false, true].map((sameTeamOnly) => ({
+      carryover,
+      sameTeamOnly,
+      label: `${carryover}, ${sameTeamOnly ? "same team only" : "all teams"}`,
+    })),
+  );
+}
+
+export interface CarryoverVerdict {
+  adopt: boolean;
+  validationPass: boolean;
+  pooledPass: boolean;
+  seasonsImproved: number;
+  seasonsCount: number;
+  wholeSeasonPass: boolean;
+  reasons: string[];
+}
+
+export interface CarryoverAdoptionInput {
+  /** rounds 1-5 of 2025, candidate minus v2 */
+  validationEarly: CellComparison;
+  /** rounds 1-5 of 2023-2025, pooled, candidate minus v2 */
+  pooledEarly: CellComparison;
+  /** rounds 1-5 of 2023, 2024 and 2025 */
+  perSeasonEarly: ReadonlyMap<number, CellComparison>;
+  /** the whole seasons 2023, 2024 and 2025 */
+  perSeasonWhole: ReadonlyMap<number, CellComparison>;
+}
+
+/**
+ * D64, on the per-race win + podium log loss (a candidate must pass all of them):
+ *  1. 2025, rounds 1-5: better than v2 by more than 1 SE and by at least `CARRYOVER_MATERIAL_DIFFERENCE`.
+ *  2. The pooled rounds 1-5 of 2023-2025: better by more than 2 SE.
+ *  3. At least 2 of the 3 seasons improve on rounds 1-5.
+ *  4. The whole season is not worse by more than 1 SE in any of the 3 seasons.
+ *  5. (Which candidate is judged is D64 rule 5: the best on 2023-2024, see `selectCarryover`.)
+ * 2026 is never part of the verdict; it is reported for information.
+ */
+export function checkCarryoverAdoption(input: CarryoverAdoptionInput): CarryoverVerdict {
+  const reasons: string[] = [];
+  const val = input.validationEarly;
+  const validationBeats1SE = val.meanDiff < -val.se;
+  const validationMargin = val.meanDiff <= -CARRYOVER_MATERIAL_DIFFERENCE;
+  if (!validationBeats1SE) reasons.push(`2025 rounds 1-5 diff ${val.meanDiff.toFixed(4)} does not beat v2 by > 1 SE (${(-val.se).toFixed(4)})`);
+  if (!validationMargin) reasons.push(`2025 rounds 1-5 diff ${val.meanDiff.toFixed(4)} is less than the threshold -${CARRYOVER_MATERIAL_DIFFERENCE}`);
+
+  const pooled = input.pooledEarly;
+  const pooledPass = pooled.meanDiff < -2 * pooled.se;
+  if (!pooledPass) reasons.push(`Pooled 2023-2025 rounds 1-5 diff ${pooled.meanDiff.toFixed(4)} does not beat v2 by > 2 SE (${(-2 * pooled.se).toFixed(4)})`);
+
+  let seasonsImproved = 0;
+  for (const comp of input.perSeasonEarly.values()) if (comp.meanDiff < 0) seasonsImproved++;
+  const seasonsCount = input.perSeasonEarly.size;
+  if (seasonsImproved < 2) reasons.push(`Improves only ${seasonsImproved} of ${seasonsCount} seasons on rounds 1-5 (needs >= 2)`);
+
+  let wholeSeasonPass = true;
+  for (const [year, comp] of input.perSeasonWhole) {
+    if (comp.meanDiff > comp.se) {
+      wholeSeasonPass = false;
+      reasons.push(`Whole season ${year} worse by > 1 SE (diff ${comp.meanDiff.toFixed(4)} > SE ${comp.se.toFixed(4)})`);
+    }
+  }
+
+  const adopt = validationBeats1SE && validationMargin && pooledPass && seasonsImproved >= 2 && wholeSeasonPass;
+  return {
+    adopt,
+    validationPass: validationBeats1SE && validationMargin,
+    pooledPass,
+    seasonsImproved,
+    seasonsCount,
+    wholeSeasonPass,
+    reasons,
+  };
+}
+
+export interface CarryoverSeasonRecords {
+  season: number;
+  /** rounds 1-5 */
+  early: RaceRecord[];
+  whole: RaceRecord[];
+}
+
+export interface CarryoverCandidateResult {
+  candidate: CarryoverCandidate;
+  /** per season (2023-2026): rounds 1-5 and the whole season, candidate minus v2 */
+  bySeason: Map<number, { early: CellComparison; whole: CellComparison }>;
+  /** the pooled rounds 1-5 of the tuning seasons (2023-2024), which choose the candidate */
+  trainingEarly: CellComparison;
+  /** the pooled rounds 1-5 of 2023-2025 */
+  pooledEarly: CellComparison;
+  verdict: CarryoverVerdict;
+}
+
+export interface CarryoverResult {
+  candidates: CarryoverCandidateResult[];
+  /** the candidate with the lowest pooled rounds 1-5 loss on 2023-2024, or null when none beats v2 there */
+  selected: CarryoverCandidateResult | null;
+  /** the seasons that were compared */
+  seasons: number[];
+  skipped: SkippedSeason[];
+}
+
+/** D64 rule 5: the best on the tuning seasons only; a tie goes to the earlier candidate (the smaller carryover). */
+export function selectCarryover(candidates: readonly CarryoverCandidateResult[]): CarryoverCandidateResult | null {
+  let best: CarryoverCandidateResult | null = null;
+  for (const c of candidates) {
+    if (c.trainingEarly.meanDiff >= 0) continue;
+    if (best === null || c.trainingEarly.meanDiff < best.trainingEarly.meanDiff) best = c;
+  }
+  return best;
+}
+
+/**
+ * Every candidate is scored on 2023 to 2026 (each with its previous season attached), but the choice is made from
+ * 2023-2024 alone; 2025 judges it and 2026 is informational. A season without its previous season is skipped with a
+ * reason, never a crash.
+ */
+export function evaluateCarryover(seasons: { all: SeasonState[] }, nSims = CALIBRATE_SIMS): CarryoverResult {
+  const bySeason = new Map(seasons.all.map((s) => [s.season, s]));
+  const skipped: SkippedSeason[] = [];
+  const evaluated: { season: number; state: SeasonState }[] = [];
+  for (const year of CARRYOVER_SEASONS) {
+    const state = bySeason.get(year);
+    const previous = bySeason.get(year - 1);
+    if (!state) skipped.push({ season: year, reason: "not loaded" });
+    else if (!previous) skipped.push({ season: year, reason: `no ${year - 1} data, so there is nothing to carry` });
+    else evaluated.push({ season: year, state: { ...state, prior: previous } });
+  }
+
+  const records = (params: Partial<OddsParams>) => {
+    const out = new Map<number, CarryoverSeasonRecords>();
+    for (const { season, state } of evaluated) {
+      const whole = walkForward(state, { ...params, nSims }, 1);
+      out.set(season, { season, early: earlyWindow(whole), whole });
+    }
+    return out;
+  };
+  const diff = (cand: readonly RaceRecord[], base: readonly RaceRecord[]) =>
+    compareLosses(raceLosses(cand, "model"), raceLosses(base, "model"));
+
+  // D64 needs 2023, 2024 and 2025; 2026 only adds a row.
+  const complete = CARRYOVER_TRAINING_SEASONS.every((y) => evaluated.some((e) => e.season === y)) &&
+    evaluated.some((e) => e.season === CARRYOVER_VALIDATION_SEASON);
+  const candidates: CarryoverCandidateResult[] = [];
+  if (complete) {
+    const baseline = records({ priorCarryover: 0 });
+    for (const candidate of carryoverCandidates()) {
+      const cand = records({ priorCarryover: candidate.carryover, priorSameTeamOnly: candidate.sameTeamOnly });
+      const bySeason = new Map<number, { early: CellComparison; whole: CellComparison }>();
+      for (const { season } of evaluated) {
+        bySeason.set(season, {
+          early: diff(cand.get(season)!.early, baseline.get(season)!.early),
+          whole: diff(cand.get(season)!.whole, baseline.get(season)!.whole),
+        });
+      }
+      const pooled = (which: "early" | "whole", years: readonly number[]) =>
+        diff(
+          years.flatMap((y) => cand.get(y)![which]),
+          years.flatMap((y) => baseline.get(y)![which]),
+        );
+      const judged = [...bySeason].filter(([year]) => year !== 2026);
+      const trainingEarly = pooled("early", CARRYOVER_TRAINING_SEASONS);
+      const pooledEarly = pooled("early", [...CARRYOVER_TRAINING_SEASONS, CARRYOVER_VALIDATION_SEASON]);
+      candidates.push({
+        candidate,
+        bySeason,
+        trainingEarly,
+        pooledEarly,
+        verdict: checkCarryoverAdoption({
+          validationEarly: bySeason.get(CARRYOVER_VALIDATION_SEASON)!.early,
+          pooledEarly,
+          perSeasonEarly: new Map(judged.map(([year, c]) => [year, c.early])),
+          perSeasonWhole: new Map(judged.map(([year, c]) => [year, c.whole])),
+        }),
+      });
+    }
+  }
+
+  return { candidates, selected: selectCarryover(candidates), seasons: evaluated.map((e) => e.season), skipped };
+}
+
+export function formatCarryover(result: CarryoverResult): string {
+  const lines: string[] = [];
+  lines.push("=== Multi-season prior (Phase 11, protocol D64) ===");
+  lines.push("Baseline: v2, with the previous season attached and priorCarryover 0 (the fit is exactly today's).");
+  lines.push("Differences are per race (win + podium log loss), candidate minus v2, negative = better. The early window is");
+  lines.push("rounds 1-5. 2026 is informational only: it started after a regulation reset, so the carryover should be 0 there (D63).");
+  lines.push("");
+  for (const s of result.skipped) lines.push(`  ${s.season} skipped: ${s.reason}`);
+  if (result.skipped.length > 0) lines.push("");
+
+  if (result.candidates.length === 0) {
+    lines.push("Nothing to evaluate: D64 needs 2023, 2024 and 2025, each with the season before it in the history folder.");
+    return lines.join("\n");
+  }
+
+  const years = result.seasons;
+  lines.push("--- Rounds 1-5 (the early season) ---");
+  lines.push(
+    ...table([
+      ["carryover", "teams", ...years.map(String), "Train 23-24", "Pooled 23-25"],
+      ...result.candidates.map((c) => [
+        String(c.candidate.carryover),
+        c.candidate.sameTeamOnly ? "same team" : "all",
+        ...years.map((y) => formatDiff(c.bySeason.get(y)!.early, 4)),
+        formatDiff(c.trainingEarly, 4),
+        formatDiff(c.pooledEarly, 4),
+      ]),
+    ]),
+  );
+  lines.push("");
+
+  lines.push("--- Whole season (rule 4: not worse than 1 SE in any of 2023-2025) ---");
+  lines.push(
+    ...table([
+      ["carryover", "teams", ...years.map(String)],
+      ...result.candidates.map((c) => [
+        String(c.candidate.carryover),
+        c.candidate.sameTeamOnly ? "same team" : "all",
+        ...years.map((y) => formatDiff(c.bySeason.get(y)!.whole, 4)),
+      ]),
+    ]),
+  );
+  lines.push("");
+
+  lines.push("--- Chosen on the tuning seasons (2023-2024 only) ---");
+  const chosen = result.selected;
+  if (chosen === null) {
+    lines.push("  none: no candidate beats v2 on the tuning seasons.");
+    lines.push("Verdict: carryover NOT adopted; v2 stays, and Steps 4 and 5 are skipped.");
+    return lines.join("\n");
+  }
+  lines.push(`  priorCarryover ${chosen.candidate.carryover}, ${chosen.candidate.sameTeamOnly ? "same team only" : "all teams"}`);
+  lines.push("");
+  if (chosen.verdict.adopt) {
+    lines.push(
+      `Verdict: ADOPTED (passes D64): 2025 rounds 1-5 ${formatDiff(chosen.bySeason.get(CARRYOVER_VALIDATION_SEASON)!.early, 4)}, ` +
+        `pooled ${formatDiff(chosen.pooledEarly, 4)}, ${chosen.verdict.seasonsImproved} of ${chosen.verdict.seasonsCount} seasons better.`,
+    );
+  } else {
+    lines.push("Verdict: NOT adopted. Reasons:");
+    for (const reason of chosen.verdict.reasons) lines.push(`  - ${reason}`);
+    lines.push("");
+    lines.push("v2 stays; the carryover is recorded as rejected in docs/MODEL.md, and Steps 4 and 5 are skipped.");
+  }
+  return lines.join("\n");
+}
+
+/** Phase 11, Step 2. */
+export function printCarryover(seasons: CalibrationSeasons, nSims: number): void {
+  console.log(formatCarryover(evaluateCarryover(seasons, nSims)));
+}
+
 // ---------- Formatting & CLI ----------
 
 const fmt = (x: number, digits = 3) => x.toFixed(digits);
@@ -460,6 +739,10 @@ export function runCalibrationCli(args: string[] = []): void {
   }
   if (args.includes("--points")) {
     printPoints(seasons, nSims);
+    return;
+  }
+  if (args.includes("--carryover")) {
+    printCarryover(seasons, nSims);
     return;
   }
 
