@@ -115,8 +115,8 @@ describe("scheduleCard", () => {
     expect(defaultScheduleTarget(nextOnly)).toBe("next");
   });
 
-  test("formats both track local time and user local time deterministically", () => {
-    const view = buildScheduleView(season, "now", "Asia/Jakarta")!;
+  test("formats both track local time and WIB time deterministically", () => {
+    const view = buildScheduleView(season, "now")!;
     expect(view.round).toBe(21);
     expect(view.raceName).toBe("Las Vegas Grand Prix");
     expect(view.hasSprint).toBe(false);
@@ -124,6 +124,7 @@ describe("scheduleCard", () => {
     expect(view.rows[0]!.trackTime).toBe("Thu 19 Nov · 16:30");
     expect(view.rows[0]!.myTime).toBe("Fri 20 Nov · 07:30");
     expect(view.rows[2]!.isMain).toBe(true);
+    expect(layoutScheduleCard(view).columns[2]!.label).toBe("WIB time");
     expect(scheduleFilename(view)).toBe("schedule-2026-r21.png");
   });
 

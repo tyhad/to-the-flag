@@ -99,7 +99,7 @@ A small block at the end of the Race tab: choose *Prediction* or *Race result*, 
 
 ## The weekend schedule card
 
-At the end of the Race tab: choose *Current weekend* (`now`) or *Next weekend* (`next`) and export a 1080×1080 PNG (`schedule-{season}-r{round}.png`) showing every session in both circuit local time ("Track time") and the user's browser local time ("My time").
+At the end of the Race tab: choose *Current weekend* (`now`) or *Next weekend* (`next`) and export a 1080×1080 PNG (`schedule-{season}-r{round}.png`) showing every session in both circuit local time ("Track time") and WIB ("WIB time").
 
 | Piece | File | Job | Tested in |
 |---|---|---|---|

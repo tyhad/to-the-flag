@@ -143,7 +143,7 @@ The *Race* tab has an *Export* section for the starting grid of the next race:
 The *Race* tab has a *Podium picture* block: choose *Prediction* or *Race result*, pick P1, P2 and P3 from the season's drivers, and export a 1080×1080 PNG with three steps, the team colors and the team names. A prediction is of the next race and carries your name (*Tyhad | F1 Watchalong's Prediction*); a result is of the last completed race. A sprint weekend is marked on the picture. Nothing is saved, so a reload clears the picks.
 
 ### The weekend schedule
-The *Race* tab has a *Weekend schedule* block: choose *Current weekend* or *Next weekend* and export a 1080×1080 PNG (`schedule-{season}-r{round}.png`) showing every session in both circuit local time and your browser's local time.
+The *Race* tab has a *Weekend schedule* block: choose *Current weekend* or *Next weekend* and export a 1080×1080 PNG (`schedule-{season}-r{round}.png`) showing every session in both circuit local time and WIB time.
 
 ## If something does not load
 | You see | What to do |

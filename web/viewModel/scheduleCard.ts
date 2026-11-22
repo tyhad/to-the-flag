@@ -1,6 +1,6 @@
 /**
  * The race weekend schedule card (1080×1080 PNG): shows each session of the current ("now") or next ("next")
- * race weekend in both circuit local time ("Track time") and the user's browser local time ("My time").
+ * race weekend in both circuit local time ("Track time") and WIB ("WIB time", Asia/Jakarta).
  * Pure: data in, drawing commands out, no DOM and no canvas.
  */
 import { nextScheduledRound, type SeasonState, type WeekendSession } from "../../engine";
@@ -181,7 +181,7 @@ export function buildScheduleView(
   const raceName = first.raceName || roundInfo?.name || `Round ${first.round}`;
   const circuitName = first.circuitName;
   const trackZone = resolveCircuitTimeZone(circuitName, raceName);
-  const myZone = userTimeZone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  const myZone = userTimeZone ?? "Asia/Jakarta";
   const refDate = new Date(first.startTimeUtc);
   const validRef = Number.isNaN(refDate.getTime()) ? new Date() : refDate;
 
@@ -275,7 +275,7 @@ export function layoutScheduleCard(view: ScheduleCardView): ScheduleCardLayout {
     columns: [
       { label: "Session", x: leftX + 24, y: colHeaderY, align: "left" },
       { label: `Track time (${view.trackZoneLabel})`, x: trackX, y: colHeaderY, align: "right" },
-      { label: `My time (${view.myZoneLabel})`, x: myX, y: colHeaderY, align: "right" },
+      { label: "WIB time", x: myX, y: colHeaderY, align: "right" },
     ],
     rows,
     creditY,
