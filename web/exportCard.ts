@@ -8,6 +8,7 @@ import { buildCard, runsStartX, type CardSize, type CardView, type DrawCommand }
 import { buildGridCard } from "./viewModel/gridCard";
 import { gridExportFilename, type GridCardView } from "./viewModel/gridExport";
 import { buildPodiumCard, podiumFilename, type PodiumCardView } from "./viewModel/podiumCard";
+import { buildScheduleCard, scheduleFilename, type ScheduleCardView } from "./viewModel/scheduleCard";
 
 export type { CardSize };
 
@@ -130,4 +131,10 @@ export async function exportGridCard(view: GridCardView, size: CardSize): Promis
 export async function exportPodiumCard(view: PodiumCardView): Promise<void> {
   const { width, height } = dimensions("square");
   await downloadPng(buildPodiumCard(view), width, height, podiumFilename(view));
+}
+
+/** Draws the race weekend schedule card (1080×1080) and downloads it as a PNG. */
+export async function exportScheduleCard(view: ScheduleCardView): Promise<void> {
+  const { width, height } = dimensions("square");
+  await downloadPng(buildScheduleCard(view), width, height, scheduleFilename(view));
 }

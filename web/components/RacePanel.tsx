@@ -8,6 +8,7 @@ import { EmptyState } from "./EmptyState";
 import { GridEditor } from "./GridEditor";
 import { GridSourceTag } from "./GridSourceTag";
 import { PodiumExport } from "./PodiumExport";
+import { ScheduleExport } from "./ScheduleExport";
 
 interface RacePanelProps {
   state: SeasonState;
@@ -52,6 +53,7 @@ export function RacePanel({ state, controls, canWrite, verdict, notice, forecast
       )}
 
       <PodiumExport state={state} />
+      <ScheduleExport state={state} />
     </div>
   );
 }

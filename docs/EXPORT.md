@@ -1,6 +1,6 @@
 # The PNG cards (Export picture)
 
-How the exported cards are built, the rules they follow, and the steps to add something new to them, so that new content looks and behaves like what is already there. There are three cards: the **standings card** (WDC or WCC, from the scenario strip), the **starting-grid card** (from the Race tab, Phase 8; see its section below) and the **podium card** (also from the Race tab; see its section below). Read this before changing `web/viewModel/card.ts`, `web/viewModel/cardView.ts`, `web/viewModel/gridCard.ts`, `web/viewModel/gridExport.ts`, `web/viewModel/podiumCard.ts`, `web/exportCard.ts`, `web/exportText.ts` or the export controls in `web/components/ScenarioStrip.tsx`, `web/components/GridExport.tsx` and `web/components/PodiumExport.tsx`.
+How the exported cards are built, the rules they follow, and the steps to add something new to them, so that new content looks and behaves like what is already there. There are four cards: the **standings card** (WDC or WCC, from the scenario strip), the **starting-grid card** (from the Race tab, Phase 8; see its section below), the **podium card** (also from the Race tab; see its section below) and the **weekend schedule card** (also from the Race tab; see its section below). Read this before changing `web/viewModel/card.ts`, `web/viewModel/cardView.ts`, `web/viewModel/gridCard.ts`, `web/viewModel/gridExport.ts`, `web/viewModel/podiumCard.ts`, `web/viewModel/scheduleCard.ts`, `web/exportCard.ts`, `web/exportText.ts` or the export controls in `web/components/ScenarioStrip.tsx`, `web/components/GridExport.tsx`, `web/components/PodiumExport.tsx` and `web/components/ScheduleExport.tsx`.
 
 The standings card started in Phase 6 (`docs/PHASE_6.md`, Step 7, D40). Later work (WCC mode, row choice, custom range, simulation note, the Best and status columns of Phase 7) is described here as it is now.
 
@@ -96,6 +96,16 @@ A small block at the end of the Race tab: choose *Prediction* or *Race result*, 
 - **The prediction is the owner's own**, not the model's, so the picture carries no "Model estimate" label. The top-right label is "Tyhad | F1 Watchalong's Prediction"; a result says "Race result".
 - **File name:** `podium-prediction-2026-r17.png` / `podium-result-2026-r16.png`.
 - **Not in the picture:** points, times, odds, or any other number. One size only, and always the next or the last race; an older race cannot be chosen.
+
+## The weekend schedule card
+
+At the end of the Race tab: choose *Current weekend* (`now`) or *Next weekend* (`next`) and export a 1080×1080 PNG (`schedule-{season}-r{round}.png`) showing every session in both circuit local time ("Track time") and the user's browser local time ("My time").
+
+| Piece | File | Job | Tested in |
+|---|---|---|---|
+| Data, timezone, layout, file name | `web/viewModel/scheduleCard.ts` | Circuit IANA timezone lookup, `Intl.DateTimeFormat` dual-zone formatting, `1080×1080` layout. Pure. | `tests/scheduleCard.test.ts` |
+| Controls | `web/components/ScheduleExport.tsx` | Current/Next selector, Export picture button and status line, at the end of `RacePanel.tsx`. | `tests/scheduleExportMarkup.test.tsx`; by hand in a browser |
+| Draw | `web/exportCard.ts` | `exportScheduleCard` uses the shared renderer. | by hand, in a browser |
 
 ## Scenario file (Phase 10)
 

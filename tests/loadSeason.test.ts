@@ -128,6 +128,36 @@ describe("loadSeason: decisions", () => {
     expect(state.qualifying).toEqual([]);
   });
 
+  test("reads weekend sessions when the sessions table exists, and omits when absent", () => {
+    expect(loadSeason(buildDb()).weekendSessions).toBeUndefined();
+    const state = loadSeason(
+      buildDb((seed) => {
+        seed.sessions = [
+          {
+            round: 3,
+            raceName: "GP Three",
+            sessionType: "Race",
+            startTimeUtc: "2026-04-05T12:00:00Z",
+            circuitName: "Suzuka Circuit",
+            countryFlag: "🇯🇵",
+            relation: "next",
+          },
+        ];
+      }),
+    );
+    expect(state.weekendSessions).toEqual([
+      {
+        round: 3,
+        raceName: "GP Three",
+        sessionType: "Race",
+        startTimeUtc: "2026-04-05T12:00:00Z",
+        circuitName: "Suzuka Circuit",
+        countryFlag: "🇯🇵",
+        relation: "next",
+      },
+    ]);
+  });
+
   test("half points are accepted", () => {
     const path = buildDb((seed) => {
       const r = seed.results[0];

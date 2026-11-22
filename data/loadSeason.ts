@@ -5,7 +5,7 @@
  */
 import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
-import type { QualiRow, ResultRow, RoundInfo, SeasonState, UpcomingGrid } from "../engine/types";
+import type { QualiRow, ResultRow, RoundInfo, SeasonState, UpcomingGrid, WeekendSession } from "../engine/types";
 
 export const MIN_SCHEMA_VERSION = 2;
 const POINTS_EPSILON = 1e-6;
@@ -36,6 +36,10 @@ interface ResultDb {
 interface StandingDb { driver_abbr: string; driver_name: string | null; points: number }
 interface QualiDb { round: number; driver_abbr: string; position: number | null }
 interface GridDb { round: number; driver_abbr: string | null; position: number | null; grid_source: string | null }
+interface SessionDb {
+  round: number; race_name: string | null; session_type: string | null; start_time_utc: string | null;
+  circuit_name: string | null; country_flag: string | null; round_relation: string | null;
+}
 interface HealthDb { status: string; checked_at: string }
 
 function tableExists(db: Database, name: string): boolean {
@@ -226,6 +230,7 @@ function readSeason(db: Database): SeasonState {
   }
 
   const upcomingGrid = readUpcomingGrid(db, rounds);
+  const weekendSessions = readWeekendSessions(db);
   return {
     season,
     asOfRound,
@@ -237,5 +242,26 @@ function readSeason(db: Database): SeasonState {
     health: { status: healthRow.status, checkedAt: healthRow.checked_at },
     schemaVersion: version,
     ...(upcomingGrid ? { upcomingGrid } : {}),
+    ...(weekendSessions ? { weekendSessions } : {}),
   };
+}
+
+function readWeekendSessions(db: Database): WeekendSession[] | undefined {
+  if (!tableExists(db, "sessions")) return undefined;
+  const rows = db
+    .query<SessionDb, []>(
+      "SELECT round, race_name, session_type, start_time_utc, circuit_name, country_flag, round_relation FROM sessions ORDER BY round, start_time_utc",
+    )
+    .all()
+    .filter((r) => r.session_type && r.start_time_utc);
+  if (rows.length === 0) return undefined;
+  return rows.map((r) => ({
+    round: r.round,
+    raceName: r.race_name ?? `Round ${r.round}`,
+    sessionType: r.session_type!,
+    startTimeUtc: r.start_time_utc!,
+    circuitName: r.circuit_name ?? "",
+    countryFlag: r.country_flag ?? "",
+    relation: r.round_relation ?? null,
+  }));
 }

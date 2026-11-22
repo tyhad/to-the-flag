@@ -34,6 +34,16 @@ export interface RoundInfo {
   status: "completed" | "scheduled";
 }
 
+export interface WeekendSession {
+  round: number;
+  raceName: string;
+  sessionType: string;
+  startTimeUtc: string;
+  circuitName: string;
+  countryFlag: string;
+  relation: string | null;
+}
+
 /** The real starting grid of the next race, when it is known (qualifying has run). Phase 4, Step 8. */
 export interface UpcomingGrid {
   /** the round whose race this grid is for */
@@ -57,6 +67,8 @@ export interface SeasonState {
   schemaVersion?: number;
   /** the real grid of the next race, when known; the season simulation uses it for that race (Step 8) */
   upcomingGrid?: UpcomingGrid;
+  /** weekend session timetable (FP1..Race) from F1GStats `sessions` table, when present */
+  weekendSessions?: WeekendSession[];
   /**
    * The season before this one (Phase 11, D62): the caller attaches it, the engine reads no files. The strength fit
    * uses its race sessions when `priorCarryover` is above 0. It must be exactly `season - 1`.

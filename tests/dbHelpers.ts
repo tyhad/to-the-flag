@@ -37,6 +37,11 @@ export interface Seed {
   qualifying: { round: number; abbr: string; position: number | null }[] | null;
   /** undefined or null = the starting_grid table does not exist */
   startingGrid?: { round: number; relation?: string; abbr: string; position: number | null; source?: string | null }[] | null;
+  /** undefined = the sessions table does not exist */
+  sessions?: {
+    round: number; raceName?: string; sessionType: string; startTimeUtc: string;
+    circuitName?: string; countryFlag?: string; relation?: string | null;
+  }[];
   /** null = computed from results */
   standings: { abbr: string; name: string; points: number }[] | null;
   health: { status: string; checkedAt: string }[];
@@ -213,6 +218,16 @@ export function buildDb(mutate?: (seed: Seed) => void, targetPath?: string): str
       db.query(
         "INSERT INTO starting_grid (round, round_relation, position, driver_name, driver_abbr, team_name, grid_source) VALUES (?, ?, ?, ?, ?, ?, ?)",
       ).run(g.round, g.relation ?? "next", g.position, `Driver ${g.abbr}`, g.abbr, "Alpha", g.source === undefined ? "qualifying" : g.source);
+    }
+  }
+  if (seed.sessions) {
+    db.run(`CREATE TABLE sessions (
+      id INTEGER PRIMARY KEY, round INTEGER, race_name TEXT, session_type TEXT,
+      start_time_utc TEXT, circuit_name TEXT, country_flag TEXT, round_relation TEXT)`);
+    for (const s of seed.sessions) {
+      db.query(
+        "INSERT INTO sessions (round, race_name, session_type, start_time_utc, circuit_name, country_flag, round_relation) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).run(s.round, s.raceName ?? `Round ${s.round}`, s.sessionType, s.startTimeUtc, s.circuitName ?? "", s.countryFlag ?? "", s.relation ?? null);
     }
   }
 
