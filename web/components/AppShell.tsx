@@ -44,7 +44,17 @@ function Frame({
   notice: DataNotice | null;
   newDataNotice?: ReactNode;
 }) {
+  const [showSessions, setShowSessions] = useState(true);
+  const [showAnalysis, setShowAnalysis] = useState(true);
   const hasNotice = Boolean(notice || newDataNotice);
+  const gridCols =
+    showSessions && showAnalysis
+      ? "grid-cols-[320px_minmax(0,1fr)_360px]"
+      : showSessions
+        ? "grid-cols-[320px_minmax(0,1fr)]"
+        : showAnalysis
+          ? "grid-cols-[minmax(0,1fr)_360px]"
+          : "grid-cols-[minmax(0,1fr)]";
 
   return (
     <>
@@ -55,20 +65,25 @@ function Frame({
         Skip to standings
       </a>
       <div
-        className={`grid h-full grid-cols-[320px_minmax(0,1fr)_360px] gap-3 p-3 ${
+        className={`grid h-full ${gridCols} gap-3 p-3 ${
           hasNotice ? "grid-rows-[auto_auto_minmax(0,1fr)_auto]" : "grid-rows-[auto_minmax(0,1fr)_auto]"
         }`}
       >
-        <Header health={health} phase={phase} />
+        <Header
+          health={health}
+          phase={phase}
+          leftToggle={{ open: showSessions, onToggle: () => setShowSessions((v) => !v) }}
+          rightToggle={{ open: showAnalysis, onToggle: () => setShowAnalysis((v) => !v) }}
+        />
         {hasNotice ? (
-          <div className="col-span-3 flex flex-col gap-2">
+          <div className="col-span-full flex flex-col gap-2">
             {notice ? <DataNoticeBanner notice={notice} /> : null}
             {newDataNotice}
           </div>
         ) : null}
-        {sessions}
+        {showSessions ? sessions : null}
         {standings}
-        {analysis}
+        {showAnalysis ? analysis : null}
         {strip}
       </div>
     </>

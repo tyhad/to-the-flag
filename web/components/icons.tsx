@@ -65,3 +65,23 @@ export function ArrowDownIcon() {
     </svg>
   );
 }
+
+/** Left sidebar icon, paired with text on the Sessions panel toggle. */
+export function PanelLeftIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+      <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+      <path d="M6 2.5v11" />
+    </svg>
+  );
+}
+
+/** Right sidebar icon, paired with text on the Analysis panel toggle. */
+export function PanelRightIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+      <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+      <path d="M10 2.5v11" />
+    </svg>
+  );
+}

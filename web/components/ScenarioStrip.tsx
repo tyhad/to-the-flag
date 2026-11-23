@@ -261,7 +261,7 @@ function ScenarioStripView({
   const options = compareOptions(store.scenarios);
 
   return (
-    <footer ref={footerRef} aria-label="Scenarios" className="col-span-3 flex flex-col gap-2 rounded-panel bg-s1 px-4 py-3">
+    <footer ref={footerRef} aria-label="Scenarios" className="col-span-full flex flex-col gap-2 rounded-panel bg-s1 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ul className="m-0 flex list-none flex-wrap items-center gap-2 p-0" aria-label="Saved scenarios">
           {chips.map((chip) => (
@@ -648,7 +648,7 @@ function ScenarioStripView({
 /** Shown while the season loads, or when it could not be loaded. */
 export function ScenarioStripPlaceholder() {
   return (
-    <footer aria-label="Scenarios" className="col-span-3 flex min-h-14 items-center gap-3 rounded-panel bg-s1 px-4 py-2">
+    <footer aria-label="Scenarios" className="col-span-full flex min-h-14 items-center gap-3 rounded-panel bg-s1 px-4 py-2">
       <span className="type-label rounded-control border border-accent bg-s2 px-3 py-2 text-text">Base</span>
       <p className="type-body text-text-2">Scenarios appear here once season data is loaded.</p>
     </footer>

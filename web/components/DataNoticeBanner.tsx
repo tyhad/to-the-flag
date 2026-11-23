@@ -7,7 +7,7 @@ export function DataNoticeBanner({ notice }: { notice: DataNotice }) {
   return (
     <div
       role="status"
-      className={`col-span-3 flex items-start gap-3 rounded-panel border bg-s1 px-4 ${strong ? "border-yellow py-3" : "border-line py-2"}`}
+      className={`col-span-full flex items-start gap-3 rounded-panel border bg-s1 px-4 ${strong ? "border-yellow py-3" : "border-line py-2"}`}
     >
       <AlertIcon className="mt-1 shrink-0 text-yellow" />
       <p className="type-label text-text">

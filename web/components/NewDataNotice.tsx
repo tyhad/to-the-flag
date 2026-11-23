@@ -22,7 +22,7 @@ export function NewDataNotice({ message, onReload }: NewDataNoticeProps) {
   return (
     <div
       role="status"
-      className="col-span-3 flex items-center justify-between gap-3 rounded-panel border border-accent bg-s1 px-4 py-2.5"
+      className="col-span-full flex items-center justify-between gap-3 rounded-panel border border-accent bg-s1 px-4 py-2.5"
     >
       <p className="type-label text-text">{message}</p>
       <button
