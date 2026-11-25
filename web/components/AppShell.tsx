@@ -11,13 +11,15 @@ import { useStrip } from "../useStrip";
 import { useTitleInfo } from "../useTitleInfo";
 import { useWorkspace } from "../useWorkspace";
 import { useFreshness } from "../useFreshness";
+import { useLiveMode } from "../useLiveMode";
 import { loadMessage, type SeasonLoad } from "../viewModel/season";
 import type { HealthState } from "../viewModel/health";
+import { effectiveWorkspaceForLive, liveToggleLabel, liveToggleTone } from "../viewModel/liveMode";
 import { dataNotice, type DataNotice } from "../viewModel/dataNotice";
 import { DataNoticeBanner } from "./DataNoticeBanner";
 import { NewDataNotice } from "./NewDataNotice";
 import { AnalysisPlaceholder, AnalysisRail } from "./AnalysisRail";
-import { Header } from "./Header";
+import { Header, type LiveToggleControl } from "./Header";
 import { resolveSide } from "../viewModel/compare";
 import { seasonPhase, type SeasonPhase } from "../viewModel/seasonPhase";
 import { ScenarioStrip, ScenarioStripPlaceholder } from "./ScenarioStrip";
@@ -33,6 +35,7 @@ function Frame({
   strip,
   notice,
   newDataNotice,
+  liveToggle,
   phase = "running",
 }: {
   health: HealthState;
@@ -43,6 +46,7 @@ function Frame({
   strip: ReactNode;
   notice: DataNotice | null;
   newDataNotice?: ReactNode;
+  liveToggle?: LiveToggleControl;
 }) {
   const [showSessions, setShowSessions] = useState(true);
   const [showAnalysis, setShowAnalysis] = useState(true);
@@ -72,6 +76,7 @@ function Frame({
         <Header
           health={health}
           phase={phase}
+          liveToggle={liveToggle}
           leftToggle={{ open: showSessions, onToggle: () => setShowSessions((v) => !v) }}
           rightToggle={{ open: showAnalysis, onToggle: () => setShowAnalysis((v) => !v) }}
         />
@@ -116,6 +121,17 @@ function Loaded({
   // Latest WDC odds result from the "Likely?" tab — null until the tab is opened and odds arrive.
   const [oddsResult, setOddsResult] = useState<OddsResult | null>(null);
   const [standingsTab, setStandingsTab] = useState<TowerTab>("wdc");
+  const live = useLiveMode();
+  const effectiveWorkspace = useMemo(
+    () => effectiveWorkspaceForLive(workspace, live.enabled, live.feed),
+    [workspace, live.enabled, live.feed],
+  );
+  const liveToggle: LiveToggleControl = {
+    enabled: live.enabled,
+    label: liveToggleLabel(live.enabled, live.feed, live.error),
+    tone: liveToggleTone(live.enabled, live.feed, live.error),
+    onToggle: live.toggle,
+  };
 
   const isEditing = Object.keys(workspace.scenario.locks).length > 0;
   const freshness = useFreshness({
@@ -128,23 +144,24 @@ function Loaded({
 
   const compareView = useMemo<CompareView | null>(() => {
     if (!compare.open) return null;
-    const left = resolveSide(compare.left, workspace.scenario, store.scenarios);
-    const right = resolveSide(compare.right, workspace.scenario, store.scenarios);
+    const left = resolveSide(compare.left, effectiveWorkspace.scenario, store.scenarios);
+    const right = resolveSide(compare.right, effectiveWorkspace.scenario, store.scenarios);
     if (!left || !right) return { ok: false, message: "Choose two scenarios that still fit the current data." };
     return { ok: true, left, right };
-  }, [compare, workspace.scenario, store.scenarios]);
+  }, [compare, effectiveWorkspace.scenario, store.scenarios]);
 
   return (
     <Frame
       health={health}
       phase={seasonPhase(state)}
+      liveToggle={liveToggle}
       sessions={<SessionsRail state={state} workspace={workspace} dispatch={dispatch} />}
       standings={<StandingsPanel
           season={season}
-          scenario={workspace.scenario}
+          scenario={effectiveWorkspace.scenario}
           phase={seasonPhase(state)}
           compare={compareView}
-          contenders={workspace.contenders}
+          contenders={effectiveWorkspace.contenders}
           titleInfo={{ mode: titleInfo, onChange: setTitleInfo }}
           tab={standingsTab}
           onTabChange={setStandingsTab}
@@ -152,7 +169,7 @@ function Loaded({
       analysis={
         <AnalysisRail
           state={state}
-          workspace={workspace}
+          workspace={effectiveWorkspace}
           dispatch={dispatch}
           onOddsResult={setOddsResult}
           grid={{ controls: grid, canWrite: access.canWrite, verdict: access.verdict }}
