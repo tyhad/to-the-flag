@@ -13,6 +13,7 @@ import { ScenarioDatabase } from "./db";
 import { createScenarioRoutes } from "./routes/scenarios";
 import { createGridRoutes } from "./routes/grid";
 import { createFeedRoutes } from "./routes/feed";
+import { createLiveRoutes } from "./routes/live";
 import { checkStartup, decideWrite } from "./access";
 import { buildStartupBanner } from "./banner";
 import { extractToken, resolveClientIp } from "./guard";
@@ -116,6 +117,7 @@ export function createApp(options?: ServerOptions) {
   app.use(createScenarioRoutes(loader, scenarioDb, { token, clientIp, allowedHosts }));
   app.use(createGridRoutes(loader, scenarioDb, { token, clientIp, allowedHosts }));
   app.use(createFeedRoutes(loader, scenarioDb, options?.oddsParams));
+  app.use(createLiveRoutes(loader, { token, clientIp, allowedHosts }));
 
   return app;
 }
